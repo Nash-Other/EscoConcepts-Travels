@@ -196,7 +196,7 @@
 
         async function loadServices() {
             try {
-                const response = await fetch('http://localhost:11037/api/services');
+                const response = await fetch('/api/services');
                 const result = await response.json();
                 
                 if (result.success) {
@@ -311,7 +311,7 @@
             };
 
             try {
-                const response = await fetch('http://localhost:11037/api/checkout', {
+                const response = await fetch('/api/checkout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(bookingPayload)

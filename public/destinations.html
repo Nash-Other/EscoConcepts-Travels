@@ -115,7 +115,7 @@
         async function loadDestinations() {
             const container = document.getElementById('destinationsContainer');
             try {
-                const response = await fetch('http://localhost:11037/api/services');
+                const response = await fetch('/api/services');
                 const result = await response.json();
                 if (!result.success) throw new Error(result.message);
                 const destinations = result.data;

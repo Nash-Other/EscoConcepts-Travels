@@ -642,7 +642,7 @@
     </footer>
 
     <script>
-        // Set min date to today's date (prevents past dates)
+        // Set min date to today (prevents past dates)
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('searchDate').setAttribute('min', today);
         
@@ -661,7 +661,6 @@
 
         function searchDestinations() {
             const location = document.getElementById('searchLocation').value.toLowerCase();
-            const serviceType = document.getElementById('searchServiceType').value;
             const guests = document.getElementById('searchGuests').value;
             const date = document.getElementById('searchDate').value;
             const maxPrice = parseFloat(slider.value);
@@ -691,7 +690,7 @@
             } else if (visibleCount > 0 && noMsg) {
                 noMsg.remove();
             }
-            alert(`Search for ${serviceType} with ${guests} guest(s) on ${date || 'any date'} up to KES ${maxPrice.toLocaleString()}. (Demo filter)`);
+            alert(`Search for ${guests} guest(s) on ${date || 'any date'} up to KES ${maxPrice.toLocaleString()}. (Demo filter)`);
         }
 
         function openModal(destination) {
@@ -751,7 +750,7 @@
         async function loadFeaturedDestinations() {
             const grid = document.getElementById('destinationsGrid');
             try {
-                const response = await fetch('http://localhost:11037/api/services');
+                const response = await fetch('/api/services');
                 const result = await response.json();
                 if (result.success && result.data.length > 0) {
                     destinationsData = result.data;

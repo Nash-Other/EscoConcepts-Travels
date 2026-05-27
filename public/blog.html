@@ -213,7 +213,7 @@
             const blogGrid = document.getElementById('blog-grid');
             
             try {
-                const response = await fetch('http://localhost:11037/api/blogs');
+                const response = await fetch('/api/blogs');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

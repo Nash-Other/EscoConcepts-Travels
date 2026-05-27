@@ -170,7 +170,7 @@
         function isValidImageFile(file) { return ['image/jpeg','image/png','image/gif','image/webp'].includes(file.type); }
         async function uploadImage(file, token) {
             const fd = new FormData(); fd.append('image', file);
-            const res = await fetch('http://localhost:11037/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
+            const res = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
             const data = await res.json();
             if (!data.success) throw new Error(data.message);
             return data.url;
@@ -211,7 +211,7 @@
             const feedback = document.getElementById('loginFeedback'), btn = document.getElementById('btnLoginBtn');
             btn.disabled = true; btn.innerText = 'Authenticating...'; feedback.innerText = '';
             try {
-                const res = await fetch('http://localhost:11037/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+                const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
                 const data = await res.json();
                 if (res.ok && data.success) { localStorage.setItem('adminToken', data.token); checkAuthStatus(); }
                 else feedback.innerText = data.message || 'Login failed.';
@@ -248,7 +248,7 @@
             const tbody = document.getElementById('bookingsTableBody');
             if (!tbody) return;
             try {
-                const res = await fetch('http://localhost:11037/api/bookings', { headers: getAuthHeaders() });
+                const res = await fetch('/api/bookings', { headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
@@ -286,7 +286,7 @@
             btn.innerText = 'Updating...';
             btn.disabled = true;
             try {
-                const res = await fetch(`http://localhost:11037/api/bookings/${bookingId}`, {
+                const res = await fetch(`/api/bookings/${bookingId}`, {
                     method: 'PUT',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ status: newStatus })
@@ -304,7 +304,7 @@
             const tbody = document.getElementById('destinationsTableBody');
             if (!tbody) return;
             try {
-                const res = await fetch('http://localhost:11037/api/admin/services', { headers: getAuthHeaders() });
+                const res = await fetch('/api/admin/services', { headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
@@ -342,7 +342,7 @@
             document.getElementById('destModal').style.display = 'flex';
         }
         function openEditDestModal(id) {
-            fetch(`http://localhost:11037/api/admin/services`, { headers: getAuthHeaders() })
+            fetch(`/api/admin/services`, { headers: getAuthHeaders() })
                 .then(res => res.json())
                 .then(data => {
                     const service = data.data.find(s => s.service_id == id);
@@ -378,7 +378,7 @@
                 return;
             }
             const method = id ? 'PUT' : 'POST';
-            const url = id ? `http://localhost:11037/api/admin/services/${id}` : 'http://localhost:11037/api/admin/services';
+            const url = id ? `/api/admin/services/${id}` : '/api/admin/services';
             try {
                 const res = await fetch(url, {
                     method: method,
@@ -397,7 +397,7 @@
         async function deleteDestination(id) {
             if (!confirm('Delete this destination? This action cannot be undone if no bookings exist.')) return;
             try {
-                const res = await fetch(`http://localhost:11037/api/admin/services/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+                const res = await fetch(`/api/admin/services/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const result = await res.json();
                 if (result.success) { alert('Destination deleted.'); fetchDestinations(); }
@@ -411,7 +411,7 @@
             const tbody = document.getElementById('contactTableBody');
             if (!tbody) return;
             try {
-                const res = await fetch('http://localhost:11037/api/contact', { headers: getAuthHeaders() });
+                const res = await fetch('/api/contact', { headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
@@ -427,7 +427,7 @@
             const tbody = document.getElementById('manageBlogsTableBody');
             if (!tbody) return;
             try {
-                const res = await fetch('http://localhost:11037/api/blogs');
+                const res = await fetch('/api/blogs');
                 const blogs = await res.json();
                 tbody.innerHTML = '';
                 if (!blogs.length) { tbody.innerHTML = '<tr><td colspan="5">No blogs</td></tr>'; return; }
@@ -447,7 +447,7 @@
             }
             const data = { title: document.getElementById('blogTitle').value, author: document.getElementById('blogAuthor').value, image_url: imageUrl, content: quillCreate.root.innerHTML };
             try {
-                const res = await fetch('http://localhost:11037/api/blogs', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
+                const res = await fetch('/api/blogs', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
                 if (handleApiError(res)) return;
                 const result = await res.json();
                 if (result.success) { alert('Published!'); document.getElementById('createBlogForm').reset(); quillCreate.root.innerHTML = ''; document.getElementById('featuredImagePreview').style.display = 'none'; fetchAdminBlogs(); }
@@ -457,7 +457,7 @@
         async function deleteBlog(id) {
             if (!confirm('Delete?')) return;
             try {
-                const res = await fetch(`http://localhost:11037/api/blogs/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+                const res = await fetch(`/api/blogs/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const result = await res.json();
                 if (result.success) fetchAdminBlogs();
@@ -465,7 +465,7 @@
         }
         async function openEditModal(id) {
             try {
-                const res = await fetch(`http://localhost:11037/api/blogs/${id}`);
+                const res = await fetch(`/api/blogs/${id}`);
                 const result = await res.json();
                 if (!result.success) throw new Error(result.message);
                 const blog = result.data;
@@ -505,7 +505,7 @@
             }
             const putData = { title: document.getElementById('editBlogTitle').value, author: document.getElementById('editBlogAuthor').value, image_url: imageUrl, content: quillEdit.root.innerHTML };
             try {
-                const res = await fetch(`http://localhost:11037/api/blogs/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(putData) });
+                const res = await fetch(`/api/blogs/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(putData) });
                 if (handleApiError(res)) return;
                 const result = await res.json();
                 if (result.success) { closeModal(); fetchAdminBlogs(); alert('Updated!'); }
