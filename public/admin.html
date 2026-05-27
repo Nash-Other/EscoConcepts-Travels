@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | EscoConcepts Travels</title>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <style>
+        /* (same styles as before – no changes needed) */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7f6; color: #333; }
+        header { background-color: #2c3e50; padding: 1rem 5%; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: bold; }
+        .logo span { color: #e67e22; }
+        .btn-logout { background: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: bold; display: none; }
+        .btn-logout:hover { background: #c0392b; }
+        #loginScreen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; padding: 20px; }
+        .login-card { background: #fff; padding: 2.5rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .login-card h2 { margin-bottom: 1.5rem; color: #2c3e50; }
+        .login-card input { width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; }
+        .login-card button { width: 100%; background: #3498db; color: #fff; padding: 0.8rem; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 1rem; }
+        .login-card button:hover { background: #2980b9; }
+        #loginFeedback { margin-top: 1rem; color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
+        #dashboardArea { display: none; }
+        .dashboard-container { max-width: 1400px; margin: 2rem auto; padding: 0 20px; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 3rem; }
+        .dashboard-header h1 { color: #2c3e50; }
+        .btn-refresh { background-color: #3498db; color: #fff; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .content-wrapper { background: #fff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow-x: auto; margin-bottom: 3rem; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 1rem; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #555; font-weight: 600; }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 50px; font-size: 0.85rem; font-weight: bold; display: inline-block; }
+        .status-pending { background-color: #fff3cd; color: #856404; }
+        .status-confirmed { background-color: #d4edda; color: #155724; }
+        .status-cancelled { background-color: #f8d7da; color: #721c24; }
+        .active-badge { background-color: #d4edda; color: #155724; }
+        .inactive-badge { background-color: #f8d7da; color: #721c24; }
+        .action-btn { padding: 0.4rem 0.8rem; border: none; border-radius: 4px; cursor: pointer; color: #fff; font-size: 0.85rem; font-weight: bold; margin-right: 5px; }
+        .btn-edit { background-color: #f39c12; }
+        .btn-delete { background-color: #e74c3c; }
+        .btn-update { background-color: #3498db; }
+        .btn-add { background-color: #2ecc71; }
+        .loading-state { text-align: center; padding: 3rem; color: #777; font-style: italic; }
+        .inline-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 1rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 1rem; }
+        .inline-form input, .inline-form select { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fff; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; padding: 2rem; }
+        .close-modal { position: absolute; top: 15px; right: 20px; font-size: 1.5rem; font-weight: bold; color: #aaa; cursor: pointer; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+        .image-preview { margin-top: 0.5rem; max-width: 200px; max-height: 150px; border-radius: 4px; border: 1px solid #ddd; display: none; }
+        .upload-spinner { display: none; margin-left: 10px; width: 20px; height: 20px; border: 2px solid #ccc; border-top-color: #e67e22; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        select.status-select { padding: 0.4rem; border-radius: 4px; border: 1px solid #ccc; }
+        .blog-form { padding: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        .quill-editor-wrapper { border: 1px solid #ddd; border-radius: 4px; background: #fff; }
+        #editor-container, #edit-editor-container { height: 300px; }
+        .btn-submit { background-color: #2ecc71; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: fit-content; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">EscoConcepts <span>Travels</span> | Admin</div>
+        <button id="btnLogout" class="btn-logout" onclick="handleLogout()">Logout</button>
+    </header>
+    <div id="loginScreen">
+        <div class="login-card">
+            <h2>Admin Login</h2>
+            <form onsubmit="handleLogin(event)">
+                <input type="email" id="loginEmail" placeholder="Email Address" required value="admin@escoconcepts.com">
+                <input type="password" id="loginPassword" placeholder="Password" required>
+                <button type="submit" id="btnLoginBtn">Secure Login</button>
+                <div id="loginFeedback"></div>
+            </form>
+        </div>
+    </div>
+    <div id="dashboardArea">
+        <div class="dashboard-container">
+            <!-- Bookings Section -->
+            <div class="dashboard-header"><h1>Recent Bookings</h1><button class="btn-refresh" onclick="fetchBookings()">Refresh</button></div>
+            <div class="content-wrapper">
+                <table><thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...</td></tr></tbody>
+            </table>
+            </div>
+
+            <!-- Destinations Management with enhanced fields -->
+            <div class="dashboard-header"><h1>Manage Destinations</h1><button class="btn-refresh" onclick="fetchDestinations()">Refresh</button></div>
+            <div class="content-wrapper">
+                <div class="inline-form">
+                    <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
+                    <input type="text" id="newDestLocation" placeholder="Destination (city/region)" style="flex:1">
+                    <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
+                    <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
+                    <label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="newDestActive" checked> Active</label>
+                    <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination</button>
+                </div>
+                <table><thead><tr><th>ID</th><th>Title</th><th>Destination</th><th>Price</th><th>Image</th><th>Active</th><th>Actions</th></tr></thead>
+                <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...</td></tr></tbody>
+            </table>
+            </div>
+
+            <!-- Contact Messages -->
+            <div class="dashboard-header"><h1>Customer Inquiries</h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh</button></div>
+            <div class="content-wrapper"><table><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody></table></div>
+
+            <!-- Blog Management -->
+            <div class="dashboard-header"><h1>Manage Blogs</h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh</button></div>
+            <div class="content-wrapper"><table><thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody></td></div>
+
+            <!-- Publish New Blog -->
+            <div class="dashboard-header"><h1>Publish New Blog</h1></div>
+            <div class="content-wrapper">
+                <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
+                    <div id="formFeedback" class="form-feedback"></div>
+                    <div class="form-group"><label>Title *</label><input type="text" id="blogTitle" required></div>
+                    <div class="form-group"><label>Author</label><input type="text" id="blogAuthor" value="EscoConcepts Team"></div>
+                    <div class="form-group full-width"><label>Featured Image</label><input type="file" id="blogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB</small></div>
+                    <div class="form-group full-width"><label>Content</label><div class="quill-editor-wrapper"><div id="editor-container"></div></div></div>
+                    <button type="submit" class="btn-submit">Publish</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Add/Edit Destination (with description, itinerary, gallery) -->
+    <div id="destModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeDestModal()">&times;</span>
+            <h2 id="destModalTitle">Add Destination</h2>
+            <input type="hidden" id="editDestId">
+            <div class="form-group"><label>Title *</label><input type="text" id="destTitle" required></div>
+            <div class="form-group"><label>Destination (location) *</label><input type="text" id="destLocation" required></div>
+            <div class="form-group"><label>Base Price (KES) *</label><input type="number" id="destPrice" required></div>
+            <div class="form-group"><label>Main Image URL</label><input type="text" id="destImage" placeholder="https://..."></div>
+            <div class="form-group"><label>Description (HTML allowed)</label><textarea id="destDescription" rows="4" placeholder="Detailed description of the destination"></textarea></div>
+            <div class="form-group"><label>Itinerary (HTML allowed)</label><textarea id="destItinerary" rows="6" placeholder="Day by day plan, HTML formatting allowed"></textarea></div>
+            <div class="form-group"><label>Gallery Image URLs (comma separated)</label><input type="text" id="destGallery" placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"></div>
+            <div class="form-group"><label><input type="checkbox" id="destActive"> Active (visible to customers)</label></div>
+            <button class="action-btn btn-update" onclick="saveDestination()">Save Destination</button>
+        </div>
+    </div>
+
+    <!-- Edit Blog Modal (same as before) -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2>Edit Blog Post</h2>
+            <form id="editBlogForm" style="padding:0;" onsubmit="submitEditBlog(event)">
+                <input type="hidden" id="editBlogId">
+                <div id="editFormFeedback" class="form-feedback"></div>
+                <div class="form-group"><label>Title *</label><input type="text" id="editBlogTitle" required></div>
+                <div class="form-group"><label>Author</label><input type="text" id="editBlogAuthor"></div>
+                <div class="form-group"><label>Featured Image (Upload new to replace)</label><div style="display:flex; align-items:center; gap:10px;"><input type="file" id="editBlogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><div class="upload-spinner" id="editUploadSpinner"></div></div><img id="editFeaturedImagePreview" class="image-preview"><div id="editUploadError" style="color:#e74c3c; font-size:0.85rem; display:none;"></div></div>
+                <div class="form-group"><label>Content</label><div class="quill-editor-wrapper"><div id="edit-editor-container" style="height:300px;"></div></div></div>
+                <button type="submit" id="editSaveBtn" class="btn-submit" style="background-color:#f39c12;">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let quillCreate, quillEdit;
+        let currentEditFeaturedImageUrl = null;
+
+        // Helper functions (unchanged)
+        function isValidImageFile(file) { return ['image/jpeg','image/png','image/gif','image/webp'].includes(file.type); }
+        async function uploadImage(file, token) {
+            const fd = new FormData(); fd.append('image', file);
+            const res = await fetch('http://localhost:11037/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
+            return data.url;
+        }
+        function setupQuillImageHandler(quill, token) {
+            const toolbar = quill.getModule('toolbar');
+            toolbar.addHandler('image', () => {
+                const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+                input.onchange = async () => {
+                    if (!input.files[0]) return;
+                    if (!isValidImageFile(input.files[0])) { alert('Invalid file type'); return; }
+                    try {
+                        const url = await uploadImage(input.files[0], token);
+                        const range = quill.getSelection(true);
+                        quill.insertEmbed(range.index, 'image', url);
+                    } catch (err) { alert('Upload failed: '+err.message); }
+                };
+                input.click();
+            });
+        }
+        function setupImagePreview(fileInput, previewImg) {
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const file = this.files[0];
+                    if (!isValidImageFile(file)) { alert('Invalid type'); this.value = ''; previewImg.style.display = 'none'; return; }
+                    const reader = new FileReader();
+                    reader.onload = (e) => { previewImg.src = e.target.result; previewImg.style.display = 'block'; };
+                    reader.readAsDataURL(file);
+                } else previewImg.style.display = 'none';
+            });
+        }
+        function getAuthHeaders() { return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }; }
+
+        // Authentication
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value, password = document.getElementById('loginPassword').value;
+            const feedback = document.getElementById('loginFeedback'), btn = document.getElementById('btnLoginBtn');
+            btn.disabled = true; btn.innerText = 'Authenticating...'; feedback.innerText = '';
+            try {
+                const res = await fetch('http://localhost:11037/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+                const data = await res.json();
+                if (res.ok && data.success) { localStorage.setItem('adminToken', data.token); checkAuthStatus(); }
+                else feedback.innerText = data.message || 'Login failed.';
+            } catch (err) { feedback.innerText = 'Server error.'; }
+            finally { btn.disabled = false; btn.innerText = 'Secure Login'; }
+        }
+        function handleLogout() { localStorage.removeItem('adminToken'); document.getElementById('loginScreen').style.display = 'flex'; document.getElementById('dashboardArea').style.display = 'none'; document.getElementById('btnLogout').style.display = 'none'; }
+        function handleApiError(res) { if (res.status === 401 || res.status === 403) { alert('Session expired'); handleLogout(); return true; } return false; }
+        function initQuillEditors(token) {
+            if (!quillCreate) {
+                quillCreate = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [[{ 'header': [1,2,3,4,5,6,false] }], ['bold','italic','underline','strike'],[{ 'color': [] },{ 'background': [] }],[{ 'list': 'ordered'},{ 'list': 'bullet' }],[{ 'align': [] }],['link','image','clean']] } });
+                setupQuillImageHandler(quillCreate, token);
+            }
+            if (!quillEdit) {
+                quillEdit = new Quill('#edit-editor-container', { theme: 'snow', modules: { toolbar: [[{ 'header': [1,2,3,4,5,6,false] }], ['bold','italic','underline','strike'],[{ 'color': [] },{ 'background': [] }],[{ 'list': 'ordered'},{ 'list': 'bullet' }],[{ 'align': [] }],['link','image','clean']] } });
+                setupQuillImageHandler(quillEdit, token);
+            }
+            setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
+            setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
+        }
+        function checkAuthStatus() {
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('dashboardArea').style.display = 'block';
+                document.getElementById('btnLogout').style.display = 'block';
+                initQuillEditors(token);
+                fetchBookings(); fetchDestinations(); fetchAdminBlogs(); fetchContactMessages();
+            } else handleLogout();
+        }
+
+        // Bookings (unchanged)
+        async function fetchBookings() {
+            const tbody = document.getElementById('bookingsTableBody');
+            if (!tbody) return;
+            try {
+                const res = await fetch('http://localhost:11037/api/bookings', { headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const data = await res.json();
+                tbody.innerHTML = '';
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings</td></tr>'; return; }
+                data.data.forEach(b => {
+                    const statusClass = b.status === 'Pending' ? 'status-pending' : (b.status === 'Confirmed' ? 'status-confirmed' : 'status-cancelled');
+                    tbody.innerHTML += `
+                        <tr id="booking-row-${b.booking_id}">
+                            <td><strong>${b.booking_reference}</strong></td>
+                            <td>${b.customer_name}</td>
+                            <td>${b.email}<br>${b.phone}</td>
+                            <td>${b.package_booked}</td>
+                            <td>${new Date(b.travel_date).toLocaleDateString()}</td>
+                            <td>${b.total_guests}</td>
+                            <td>${Number(b.total_amount).toLocaleString()}</td>
+                            <td><span class="status-badge ${statusClass}">${b.status}</span></td>
+                            <td>
+                                <select id="status-select-${b.booking_id}" class="status-select">
+                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
+                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+                                </select>
+                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update</button>
+                            </td>
+                        </table>
+                    `;
+                });
+            } catch(err) { console.error(err); }
+        }
+        async function updateBookingStatus(bookingId) {
+            const select = document.getElementById(`status-select-${bookingId}`);
+            const newStatus = select.value;
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = 'Updating...';
+            btn.disabled = true;
+            try {
+                const res = await fetch(`http://localhost:11037/api/bookings/${bookingId}`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) { alert(`Booking status updated to ${newStatus}`); fetchBookings(); }
+                else alert('Update failed: ' + result.message);
+            } catch (err) { alert('Error updating status'); }
+            finally { btn.innerText = originalText; btn.disabled = false; }
+        }
+
+        // Destinations CRUD with enhanced fields
+        async function fetchDestinations() {
+            const tbody = document.getElementById('destinationsTableBody');
+            if (!tbody) return;
+            try {
+                const res = await fetch('http://localhost:11037/api/admin/services', { headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const data = await res.json();
+                tbody.innerHTML = '';
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations</td></tr>'; return; }
+                data.data.forEach(s => {
+                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active</span>' : '<span class="inactive-badge status-badge">Inactive</span>';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${s.service_id}</td>
+                            <td>${s.title}</td>
+                            <td>${s.destination}</td>
+                            <td>${Number(s.base_price).toLocaleString()}</td>
+                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View</a>' : 'None'}</td>
+                            <td>${activeBadge}</td>
+                            <td>
+                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit</button>
+                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch(err) { console.error(err); }
+        }
+        function openAddDestModal() {
+            document.getElementById('destModalTitle').innerText = 'Add Destination';
+            document.getElementById('editDestId').value = '';
+            document.getElementById('destTitle').value = '';
+            document.getElementById('destLocation').value = '';
+            document.getElementById('destPrice').value = '';
+            document.getElementById('destImage').value = '';
+            document.getElementById('destDescription').value = '';
+            document.getElementById('destItinerary').value = '';
+            document.getElementById('destGallery').value = '';
+            document.getElementById('destActive').checked = true;
+            document.getElementById('destModal').style.display = 'flex';
+        }
+        function openEditDestModal(id) {
+            fetch(`http://localhost:11037/api/admin/services`, { headers: getAuthHeaders() })
+                .then(res => res.json())
+                .then(data => {
+                    const service = data.data.find(s => s.service_id == id);
+                    if (service) {
+                        document.getElementById('destModalTitle').innerText = 'Edit Destination';
+                        document.getElementById('editDestId').value = service.service_id;
+                        document.getElementById('destTitle').value = service.title;
+                        document.getElementById('destLocation').value = service.destination;
+                        document.getElementById('destPrice').value = service.base_price;
+                        document.getElementById('destImage').value = service.image_url || '';
+                        document.getElementById('destDescription').value = service.description || '';
+                        document.getElementById('destItinerary').value = service.itinerary || '';
+                        document.getElementById('destGallery').value = (service.gallery || []).join(', ');
+                        document.getElementById('destActive').checked = service.is_active;
+                        document.getElementById('destModal').style.display = 'flex';
+                    }
+                });
+        }
+        async function saveDestination() {
+            const id = document.getElementById('editDestId').value;
+            const title = document.getElementById('destTitle').value.trim();
+            const destination = document.getElementById('destLocation').value.trim();
+            const base_price = parseFloat(document.getElementById('destPrice').value);
+            const image_url = document.getElementById('destImage').value.trim() || null;
+            const is_active = document.getElementById('destActive').checked;
+            const description = document.getElementById('destDescription').value;
+            const itinerary = document.getElementById('destItinerary').value;
+            const galleryStr = document.getElementById('destGallery').value;
+            const gallery = galleryStr ? galleryStr.split(',').map(s => s.trim()).filter(s => s) : [];
+
+            if (!title || !destination || isNaN(base_price)) {
+                alert('Title, destination, and valid price are required.');
+                return;
+            }
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `http://localhost:11037/api/admin/services/${id}` : 'http://localhost:11037/api/admin/services';
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ title, destination, base_price, image_url, is_active, description, itinerary, gallery })
+                });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) {
+                    alert(id ? 'Destination updated!' : 'Destination added!');
+                    closeDestModal();
+                    fetchDestinations();
+                } else alert(result.message);
+            } catch(err) { alert('Error saving destination'); }
+        }
+        async function deleteDestination(id) {
+            if (!confirm('Delete this destination? This action cannot be undone if no bookings exist.')) return;
+            try {
+                const res = await fetch(`http://localhost:11037/api/admin/services/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) { alert('Destination deleted.'); fetchDestinations(); }
+                else alert(result.message);
+            } catch(err) { alert('Error deleting destination'); }
+        }
+        function closeDestModal() { document.getElementById('destModal').style.display = 'none'; }
+
+        // Contact messages (unchanged)
+        async function fetchContactMessages() {
+            const tbody = document.getElementById('contactTableBody');
+            if (!tbody) return;
+            try {
+                const res = await fetch('http://localhost:11037/api/contact', { headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const data = await res.json();
+                tbody.innerHTML = '';
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages</td></tr>'; return; }
+                data.data.forEach(m => {
+                    tbody.innerHTML += `<tr><td>${new Date(m.created_at).toLocaleDateString()}</td><td>${m.name}</td><td><a href="mailto:${m.email}">${m.email}</a></td><td>${m.subject || ''}</td><td>${m.message}</td></tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+
+        // Blog management (unchanged)
+        async function fetchAdminBlogs() {
+            const tbody = document.getElementById('manageBlogsTableBody');
+            if (!tbody) return;
+            try {
+                const res = await fetch('http://localhost:11037/api/blogs');
+                const blogs = await res.json();
+                tbody.innerHTML = '';
+                if (!blogs.length) { tbody.innerHTML = '<tr><td colspan="5">No blogs</td></tr>'; return; }
+                blogs.forEach(b => {
+                    tbody.innerHTML += `<tr><td>#${b.id}</td><td><strong>${b.title}</strong></td><td>${b.author || 'Team'}</td><td>${new Date(b.created_at).toLocaleDateString()}</td><td><button class="action-btn btn-edit" onclick="openEditModal(${b.id})">Edit</button> <button class="action-btn btn-delete" onclick="deleteBlog(${b.id})">Delete</button></td></tr>`;
+                });
+            } catch(err) { console.error(err); }
+        }
+        async function submitBlogPost(e) {
+            e.preventDefault();
+            const token = localStorage.getItem('adminToken');
+            let imageUrl = null;
+            const fileInput = document.getElementById('blogImageFile');
+            if (fileInput.files.length) {
+                try { imageUrl = await uploadImage(fileInput.files[0], token); }
+                catch(err) { alert('Image upload failed: '+err.message); return; }
+            }
+            const data = { title: document.getElementById('blogTitle').value, author: document.getElementById('blogAuthor').value, image_url: imageUrl, content: quillCreate.root.innerHTML };
+            try {
+                const res = await fetch('http://localhost:11037/api/blogs', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) { alert('Published!'); document.getElementById('createBlogForm').reset(); quillCreate.root.innerHTML = ''; document.getElementById('featuredImagePreview').style.display = 'none'; fetchAdminBlogs(); }
+                else alert(result.message);
+            } catch(err) { alert('Error'); }
+        }
+        async function deleteBlog(id) {
+            if (!confirm('Delete?')) return;
+            try {
+                const res = await fetch(`http://localhost:11037/api/blogs/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) fetchAdminBlogs();
+            } catch(err) { alert('Delete failed'); }
+        }
+        async function openEditModal(id) {
+            try {
+                const res = await fetch(`http://localhost:11037/api/blogs/${id}`);
+                const result = await res.json();
+                if (!result.success) throw new Error(result.message);
+                const blog = result.data;
+                document.getElementById('editBlogId').value = blog.id;
+                document.getElementById('editBlogTitle').value = blog.title;
+                document.getElementById('editBlogAuthor').value = blog.author || '';
+                currentEditFeaturedImageUrl = blog.image_url;
+                const preview = document.getElementById('editFeaturedImagePreview');
+                if (currentEditFeaturedImageUrl) { preview.src = currentEditFeaturedImageUrl; preview.style.display = 'block'; }
+                else preview.style.display = 'none';
+                quillEdit.root.innerHTML = blog.content || '';
+                document.getElementById('editBlogImageFile').value = '';
+                document.getElementById('editUploadError').style.display = 'none';
+                document.getElementById('editModal').style.display = 'flex';
+            } catch(err) { alert('Failed to load blog: '+err.message); }
+        }
+        function closeModal() { document.getElementById('editModal').style.display = 'none'; }
+        async function submitEditBlog(e) {
+            e.preventDefault();
+            const id = document.getElementById('editBlogId').value;
+            const token = localStorage.getItem('adminToken');
+            let imageUrl = currentEditFeaturedImageUrl;
+            const fileInput = document.getElementById('editBlogImageFile');
+            const spinner = document.getElementById('editUploadSpinner');
+            const errorDiv = document.getElementById('editUploadError');
+            const saveBtn = document.getElementById('editSaveBtn');
+            if (fileInput.files.length) {
+                const file = fileInput.files[0];
+                if (!isValidImageFile(file)) { errorDiv.innerText = 'Invalid file type'; errorDiv.style.display = 'block'; return; }
+                errorDiv.style.display = 'none';
+                spinner.style.display = 'inline-block';
+                saveBtn.disabled = true;
+                try { imageUrl = await uploadImage(file, token); }
+                catch(err) { errorDiv.innerText = 'Upload failed: '+err.message; errorDiv.style.display = 'block'; spinner.style.display = 'none'; saveBtn.disabled = false; return; }
+                spinner.style.display = 'none';
+                saveBtn.disabled = false;
+            }
+            const putData = { title: document.getElementById('editBlogTitle').value, author: document.getElementById('editBlogAuthor').value, image_url: imageUrl, content: quillEdit.root.innerHTML };
+            try {
+                const res = await fetch(`http://localhost:11037/api/blogs/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(putData) });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) { closeModal(); fetchAdminBlogs(); alert('Updated!'); }
+                else alert(result.message);
+            } catch(err) { alert('Update failed'); }
+        }
+
+        document.addEventListener('DOMContentLoaded', checkAuthStatus);
+    </script>
+</body>
+</html>

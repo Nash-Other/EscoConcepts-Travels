@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Dynamic meta tags will be injected by JavaScript -->
+    <title>Loading... | EscoConcepts Travels</title>
+    <meta name="description" content="Read our latest travel story from EscoConcepts Travels – safaris, beaches, and adventures in Kenya.">
+    <meta name="keywords" content="travel blog, Kenya safari, EscoConcepts, adventure">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="EscoConcepts Travels">
+    <meta property="og:description" content="Discover amazing travel experiences in Kenya.">
+    <meta property="og:image" content="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200">
+    <meta property="og:url" content="">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="EscoConcepts Travels">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="EscoConcepts Travels">
+    <meta name="twitter:description" content="Read our travel stories and guides.">
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: #fff;
+            padding: 1rem 5%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+            text-decoration: none;
+        }
+        .logo span {
+            color: #e67e22;
+        }
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+            align-items: center;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: #555;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            color: #e67e22;
+        }
+        .nav-btn {
+            background: #e67e22;
+            color: #fff !important;
+            padding: 0.5rem 1.2rem;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .nav-btn:hover {
+            background: #d35400;
+            color: #fff !important;
+        }
+        .menu-toggle {
+            display: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #2c3e50;
+            user-select: none;
+        }
+
+        main {
+            flex: 1;
+            width: 100%;
+            background-color: #fff;
+            padding-bottom: 4rem;
+        }
+        .article-hero {
+            width: 100%;
+            height: 50vh;
+            background-color: #ddd;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+        .article-hero::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.7));
+        }
+        .article-container {
+            max-width: 800px;
+            margin: -100px auto 0;
+            position: relative;
+            z-index: 10;
+            background: #fff;
+            padding: 3rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 2rem;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .back-link:hover {
+            color: #2980b9;
+        }
+        .article-title {
+            font-size: 2.5rem;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+        .article-meta {
+            color: #7f8c8d;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            gap: 20px;
+        }
+        .article-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .article-body {
+            font-size: 1.1rem;
+            color: #444;
+            line-height: 1.8;
+        }
+        .article-body h1, .article-body h2, .article-body h3,
+        .article-body h4, .article-body h5, .article-body h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .article-body p {
+            margin-bottom: 1.2em;
+        }
+        .article-body ul, .article-body ol {
+            margin-left: 2em;
+            margin-bottom: 1.2em;
+        }
+        .article-body img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            margin: 1.5em 0;
+        }
+        .article-body blockquote {
+            border-left: 4px solid #e67e22;
+            background: #f9f9f9;
+            padding: 0.5em 1em;
+            margin: 1.2em 0;
+            font-style: italic;
+            color: #555;
+        }
+        .status-message {
+            text-align: center;
+            padding: 5rem 20px;
+            font-size: 1.2rem;
+            color: #777;
+        }
+
+        footer {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 3rem 5% 1rem;
+        }
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            justify-content: space-between;
+        }
+        .footer-col {
+            flex: 1;
+            min-width: 250px;
+        }
+        .footer-col h4 {
+            color: #e67e22;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        .footer-col p, .footer-links a {
+            font-size: 0.9rem;
+            color: #bdc3c7;
+        }
+        .footer-links { list-style: none; }
+        .footer-links li { margin-bottom: 0.5rem; }
+        .footer-links a { text-decoration: none; transition: color 0.3s; }
+        .footer-links a:hover { color: #e67e22; }
+        .footer-bottom {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #34495e;
+            font-size: 0.85rem;
+            color: #95a5a6;
+        }
+
+        @media (max-width: 768px) {
+            .menu-toggle { display: block; }
+            .nav-links {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background-color: #fff;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                padding: 1rem 0;
+                text-align: center;
+                gap: 1.5rem;
+            }
+            .nav-links.show { display: flex; }
+            .article-container {
+                margin-top: 0;
+                border-radius: 0;
+                box-shadow: none;
+                padding: 2rem 1rem;
+            }
+            .article-hero { height: 30vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-container">
+            <a href="index.html" class="logo">EscoConcepts <span>Travels</span></a>
+            <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="blog.html" class="active">Blog</a></li>
+                <li><a href="checkout.html">Checkout</a></li>
+                <li><a href="admin.html">Admin</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main id="mainContent">
+        <div class="status-message">Loading article...</div>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-col">
+                <h4>EscoConcepts Travels</h4>
+                <p>Curating unforgettable safari experiences and premium coastal getaways across Kenya. Your adventure begins here.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Contact Us</h4>
+                <ul class="footer-links">
+                    <li>📍 Nairobi, Kenya</li>
+                    <li>📧 info@escoconcepts.com</li>
+                    <li>📞 +254 700 000000</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            &copy; 2026 EscoConcepts Travels. All Rights Reserved.
+        </div>
+    </footer>
+
+    <script>
+        function toggleMenu() {
+            document.getElementById('navLinks').classList.toggle('show');
+        }
+
+        // Helper: strip HTML tags for meta description
+        function stripHtml(html) {
+            if (!html) return '';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
+        }
+
+        // Helper: truncate text to a certain length
+        function truncateText(text, maxLength = 160) {
+            if (!text) return '';
+            return text.length > maxLength ? text.substring(0, maxLength).trim() + '...' : text;
+        }
+
+        // Helper: update meta tags dynamically
+        function updateMetaTags(blog) {
+            // Title
+            document.title = `${blog.title} | EscoConcepts Travels`;
+
+            // Description: from plain text excerpt
+            const plainContent = stripHtml(blog.content);
+            const description = truncateText(plainContent, 160);
+            const metaDescription = document.querySelector('meta[name="description"]');
+            if (metaDescription) metaDescription.setAttribute('content', description);
+            else {
+                const newMeta = document.createElement('meta');
+                newMeta.name = 'description';
+                newMeta.content = description;
+                document.head.appendChild(newMeta);
+            }
+
+            // Keywords: split title into words (simple)
+            const keywords = blog.title.split(' ').slice(0, 5).join(', ');
+            let metaKeywords = document.querySelector('meta[name="keywords"]');
+            if (metaKeywords) metaKeywords.setAttribute('content', keywords);
+            else {
+                const newKeywords = document.createElement('meta');
+                newKeywords.name = 'keywords';
+                newKeywords.content = keywords;
+                document.head.appendChild(newKeywords);
+            }
+
+            // Open Graph
+            let ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle) ogTitle.setAttribute('content', blog.title);
+            else {
+                ogTitle = document.createElement('meta');
+                ogTitle.setAttribute('property', 'og:title');
+                ogTitle.content = blog.title;
+                document.head.appendChild(ogTitle);
+            }
+
+            let ogDesc = document.querySelector('meta[property="og:description"]');
+            if (ogDesc) ogDesc.setAttribute('content', description);
+            else {
+                ogDesc = document.createElement('meta');
+                ogDesc.setAttribute('property', 'og:description');
+                ogDesc.content = description;
+                document.head.appendChild(ogDesc);
+            }
+
+            let ogImage = document.querySelector('meta[property="og:image"]');
+            const imageUrl = blog.image_url || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200';
+            if (ogImage) ogImage.setAttribute('content', imageUrl);
+            else {
+                ogImage = document.createElement('meta');
+                ogImage.setAttribute('property', 'og:image');
+                ogImage.content = imageUrl;
+                document.head.appendChild(ogImage);
+            }
+
+            let ogUrl = document.querySelector('meta[property="og:url"]');
+            const fullUrl = window.location.href;
+            if (ogUrl) ogUrl.setAttribute('content', fullUrl);
+            else {
+                ogUrl = document.createElement('meta');
+                ogUrl.setAttribute('property', 'og:url');
+                ogUrl.content = fullUrl;
+                document.head.appendChild(ogUrl);
+            }
+
+            // Twitter Card
+            let twitterTitle = document.querySelector('meta[name="twitter:title"]');
+            if (twitterTitle) twitterTitle.setAttribute('content', blog.title);
+            else {
+                twitterTitle = document.createElement('meta');
+                twitterTitle.name = 'twitter:title';
+                twitterTitle.content = blog.title;
+                document.head.appendChild(twitterTitle);
+            }
+
+            let twitterDesc = document.querySelector('meta[name="twitter:description"]');
+            if (twitterDesc) twitterDesc.setAttribute('content', description);
+            else {
+                twitterDesc = document.createElement('meta');
+                twitterDesc.name = 'twitter:description';
+                twitterDesc.content = description;
+                document.head.appendChild(twitterDesc);
+            }
+
+            let twitterImage = document.querySelector('meta[name="twitter:image"]');
+            if (twitterImage) twitterImage.setAttribute('content', imageUrl);
+            else {
+                twitterImage = document.createElement('meta');
+                twitterImage.name = 'twitter:image';
+                twitterImage.content = imageUrl;
+                document.head.appendChild(twitterImage);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchArticle);
+
+        async function fetchArticle() {
+            const mainContent = document.getElementById('mainContent');
+            const urlParams = new URLSearchParams(window.location.search);
+            const articleId = urlParams.get('id');
+
+            if (!articleId) {
+                mainContent.innerHTML = `
+                    <div class="status-message">
+                        Article not found. <br><br>
+                        <a href="blog.html" style="color: #3498db; text-decoration: none;">Return to Blog</a>
+                    </div>`;
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:11037/api/blogs/${articleId}`);
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Article not found');
+                }
+
+                const article = result.data;
+                const date = new Date(article.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'long', day: 'numeric'
+                });
+
+                const defaultImage = 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80';
+                const heroImage = article.image_url ? article.image_url : defaultImage;
+
+                // Update SEO meta tags
+                updateMetaTags(article);
+
+                mainContent.innerHTML = `
+                    <div class="article-hero" style="background-image: url('${heroImage}');"></div>
+                    <article class="article-container">
+                        <a href="blog.html" class="back-link">← Back to all posts</a>
+                        <h1 class="article-title">${escapeHtml(article.title)}</h1>
+                        <div class="article-meta">
+                            <span>✍️ By ${escapeHtml(article.author || 'EscoConcepts Team')}</span>
+                            <span>📅 ${date}</span>
+                        </div>
+                        <div class="article-body">${article.content || ''}</div>
+                    </article>
+                `;
+
+            } catch (error) {
+                console.error('Error:', error);
+                mainContent.innerHTML = `
+                    <div class="status-message" style="color: #e74c3c;">
+                        Could not load the article. Ensure the backend server is running.<br><br>
+                        <a href="blog.html" style="color: #3498db; text-decoration: none;">Return to Blog</a>
+                    </div>`;
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+    </script>
+</body>
+</html>

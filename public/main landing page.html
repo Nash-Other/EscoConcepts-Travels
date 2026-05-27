@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EscoConcepts Travels | Book Your Dream Vacation</title>
+    <style>
+        /* Base Reset & Typography */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* Navigation */
+        header {
+            background-color: #fff;
+            padding: 1rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .logo span {
+            color: #e67e22;
+        }
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+        }
+        nav a {
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        nav a:hover {
+            color: #e67e22;
+        }
+        .nav-buttons .btn-login {
+            margin-right: 1rem;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background-color: #e67e22;
+            color: #fff;
+            padding: 0.6rem 1.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #d35400;
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 80vh;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') center/cover;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #fff;
+            padding: 0 20px;
+        }
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            max-width: 600px;
+        }
+
+        /* Search Bar */
+        .search-container {
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .search-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            padding: 10px;
+            border-right: 1px solid #eee;
+        }
+        .search-box:last-of-type {
+            border-right: none;
+        }
+        .search-box label {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .search-box input, .search-box select {
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            padding-top: 5px;
+            color: #2c3e50;
+            background: transparent;
+        }
+        .search-btn {
+            background: #e67e22;
+            color: #fff;
+            border: none;
+            padding: 0 30px;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .search-btn:hover {
+            background: #d35400;
+        }
+
+        /* Featured Tours */
+        .featured-section {
+            padding: 5rem 5%;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .section-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .section-header h2 {
+            font-size: 2.5rem;
+            color: #2c3e50;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-img {
+            height: 200px;
+            width: 100%;
+            object-fit: cover;
+        }
+        .card-content {
+            padding: 1.5rem;
+        }
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .location {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .rating {
+            color: #f1c40f;
+            font-weight: bold;
+        }
+        .card-title {
+            font-size: 1.2rem;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+        .card-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #eee;
+            padding-top: 1rem;
+        }
+        .price span {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #e67e22;
+        }
+
+        /* Footer */
+        footer {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 3rem 5%;
+            text-align: center;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            nav ul, .nav-buttons {
+                display: none; /* In a real app, implement a hamburger menu here */
+            }
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            .search-container {
+                flex-direction: column;
+            }
+            .search-box {
+                border-right: none;
+                border-bottom: 1px solid #eee;
+            }
+            .search-btn {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="logo">EscoConcepts <span>Travels</span></div>
+        <nav>
+            <ul>
+                <li><a href="#">Home</a></li>
+                <li><a href="#destinations">Destinations</a></li>
+                <li><a href="#tours">Tours</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+        <div class="nav-buttons">
+            <a href="#" class="btn-login">Log In</a>
+            <a href="#" class="btn-primary">Sign Up</a>
+        </div>
+    </header>
+
+    <!-- Hero Section with Search Engine -->
+    <section class="hero">
+        <h1>Discover Your Next Great Adventure</h1>
+        <p>Explore the world's most beautiful destinations with exclusive tour packages tailored just for you.</p>
+        
+        <form class="search-container" onsubmit="event.preventDefault(); alert('Search initiated!');">
+            <div class="search-box">
+                <label>Location</label>
+                <input type="text" placeholder="Where are you going?" required>
+            </div>
+            <div class="search-box">
+                <label>Date</label>
+                <input type="date" required>
+            </div>
+            <div class="search-box">
+                <label>Guests</label>
+                <select>
+                    <option>1 Person</option>
+                    <option>2 People</option>
+                    <option>3-5 People</option>
+                    <option>6+ Group</option>
+                </select>
+            </div>
+            <button type="submit" class="search-btn">Search</button>
+        </form>
+    </section>
+
+    <!-- Featured Tours Section -->
+    <section class="featured-section" id="tours">
+        <div class="section-header">
+            <h2>Popular Destinations</h2>
+        </div>
+        
+        <div class="grid-container">
+            <!-- Card 1 -->
+            <div class="card">
+                <img src="https://images.unsplash.com/photo-1516483638261-f4085ee6b607?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Cinque Terre, Italy" class="card-img">
+                <div class="card-content">
+                    <div class="card-top">
+                        <div class="location">📍 Italy</div>
+                        <div class="rating">★ 4.9</div>
+                    </div>
+                    <h3 class="card-title">Cinque Terre Coastal Explorer</h3>
+                    <div class="card-bottom">
+                        <div class="price">From <span>$1,299</span></div>
+                        <a href="#" class="btn-primary" style="padding: 0.4rem 1rem;">Book</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="card">
+                <img src="https://images.unsplash.com/photo-1512100356356-de1b84283e18?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Kyoto, Japan" class="card-img">
+                <div class="card-content">
+                    <div class="card-top">
+                        <div class="location">📍 Japan</div>
+                        <div class="rating">★ 4.8</div>
+                    </div>
+                    <h3 class="card-title">Kyoto Temples & Gardens</h3>
+                    <div class="card-bottom">
+                        <div class="price">From <span>$1,850</span></div>
+                        <a href="#" class="btn-primary" style="padding: 0.4rem 1rem;">Book</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="card">
+                <img src="https://images.unsplash.com/photo-1518684079-3c830dcef090?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Dubai, UAE" class="card-img">
+                <div class="card-content">
+                    <div class="card-top">
+                        <div class="location">📍 UAE</div>
+                        <div class="rating">★ 4.7</div>
+                    </div>
+                    <h3 class="card-title">Dubai Desert Safari & City</h3>
+                    <div class="card-bottom">
+                        <div class="price">From <span>$899</span></div>
+                        <a href="#" class="btn-primary" style="padding: 0.4rem 1rem;">Book</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2026 EscoConcepts Travels. All rights reserved.</p>
+    </footer>
+
+    <!-- Basic Interaction Script -->
+    <script>
+        // Add subtle shadow to header on scroll
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 0) {
+                header.style.boxShadow = '0 4px 15px rgba(0,0,0,0.1)';
+            } else {
+                header.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+            }
+        });
+    </script>
+</body>
+</html>

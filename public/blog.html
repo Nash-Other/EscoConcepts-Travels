@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Blog | EscoConcepts Travels</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --card-bg: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        nav {
+            background-color: var(--primary-color);
+            padding: 1rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav .logo {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 20px;
+        }
+
+        nav a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        nav a:hover {
+            color: var(--accent-color);
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: linear-gradient(rgba(44, 62, 80, 0.8), rgba(44, 62, 80, 0.8)), url('https://images.unsplash.com/photo-1488085061387-422e29b40080?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') center/cover;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        header p {
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 3rem auto;
+            padding: 0 20px;
+        }
+
+        #blog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .blog-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .blog-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .blog-image {
+            width: 100%;
+            height: 200px;
+            background-color: #ddd;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .blog-content {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .blog-meta {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .blog-title {
+            font-size: 1.25rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+        
+        .blog-title:hover {
+            color: var(--accent-color);
+        }
+
+        .blog-excerpt {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+            flex-grow: 1;
+        }
+
+        .read-more {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: var(--accent-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            text-align: center;
+            transition: background 0.3s;
+            cursor: pointer;
+        }
+
+        .read-more:hover {
+            background-color: #2980b9;
+        }
+
+        .loader, .error-message {
+            text-align: center;
+            grid-column: 1 / -1;
+            padding: 2rem;
+            font-size: 1.2rem;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="index.html" class="logo">EscoConcepts</a>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="blog.html">Blog</a></li>
+            <li><a href="checkout.html">Checkout</a></li>
+            <li><a href="admin.html">Admin</a></li>
+        </ul>
+    </nav>
+
+    <header>
+        <h1>Travel Journals & Guides</h1>
+        <p>Discover tips, itineraries, and stories from our latest EscoConcepts adventures.</p>
+    </header>
+
+    <main class="container">
+        <div id="blog-grid">
+            <div class="loader">Loading latest articles...</div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBlogs();
+        });
+
+        // Helper: strip HTML tags and truncate for excerpt
+        function getPlainTextExcerpt(html, maxLength = 120) {
+            if (!html) return 'Discover more about this journey...';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            const text = div.textContent || div.innerText || '';
+            return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+        }
+
+        async function fetchBlogs() {
+            const blogGrid = document.getElementById('blog-grid');
+            
+            try {
+                const response = await fetch('http://localhost:11037/api/blogs');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const blogs = await response.json();
+                
+                blogGrid.innerHTML = '';
+
+                if (blogs.length === 0) {
+                    blogGrid.innerHTML = '<div class="loader">No blog posts available at the moment. Check back soon!</div>';
+                    return;
+                }
+
+                blogs.forEach(blog => {
+                    const date = new Date(blog.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+
+                    const defaultImage = 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                    const imageUrl = blog.image_url ? blog.image_url : defaultImage;
+
+                    // Generate plain-text excerpt from HTML content
+                    const excerpt = getPlainTextExcerpt(blog.content);
+
+                    const cardHTML = `
+                        <article class="blog-card">
+                            <img src="${imageUrl}" alt="${blog.title}" class="blog-image" onerror="this.onerror=null; this.src='${defaultImage}';" onclick="readFullPost(${blog.id})">
+                            <div class="blog-content">
+                                <div class="blog-meta">
+                                    <span>By ${blog.author || 'EscoConcepts Team'}</span>
+                                    <span>${date}</span>
+                                </div>
+                                <h2 class="blog-title" onclick="readFullPost(${blog.id})">${escapeHtml(blog.title)}</h2>
+                                <p class="blog-excerpt">${escapeHtml(excerpt)}</p>
+                                <a class="read-more" onclick="readFullPost(${blog.id})">Read Article</a>
+                            </div>
+                        </article>
+                    `;
+                    
+                    blogGrid.insertAdjacentHTML('beforeend', cardHTML);
+                });
+
+            } catch (error) {
+                console.error('Error fetching blogs:', error);
+                blogGrid.innerHTML = '<div class="error-message">Unable to load blogs. Please ensure the server is running.</div>';
+            }
+        }
+
+        function readFullPost(id) {
+            window.location.href = `article.html?id=${id}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us | EscoConcepts Travels</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7f6; color: #333; line-height: 1.6; display: flex; flex-direction: column; min-height: 100vh; }
+        
+        header { background-color: #fff; padding: 1rem 5%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
+        .nav-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: bold; color: #2c3e50; text-decoration: none; }
+        .logo span { color: #e67e22; }
+        .nav-links { display: flex; gap: 2rem; list-style: none; align-items: center; }
+        .nav-links a { text-decoration: none; color: #555; font-weight: 500; transition: color 0.3s; }
+        .nav-links a:hover, .nav-links a.active { color: #e67e22; }
+        .nav-btn { background: #e67e22; color: #fff !important; padding: 0.5rem 1.2rem; border-radius: 4px; font-weight: bold; transition: background 0.3s; }
+        .nav-btn:hover { background: #d35400; color: #fff !important; }
+        .menu-toggle { display: none; font-size: 1.8rem; cursor: pointer; color: #2c3e50; user-select: none; }
+
+        main { flex: 1; width: 100%; }
+        .page-header { background: linear-gradient(rgba(44, 62, 80, 0.8), rgba(44, 62, 80, 0.8)), url('https://images.unsplash.com/photo-1423666639041-f56000c27a9a?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') center/cover; padding: 4rem 20px; text-align: center; color: white; }
+        .page-header h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+
+        .contact-container { max-width: 1200px; margin: 4rem auto; padding: 0 20px; display: flex; gap: 3rem; flex-wrap: wrap; }
+        
+        .contact-info { flex: 1 1 300px; background: #fff; padding: 2.5rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .contact-info h2 { color: #2c3e50; margin-bottom: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+        .info-item { margin-bottom: 1.5rem; }
+        .info-item h3 { font-size: 1.1rem; color: #3498db; margin-bottom: 0.3rem; }
+        .info-item p { color: #555; }
+
+        .contact-form { flex: 1 1 500px; background: #fff; padding: 2.5rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .contact-form h2 { color: #2c3e50; margin-bottom: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #555; }
+        .form-group input, .form-group textarea { width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; outline: none; }
+        .form-group input:focus, .form-group textarea:focus { border-color: #3498db; }
+        .form-group textarea { resize: vertical; min-height: 150px; }
+        
+        .btn-submit { background-color: #2ecc71; color: white; padding: 0.8rem 2rem; border: none; border-radius: 4px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+        .btn-submit:hover { background-color: #27ae60; }
+        .btn-submit:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+
+        footer { background-color: #2c3e50; color: #ecf0f1; padding: 3rem 5% 1rem; margin-top: auto; }
+        .footer-container { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; }
+        .footer-col { flex: 1; min-width: 250px; }
+        .footer-col h4 { color: #e67e22; margin-bottom: 1rem; font-size: 1.2rem; }
+        .footer-col p, .footer-links a { font-size: 0.9rem; color: #bdc3c7; }
+        .footer-links { list-style: none; }
+        .footer-links li { margin-bottom: 0.5rem; }
+        .footer-links a { text-decoration: none; transition: color 0.3s; }
+        .footer-links a:hover { color: #e67e22; }
+        .footer-bottom { text-align: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #34495e; font-size: 0.85rem; color: #95a5a6; }
+
+        @media (max-width: 768px) {
+            .menu-toggle { display: block; }
+            .nav-links { display: none; flex-direction: column; position: absolute; top: 100%; left: 0; width: 100%; background-color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); padding: 1rem 0; text-align: center; gap: 1.5rem; }
+            .nav-links.show { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-container">
+            <a href="index.html" class="logo">EscoConcepts <span>Travels</span></a>
+            <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="destinations.html">Destinations</a></li>
+                <li><a href="about.html">About Us</a></li>
+                <li><a href="blog.html">Blog</a></li>
+                <li><a href="contact.html" class="active">Contact</a></li>
+                <li><a href="checkout.html" class="nav-btn">Book Now</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main>
+        <div class="page-header">
+            <h1>Get in Touch</h1>
+            <p>We are here to help you plan your next unforgettable adventure.</p>
+        </div>
+
+        <section class="contact-container">
+            <div class="contact-info">
+                <h2>Contact Information</h2>
+                <div class="info-item">
+                    <h3>📍 Address</h3>
+                    <p>EscoConcepts Headquarters<br>Nairobi, Kenya</p>
+                </div>
+                <div class="info-item">
+                    <h3>📞 Phone</h3>
+                    <p>+254 700 000000</p>
+                </div>
+                <div class="info-item">
+                    <h3>📧 Email</h3>
+                    <p>info@escoconcepts.com</p>
+                </div>
+                <div class="info-item">
+                    <h3>🕒 Office Hours</h3>
+                    <p>Mon - Fri: 8:00 AM - 6:00 PM (EAT)<br>Sat: 9:00 AM - 1:00 PM</p>
+                </div>
+            </div>
+
+            <div class="contact-form">
+                <h2>Send Us a Message</h2>
+                <form id="contactForm" onsubmit="handleContactSubmit(event)">
+                    <div class="form-group">
+                        <label for="name">Full Name *</label>
+                        <input type="text" id="name" required placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email Address *</label>
+                        <input type="email" id="email" required placeholder="john@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="subject">Subject</label>
+                        <input type="text" id="subject" placeholder="e.g., Safari Inquiry">
+                    </div>
+                    <div class="form-group">
+                        <label for="message">Message *</label>
+                        <textarea id="message" required placeholder="How can we help you plan your trip?"></textarea>
+                    </div>
+                    <button type="submit" class="btn-submit">Send Message</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-col">
+                <h4>EscoConcepts Travels</h4>
+                <p>Curating unforgettable safari experiences and premium coastal getaways across Kenya. Your adventure begins here.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Quick Links</h4>
+                <ul class="footer-links">
+                    <li><a href="destinations.html">Our Packages</a></li>
+                    <li><a href="about.html">Our Story</a></li>
+                    <li><a href="#">Terms & Conditions</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Contact Us</h4>
+                <ul class="footer-links">
+                    <li>📍 Nairobi, Kenya</li>
+                    <li>📧 info@escoconcepts.com</li>
+                    <li>📞 +254 700 000000</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            &copy; 2026 EscoConcepts Travels. All Rights Reserved.
+        </div>
+    </footer>
+
+    <script>
+        function toggleMenu() { document.getElementById('navLinks').classList.toggle('show'); }
+        
+        async function handleContactSubmit(event) {
+            event.preventDefault();
+            
+            const btn = document.querySelector('.btn-submit');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = 'Sending...';
+            btn.disabled = true;
+
+            const payload = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                subject: document.getElementById('subject').value,
+                message: document.getElementById('message').value
+            };
+
+            try {
+                const response = await fetch('http://localhost:11037/api/contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Thank you for reaching out! Your message has been received.');
+                    document.getElementById('contactForm').reset();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Submission failed:', error);
+                alert('Connection failed. Please ensure the backend server is running.');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

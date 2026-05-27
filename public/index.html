@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EscoConcepts Travels | Kenya Safari & Beach Holidays</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        header {
+            background-color: #fff;
+            padding: 1rem 5%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+            text-decoration: none;
+        }
+        .logo span {
+            color: #e67e22;
+        }
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+            align-items: center;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: #555;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            color: #e67e22;
+        }
+        .nav-btn {
+            background: #e67e22;
+            color: #fff !important;
+            padding: 0.5rem 1.2rem;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .nav-btn:hover {
+            background: #d35400;
+        }
+        .menu-toggle {
+            display: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #2c3e50;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1920');
+            background-size: cover;
+            background-position: center;
+            height: 85vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            padding: 0 20px;
+        }
+        .hero-content h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .hero-content p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .search-container {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 1000px;
+            margin-top: 2rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            flex-wrap: wrap;
+        }
+        .search-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            padding: 10px;
+            border-right: 1px solid #eee;
+            min-width: 120px;
+        }
+        .search-box:last-of-type {
+            border-right: none;
+        }
+        .search-box label {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .search-box input, .search-box select {
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            padding-top: 5px;
+            color: #2c3e50;
+            background: transparent;
+        }
+        .price-slider {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .price-value {
+            font-size: 0.9rem;
+            color: #e67e22;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .search-btn {
+            background: #e67e22;
+            color: #fff;
+            border: none;
+            padding: 0 30px;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .search-btn:hover {
+            background: #d35400;
+        }
+        @media (max-width: 768px) {
+            .search-container {
+                flex-direction: column;
+            }
+            .search-box {
+                border-right: none;
+                border-bottom: 1px solid #eee;
+            }
+            .search-btn {
+                padding: 15px;
+            }
+            .hero-content h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Features grid */
+        .section {
+            max-width: 1200px;
+            margin: 5rem auto;
+            padding: 0 20px;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 2.2rem;
+            color: #2c3e50;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 3px;
+            background: #e67e22;
+            margin: 0.5rem auto 0;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        .feature-card {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .feature-card h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Destination cards */
+        .destinations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        .card-img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            transition: transform 0.5s;
+        }
+        .card:hover .card-img {
+            transform: scale(1.03);
+        }
+        .card-content {
+            padding: 1.5rem;
+        }
+        .card-title {
+            font-size: 1.3rem;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        .card-location {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .card-description {
+            color: #666;
+            font-size: 0.95rem;
+            margin: 1rem 0;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+        .card-price {
+            font-weight: bold;
+            color: #e67e22;
+            font-size: 1.2rem;
+        }
+        .card-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-view, .btn-book {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-view {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-view:hover {
+            background-color: #2980b9;
+        }
+        .btn-book {
+            background-color: #e67e22;
+            color: white;
+        }
+        .btn-book:hover {
+            background-color: #d35400;
+        }
+        .loader {
+            text-align: center;
+            padding: 3rem;
+            color: #777;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+        }
+        .modal-content {
+            background-color: #fff;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            margin: 2rem auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.2s;
+            z-index: 10;
+        }
+        .close-modal:hover {
+            color: #333;
+        }
+        .modal-hero {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+        }
+        .modal-body {
+            padding: 2rem;
+        }
+        .modal-title {
+            font-size: 2rem;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        .modal-location {
+            color: #e67e22;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .modal-price {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 1rem 0;
+            background: #f0f0f0;
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        }
+        .modal-section {
+            margin: 1.5rem 0;
+        }
+        .modal-section h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid #e67e22;
+            padding-left: 10px;
+        }
+        .modal-description {
+            line-height: 1.8;
+            color: #555;
+        }
+        .modal-itinerary {
+            background: #f9f9f9;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .gallery-preview {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        .gallery-preview img {
+            width: 100px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .gallery-preview img:hover {
+            transform: scale(1.05);
+        }
+        .modal-book-btn {
+            display: inline-block;
+            background-color: #e67e22;
+            color: white;
+            padding: 0.8rem 2rem;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            transition: background 0.3s;
+        }
+        .modal-book-btn:hover {
+            background-color: #d35400;
+        }
+
+        /* Footer */
+        footer {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 3rem 5% 1rem;
+            margin-top: 3rem;
+        }
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            justify-content: space-between;
+        }
+        .footer-col {
+            flex: 1;
+            min-width: 250px;
+        }
+        .footer-col h4 {
+            color: #e67e22;
+            margin-bottom: 1rem;
+        }
+        .footer-links {
+            list-style: none;
+        }
+        .footer-links li {
+            margin-bottom: 0.5rem;
+        }
+        .footer-links a {
+            color: #bdc3c7;
+            text-decoration: none;
+        }
+        .footer-links a:hover {
+            color: #e67e22;
+        }
+        .footer-bottom {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #34495e;
+        }
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+            }
+            .nav-links {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background: #fff;
+                padding: 1rem;
+                text-align: center;
+                gap: 1rem;
+            }
+            .nav-links.show {
+                display: flex;
+            }
+            .modal-title {
+                font-size: 1.5rem;
+            }
+            .modal-hero {
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-container">
+            <a href="index.html" class="logo">EscoConcepts <span>Travels</span></a>
+            <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html" class="active">Home</a></li>
+                <li><a href="destinations.html">Destinations</a></li>
+                <li><a href="about.html">About Us</a></li>
+                <li><a href="blog.html">Blog</a></li>
+                <li><a href="contact.html">Contact</a></li>
+                <li><a href="checkout.html" class="nav-btn">Book Now</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Discover the Wild Heart of Kenya</h1>
+            <p>Experience unforgettable safaris, pristine beaches, and exclusive travel packages curated just for you.</p>
+            <form class="search-container" onsubmit="event.preventDefault(); searchDestinations();">
+                <div class="search-box">
+                    <label>Service Type</label>
+                    <select id="searchServiceType">
+                        <option>Packages</option>
+                        <option>Day Trips</option>
+                        <option>Accommodation</option>
+                    </select>
+                </div>
+                <div class="search-box">
+                    <label>Destination</label>
+                    <input type="text" id="searchLocation" placeholder="Where to?">
+                </div>
+                <div class="search-box">
+                    <label>Date</label>
+                    <input type="date" id="searchDate" min="">
+                </div>
+                <div class="search-box">
+                    <label>Pax</label>
+                    <select id="searchGuests">
+                        <option>1</option>
+                        <option selected>2</option>
+                        <option>3</option>
+                        <option>4</option>
+                        <option>5+</option>
+                    </select>
+                </div>
+                <div class="search-box">
+                    <label>Max Price (KES)</label>
+                    <input type="range" id="priceSlider" class="price-slider" min="5000" max="1000000" step="5000" value="500000">
+                    <div class="price-value" id="priceValue">KES 500,000</div>
+                </div>
+                <button type="submit" class="search-btn">Search</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2 class="section-title">Why Travel With Us?</h2>
+        <div class="features-grid">
+            <div class="feature-card"><div class="feature-icon">🌍</div><h3>Local Expertise</h3><p>In-depth knowledge of Kenya's hidden gems.</p></div>
+            <div class="feature-card"><div class="feature-icon">💰</div><h3>Best Price Guarantee</h3><p>We negotiate the best deals for you.</p></div>
+            <div class="feature-card"><div class="feature-icon">🕒</div><h3>24/7 Support</h3><p>Always available to assist you.</p></div>
+            <div class="feature-card"><div class="feature-icon">🚀</div><h3>Tailor‑Made Safaris</h3><p>Custom itineraries to match your interests.</p></div>
+        </div>
+    </section>
+
+    <section class="section">
+        <h2 class="section-title">Featured Destinations</h2>
+        <div id="destinationsGrid" class="destinations-grid">
+            <div class="loader">Loading amazing destinations...</div>
+        </div>
+    </section>
+
+    <!-- Modal Structure -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <img id="modalImage" class="modal-hero" src="" alt="">
+            <div class="modal-body">
+                <h2 id="modalTitle" class="modal-title"></h2>
+                <div id="modalLocation" class="modal-location"></div>
+                <div id="modalPrice" class="modal-price"></div>
+                <div class="modal-section">
+                    <h3>Overview</h3>
+                    <div id="modalDescription" class="modal-description"></div>
+                </div>
+                <div class="modal-section" id="itinerarySection" style="display:none;">
+                    <h3>Itinerary</h3>
+                    <div id="modalItinerary" class="modal-itinerary"></div>
+                </div>
+                <div class="modal-section" id="gallerySection" style="display:none;">
+                    <h3>Gallery</h3>
+                    <div id="modalGallery" class="gallery-preview"></div>
+                </div>
+                <a id="modalBookLink" href="#" class="modal-book-btn">Book This Package</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-col">
+                <h4>EscoConcepts Travels</h4>
+                <p>Curating unforgettable safari experiences and premium coastal getaways across Kenya.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Quick Links</h4>
+                <ul class="footer-links">
+                    <li><a href="destinations.html">Our Packages</a></li>
+                    <li><a href="about.html">Our Story</a></li>
+                    <li><a href="#">Terms & Conditions</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Contact Us</h4>
+                <ul class="footer-links">
+                    <li>📍 Nairobi, Kenya</li>
+                    <li>📧 info@escoconcepts.com</li>
+                    <li>📞 +254 700 000000</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">&copy; 2026 EscoConcepts Travels. All Rights Reserved.</div>
+    </footer>
+
+    <script>
+        // Set min date to today's date (prevents past dates)
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('searchDate').setAttribute('min', today);
+        
+        // Price slider display
+        const slider = document.getElementById('priceSlider');
+        const priceDisplay = document.getElementById('priceValue');
+        slider.addEventListener('input', function() {
+            priceDisplay.innerText = 'KES ' + parseInt(this.value).toLocaleString();
+        });
+        
+        let destinationsData = [];
+
+        function toggleMenu() {
+            document.getElementById('navLinks').classList.toggle('show');
+        }
+
+        function searchDestinations() {
+            const location = document.getElementById('searchLocation').value.toLowerCase();
+            const serviceType = document.getElementById('searchServiceType').value;
+            const guests = document.getElementById('searchGuests').value;
+            const date = document.getElementById('searchDate').value;
+            const maxPrice = parseFloat(slider.value);
+            
+            const cards = document.querySelectorAll('.card');
+            let visibleCount = 0;
+            cards.forEach(card => {
+                const title = card.querySelector('.card-title')?.innerText.toLowerCase() || '';
+                const destLocation = card.querySelector('.card-location')?.innerText.toLowerCase() || '';
+                const priceText = card.querySelector('.card-price')?.innerText.replace(/[^0-9]/g, '') || '0';
+                const price = parseFloat(priceText);
+                const matches = (!location || title.includes(location) || destLocation.includes(location)) &&
+                                price <= maxPrice;
+                card.style.display = matches ? 'flex' : 'none';
+                if (matches) visibleCount++;
+            });
+            const container = document.getElementById('destinationsGrid');
+            let noMsg = document.getElementById('noResultsMsg');
+            if (visibleCount === 0 && !noMsg) {
+                const msg = document.createElement('p');
+                msg.id = 'noResultsMsg';
+                msg.style.textAlign = 'center';
+                msg.style.gridColumn = '1/-1';
+                msg.style.padding = '2rem';
+                msg.innerText = 'No destinations match your search criteria.';
+                container.appendChild(msg);
+            } else if (visibleCount > 0 && noMsg) {
+                noMsg.remove();
+            }
+            alert(`Search for ${serviceType} with ${guests} guest(s) on ${date || 'any date'} up to KES ${maxPrice.toLocaleString()}. (Demo filter)`);
+        }
+
+        function openModal(destination) {
+            document.getElementById('modalTitle').innerText = destination.title;
+            document.getElementById('modalLocation').innerHTML = `📍 ${destination.destination}`;
+            document.getElementById('modalPrice').innerHTML = `KES ${Number(destination.base_price).toLocaleString()} per person`;
+            const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800';
+            const modalImg = document.getElementById('modalImage');
+            modalImg.src = destination.image_url || defaultImage;
+            modalImg.onerror = () => { modalImg.src = defaultImage; };
+            
+            const descHtml = destination.description ? destination.description : `<p>Experience the beauty of ${destination.title}. Contact us for more details.</p>`;
+            document.getElementById('modalDescription').innerHTML = descHtml;
+            
+            const itineraryDiv = document.getElementById('itinerarySection');
+            if (destination.itinerary && destination.itinerary.trim() !== '') {
+                document.getElementById('modalItinerary').innerHTML = destination.itinerary;
+                itineraryDiv.style.display = 'block';
+            } else {
+                itineraryDiv.style.display = 'none';
+            }
+            
+            const galleryDiv = document.getElementById('gallerySection');
+            const galleryContainer = document.getElementById('modalGallery');
+            if (destination.gallery && destination.gallery.length > 0) {
+                galleryContainer.innerHTML = '';
+                destination.gallery.forEach(url => {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = 'Gallery image';
+                    img.style.cursor = 'pointer';
+                    img.onclick = () => window.open(url, '_blank');
+                    galleryContainer.appendChild(img);
+                });
+                galleryDiv.style.display = 'block';
+            } else {
+                galleryDiv.style.display = 'none';
+            }
+            
+            const bookLink = document.getElementById('modalBookLink');
+            bookLink.href = `checkout.html?package=${destination.service_id}`;
+            
+            document.getElementById('detailModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('detailModal');
+            if (event.target === modal) closeModal();
+        }
+
+        async function loadFeaturedDestinations() {
+            const grid = document.getElementById('destinationsGrid');
+            try {
+                const response = await fetch('http://localhost:11037/api/services');
+                const result = await response.json();
+                if (result.success && result.data.length > 0) {
+                    destinationsData = result.data;
+                    grid.innerHTML = '';
+                    destinationsData.forEach(dest => {
+                        const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=600';
+                        const imageUrl = dest.image_url || defaultImage;
+                        const plainDesc = dest.description ? dest.description.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : `Discover the beauty of ${dest.title} with EscoConcepts Travels.`;
+                        
+                        const card = document.createElement('div');
+                        card.className = 'card';
+                        card.setAttribute('data-id', dest.service_id);
+                        card.innerHTML = `
+                            <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
+                            <div class="card-content">
+                                <h3 class="card-title">${escapeHtml(dest.title)}</h3>
+                                <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
+                                <div class="card-description">${escapeHtml(plainDesc)}</div>
+                                <div class="card-footer">
+                                    <span class="card-price">KES ${Number(dest.base_price).toLocaleString()}</span>
+                                    <div class="card-buttons">
+                                        <button class="btn-view" onclick="openModalById(${dest.service_id})">View Details</button>
+                                        <a href="checkout.html?package=${dest.service_id}" class="btn-book">Book Now</a>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                } else {
+                    grid.innerHTML = '<p style="text-align:center; grid-column:1/-1;">No destinations available.</p>';
+                }
+            } catch (error) {
+                console.error(error);
+                grid.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:red;">Unable to load destinations. Make sure server is running.</p>';
+            }
+        }
+
+        function openModalById(serviceId) {
+            const dest = destinationsData.find(d => d.service_id == serviceId);
+            if (dest) openModal(dest);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadFeaturedDestinations);
+    </script>
+</body>
+</html>
