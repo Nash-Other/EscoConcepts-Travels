@@ -30,9 +30,8 @@
         .dest-title { font-size: 1.8rem; color: #2c3e50; margin-bottom: 0.5rem; }
         .dest-location { color: #e67e22; font-weight: bold; margin-bottom: 1rem; }
         .dest-price { font-size: 1.4rem; font-weight: bold; color: #2c3e50; margin: 1rem 0; }
-        .dest-description { margin: 1rem 0; color: #555; line-height: 1.8; }
-        .dest-description p { margin-bottom: 1rem; }
-        .dest-itinerary { background: #f9f9f9; padding: 1rem; border-radius: 8px; margin: 1rem 0; }
+        .dest-description { margin: 1rem 0; color: #555; line-height: 1.8; word-wrap: break-word; }
+        .dest-itinerary { background: #f9f9f9; padding: 1rem; border-radius: 8px; margin: 1rem 0; word-wrap: break-word; }
         .dest-itinerary h3 { margin-bottom: 0.5rem; color: #2c3e50; }
         .gallery { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }
         .gallery img { width: 150px; height: 100px; object-fit: cover; border-radius: 6px; cursor: pointer; transition: transform 0.2s; }
@@ -115,7 +114,7 @@
         async function loadDestinations() {
             const container = document.getElementById('destinationsContainer');
             try {
-                const response = await fetch('/api/services');
+                const response = await fetch('/api/services'); // relative URL
                 const result = await response.json();
                 if (!result.success) throw new Error(result.message);
                 const destinations = result.data;
@@ -125,12 +124,10 @@
                 }
                 container.innerHTML = '';
                 for (const dest of destinations) {
-                    // Build gallery HTML if images exist
                     let galleryHtml = '';
                     if (dest.gallery && dest.gallery.length) {
                         galleryHtml = `<div class="gallery">${dest.gallery.map(url => `<img src="${url}" alt="Gallery image" loading="lazy" onclick="window.open('${url}')">`).join('')}</div>`;
                     }
-                    // Description and itinerary (HTML safe)
                     const descHtml = dest.description ? `<div class="dest-description">${dest.description}</div>` : '';
                     const itineraryHtml = dest.itinerary ? `<div class="dest-itinerary"><h3>📅 Suggested Itinerary</h3>${dest.itinerary}</div>` : '';
                     const card = `
