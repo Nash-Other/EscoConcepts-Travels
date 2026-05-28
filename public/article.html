@@ -108,6 +108,7 @@
             padding: 3rem;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow-x: auto; /* fallback for very long strings */
         }
         .back-link {
             display: inline-block;
@@ -144,6 +145,9 @@
             font-size: 1.1rem;
             color: #444;
             line-height: 1.8;
+            word-wrap: break-word;      /* break long words */
+            overflow-wrap: break-word;  /* modern equivalent */
+            white-space: normal;        /* ensure wrapping */
         }
         .article-body h1, .article-body h2, .article-body h3,
         .article-body h4, .article-body h5, .article-body h6 {
@@ -299,10 +303,7 @@
 
         // Helper: update meta tags dynamically
         function updateMetaTags(blog) {
-            // Title
             document.title = `${blog.title} | EscoConcepts Travels`;
-
-            // Description: from plain text excerpt
             const plainContent = stripHtml(blog.content);
             const description = truncateText(plainContent, 160);
             let metaDescription = document.querySelector('meta[name="description"]');
@@ -314,7 +315,6 @@
                 document.head.appendChild(newMeta);
             }
 
-            // Keywords: split title into words (simple)
             const keywords = blog.title.split(' ').slice(0, 5).join(', ');
             let metaKeywords = document.querySelector('meta[name="keywords"]');
             if (metaKeywords) metaKeywords.setAttribute('content', keywords);
@@ -410,7 +410,6 @@
             }
 
             try {
-                // Use relative URL – no localhost
                 const response = await fetch(`/api/blogs/${articleId}`);
                 const result = await response.json();
 
@@ -426,7 +425,6 @@
                 const defaultImage = 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80';
                 const heroImage = article.image_url ? article.image_url : defaultImage;
 
-                // Update SEO meta tags
                 updateMetaTags(article);
 
                 mainContent.innerHTML = `
