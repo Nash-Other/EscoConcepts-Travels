@@ -525,6 +525,7 @@
                 <li><a href="about.html">About Us</a></li>
                 <li><a href="blog.html">Blog</a></li>
                 <li><a href="contact.html">Contact</a></li>
+                <li><a href="account.html">Account</a></li>
                 <li><a href="checkout.html" class="nav-btn">Book Now</a></li>
             </ul>
         </div>
@@ -536,14 +537,6 @@
             <p>Experience unforgettable safaris, pristine beaches, and exclusive travel packages curated just for you.</p>
             <form class="search-container" onsubmit="event.preventDefault(); searchDestinations();">
                 <div class="search-box">
-                    <label>Service Type</label>
-                    <select id="searchServiceType">
-                        <option>Packages</option>
-                        <option>Day Trips</option>
-                        <option>Accommodation</option>
-                    </select>
-                </div>
-                <div class="search-box">
                     <label>Destination</label>
                     <input type="text" id="searchLocation" placeholder="Where to?">
                 </div>
@@ -552,7 +545,7 @@
                     <input type="date" id="searchDate" min="">
                 </div>
                 <div class="search-box">
-                    <label>Pax</label>
+                    <label>Guests</label>
                     <select id="searchGuests">
                         <option>1</option>
                         <option selected>2</option>
@@ -659,38 +652,60 @@
             document.getElementById('navLinks').classList.toggle('show');
         }
 
-        function searchDestinations() {
-            const location = document.getElementById('searchLocation').value.toLowerCase();
+        // Backend search function
+        async function searchDestinations() {
+            const location = document.getElementById('searchLocation').value.trim();
             const guests = document.getElementById('searchGuests').value;
-            const date = document.getElementById('searchDate').value;
-            const maxPrice = parseFloat(slider.value);
+            const maxPrice = slider.value;
             
-            const cards = document.querySelectorAll('.card');
-            let visibleCount = 0;
-            cards.forEach(card => {
-                const title = card.querySelector('.card-title')?.innerText.toLowerCase() || '';
-                const destLocation = card.querySelector('.card-location')?.innerText.toLowerCase() || '';
-                const priceText = card.querySelector('.card-price')?.innerText.replace(/[^0-9]/g, '') || '0';
-                const price = parseFloat(priceText);
-                const matches = (!location || title.includes(location) || destLocation.includes(location)) &&
-                                price <= maxPrice;
-                card.style.display = matches ? 'flex' : 'none';
-                if (matches) visibleCount++;
-            });
-            const container = document.getElementById('destinationsGrid');
-            let noMsg = document.getElementById('noResultsMsg');
-            if (visibleCount === 0 && !noMsg) {
-                const msg = document.createElement('p');
-                msg.id = 'noResultsMsg';
-                msg.style.textAlign = 'center';
-                msg.style.gridColumn = '1/-1';
-                msg.style.padding = '2rem';
-                msg.innerText = 'No destinations match your search criteria.';
-                container.appendChild(msg);
-            } else if (visibleCount > 0 && noMsg) {
-                noMsg.remove();
+            let url = `/api/services/search?`;
+            if (location) url += `location=${encodeURIComponent(location)}&`;
+            if (maxPrice) url += `maxPrice=${maxPrice}&`;
+            if (guests) url += `guests=${guests}&`;
+            
+            const grid = document.getElementById('destinationsGrid');
+            grid.innerHTML = '<div class="loader">Searching...</div>';
+            try {
+                const response = await fetch(url);
+                const result = await response.json();
+                if (result.success && result.data.length > 0) {
+                    destinationsData = result.data;
+                    renderDestinations(destinationsData);
+                } else {
+                    grid.innerHTML = '<p style="text-align:center; grid-column:1/-1;">No destinations match your search.</p>';
+                }
+            } catch (error) {
+                console.error(error);
+                grid.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:red;">Search failed. Please try again.</p>';
             }
-            alert(`Search for ${guests} guest(s) on ${date || 'any date'} up to KES ${maxPrice.toLocaleString()}. (Demo filter)`);
+        }
+
+        function renderDestinations(destinations) {
+            const grid = document.getElementById('destinationsGrid');
+            grid.innerHTML = '';
+            destinations.forEach(dest => {
+                const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=600';
+                const imageUrl = dest.image_url || defaultImage;
+                const plainDesc = dest.description ? dest.description.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : `Discover the beauty of ${dest.title} with EscoConcepts Travels.`;
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
+                    <div class="card-content">
+                        <h3 class="card-title">${escapeHtml(dest.title)}</h3>
+                        <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
+                        <div class="card-description">${escapeHtml(plainDesc)}</div>
+                        <div class="card-footer">
+                            <span class="card-price">KES ${Number(dest.base_price).toLocaleString()}</span>
+                            <div class="card-buttons">
+                                <button class="btn-view" onclick="openModalById(${dest.service_id})">View Details</button>
+                                <a href="checkout.html?package=${dest.service_id}" class="btn-book">Book Now</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
         }
 
         function openModal(destination) {
@@ -747,48 +762,6 @@
             if (event.target === modal) closeModal();
         }
 
-        async function loadFeaturedDestinations() {
-            const grid = document.getElementById('destinationsGrid');
-            try {
-                const response = await fetch('/api/services');
-                const result = await response.json();
-                if (result.success && result.data.length > 0) {
-                    destinationsData = result.data;
-                    grid.innerHTML = '';
-                    destinationsData.forEach(dest => {
-                        const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=600';
-                        const imageUrl = dest.image_url || defaultImage;
-                        const plainDesc = dest.description ? dest.description.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : `Discover the beauty of ${dest.title} with EscoConcepts Travels.`;
-                        
-                        const card = document.createElement('div');
-                        card.className = 'card';
-                        card.setAttribute('data-id', dest.service_id);
-                        card.innerHTML = `
-                            <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
-                            <div class="card-content">
-                                <h3 class="card-title">${escapeHtml(dest.title)}</h3>
-                                <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
-                                <div class="card-description">${escapeHtml(plainDesc)}</div>
-                                <div class="card-footer">
-                                    <span class="card-price">KES ${Number(dest.base_price).toLocaleString()}</span>
-                                    <div class="card-buttons">
-                                        <button class="btn-view" onclick="openModalById(${dest.service_id})">View Details</button>
-                                        <a href="checkout.html?package=${dest.service_id}" class="btn-book">Book Now</a>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        grid.appendChild(card);
-                    });
-                } else {
-                    grid.innerHTML = '<p style="text-align:center; grid-column:1/-1;">No destinations available.</p>';
-                }
-            } catch (error) {
-                console.error(error);
-                grid.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:red;">Unable to load destinations. Make sure server is running.</p>';
-            }
-        }
-
         function openModalById(serviceId) {
             const dest = destinationsData.find(d => d.service_id == serviceId);
             if (dest) openModal(dest);
@@ -802,6 +775,22 @@
                 if (m === '>') return '&gt;';
                 return m;
             });
+        }
+
+        async function loadFeaturedDestinations() {
+            try {
+                const response = await fetch('/api/services');
+                const result = await response.json();
+                if (result.success && result.data.length > 0) {
+                    destinationsData = result.data;
+                    renderDestinations(destinationsData);
+                } else {
+                    document.getElementById('destinationsGrid').innerHTML = '<p style="text-align:center;">No destinations available.</p>';
+                }
+            } catch (error) {
+                console.error(error);
+                document.getElementById('destinationsGrid').innerHTML = '<p style="text-align:center; color:red;">Unable to load destinations. Make sure server is running.</p>';
+            }
         }
 
         document.addEventListener('DOMContentLoaded', loadFeaturedDestinations);

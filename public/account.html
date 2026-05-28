@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account | EscoConcepts Travels</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: #f4f7f6;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+        h2, h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+        .nav {
+            margin-bottom: 2rem;
+            text-align: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .nav a {
+            color: #3498db;
+            text-decoration: none;
+            margin: 0 1rem;
+        }
+        .nav a:hover {
+            text-decoration: underline;
+        }
+        input, button {
+            width: 100%;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        button {
+            background: #e67e22;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #d35400;
+        }
+        .toggle {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .toggle a {
+            color: #3498db;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .error {
+            color: #e74c3c;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .success {
+            color: #2ecc71;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .booking-list {
+            margin-top: 2rem;
+            border-top: 1px solid #eee;
+            padding-top: 1rem;
+        }
+        .booking-card {
+            background: #f9f9f9;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #e67e22;
+        }
+        .booking-card strong {
+            color: #2c3e50;
+        }
+        .logout {
+            background: #e74c3c;
+            margin-top: 1rem;
+        }
+        .logout:hover {
+            background: #c0392b;
+        }
+        hr {
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav">
+        <a href="index.html">Home</a> | 
+        <a href="checkout.html">Book Now</a> | 
+        <a href="destinations.html">Destinations</a>
+    </div>
+
+    <!-- Login / Signup Section -->
+    <div id="authSection">
+        <h2 id="formTitle">Login</h2>
+        <div id="errorMsg" class="error"></div>
+        <div id="successMsg" class="success"></div>
+        <form id="authForm">
+            <div id="nameFields" style="display:none;">
+                <input type="text" id="firstName" placeholder="First Name *" required>
+                <input type="text" id="lastName" placeholder="Last Name *" required>
+                <input type="tel" id="phone" placeholder="Phone (optional)">
+            </div>
+            <input type="email" id="email" placeholder="Email *" required>
+            <input type="password" id="password" placeholder="Password *" required>
+            <button type="submit" id="submitBtn">Login</button>
+        </form>
+        <div class="toggle">
+            <a id="toggleLink">Don't have an account? Sign up</a>
+        </div>
+    </div>
+
+    <!-- Dashboard after login -->
+    <div id="dashboardSection" style="display:none;">
+        <h2>Welcome, <span id="userName"></span>!</h2>
+        <h3>My Bookings</h3>
+        <div id="bookingsList" class="booking-list">Loading your bookings...</div>
+        <hr>
+        <button id="logoutBtn" class="logout">Logout</button>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '';  // empty because we use relative URLs
+    let isLogin = true;
+
+    function showError(msg) {
+        const errDiv = document.getElementById('errorMsg');
+        errDiv.innerText = msg;
+        setTimeout(() => errDiv.innerText = '', 5000);
+    }
+    function showSuccess(msg) {
+        const sucDiv = document.getElementById('successMsg');
+        sucDiv.innerText = msg;
+        setTimeout(() => sucDiv.innerText = '', 3000);
+    }
+
+    async function handleAuth(e) {
+        e.preventDefault();
+        showError('');
+        showSuccess('');
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        if (!email || !password) {
+            showError('Email and password are required.');
+            return;
+        }
+        if (isLogin) {
+            // LOGIN
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('customerToken', data.token);
+                    localStorage.setItem('customerRole', data.role);
+                    localStorage.setItem('customerEmail', email);
+                    showSuccess('Login successful! Redirecting...');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showError(data.message);
+                }
+            } catch (err) {
+                showError('Server error. Please try again later.');
+            }
+        } else {
+            // SIGNUP
+            const firstName = document.getElementById('firstName').value.trim();
+            const lastName = document.getElementById('lastName').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            if (!firstName || !lastName) {
+                showError('First name and last name are required.');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ firstName, lastName, email, phone, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('customerToken', data.token);
+                    localStorage.setItem('customerRole', 'customer');
+                    localStorage.setItem('customerEmail', email);
+                    showSuccess('Account created! You are now logged in.');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showError(data.message);
+                }
+            } catch (err) {
+                showError('Server error. Please try again later.');
+            }
+        }
+    }
+
+    async function loadBookings() {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/bookings/my-bookings`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            const container = document.getElementById('bookingsList');
+            if (data.success && data.data && data.data.length) {
+                container.innerHTML = data.data.map(b => `
+                    <div class="booking-card">
+                        <strong>${b.booking_reference}</strong><br>
+                        Package: ${b.package_name}<br>
+                        Travel Date: ${new Date(b.travel_date).toLocaleDateString()}<br>
+                        Guests: ${b.pax}<br>
+                        Total: KES ${Number(b.total_amount).toLocaleString()}<br>
+                        Status: ${b.status}
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p>You have no bookings yet. <a href="checkout.html">Book a trip now</a>.</p>';
+            }
+        } catch (err) {
+            console.error(err);
+            document.getElementById('bookingsList').innerHTML = '<p>Failed to load your bookings. Please try again later.</p>';
+        }
+    }
+
+    function toggleForm() {
+        isLogin = !isLogin;
+        const title = document.getElementById('formTitle');
+        const btn = document.getElementById('submitBtn');
+        const toggleLink = document.getElementById('toggleLink');
+        const nameFields = document.getElementById('nameFields');
+        if (isLogin) {
+            title.innerText = 'Login';
+            btn.innerText = 'Login';
+            toggleLink.innerText = "Don't have an account? Sign up";
+            nameFields.style.display = 'none';
+            // remove required attributes
+            document.getElementById('firstName').required = false;
+            document.getElementById('lastName').required = false;
+        } else {
+            title.innerText = 'Sign Up';
+            btn.innerText = 'Sign Up';
+            toggleLink.innerText = 'Already have an account? Login';
+            nameFields.style.display = 'block';
+            document.getElementById('firstName').required = true;
+            document.getElementById('lastName').required = true;
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('customerToken');
+        localStorage.removeItem('customerRole');
+        localStorage.removeItem('customerEmail');
+        window.location.reload();
+    }
+
+    // Check login status on page load
+    const token = localStorage.getItem('customerToken');
+    if (token) {
+        // Already logged in
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('dashboardSection').style.display = 'block';
+        const email = localStorage.getItem('customerEmail') || 'Customer';
+        document.getElementById('userName').innerText = email.split('@')[0];
+        loadBookings();
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+    } else {
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('dashboardSection').style.display = 'none';
+        document.getElementById('authForm').addEventListener('submit', handleAuth);
+        document.getElementById('toggleLink').addEventListener('click', toggleForm);
+        // set initial form state
+        isLogin = true;
+        document.getElementById('nameFields').style.display = 'none';
+        document.getElementById('firstName').required = false;
+        document.getElementById('lastName').required = false;
+    }
+</script>
+</body>
+</html>
