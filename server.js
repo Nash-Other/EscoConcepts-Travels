@@ -17,14 +17,13 @@ app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] })
 
 const JWT_SECRET = process.env.JWT_SECRET || 'esco_super_secret_key_2026';
 
-// Database connection – uses DATABASE_URL from environment
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { require: true, rejectUnauthorized: false }
 });
 
 // ==========================================
-// MULTER SETUP
+// MULTER SETUP (unchanged)
 // ==========================================
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -49,11 +48,12 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// DATABASE INIT (creates tables if missing)
+// DATABASE INIT (adds role column if missing)
 // ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
   try {
+    // All your CREATE TABLE statements (same as before)...
     await client.query(`CREATE TABLE IF NOT EXISTS users (
       user_id SERIAL PRIMARY KEY,
       first_name VARCHAR(50) NOT NULL,
@@ -61,9 +61,9 @@ async function initializeDatabase() {
       email VARCHAR(100) UNIQUE NOT NULL,
       phone VARCHAR(20),
       password_hash VARCHAR(255) NOT NULL,
+      role VARCHAR(20) DEFAULT 'customer',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-
     await client.query(`CREATE TABLE IF NOT EXISTS services (
       service_id SERIAL PRIMARY KEY,
       service_category VARCHAR(50) NOT NULL,
@@ -79,7 +79,6 @@ async function initializeDatabase() {
       itinerary TEXT,
       gallery TEXT[] DEFAULT '{}'
     )`);
-
     await client.query(`CREATE TABLE IF NOT EXISTS bookings (
       booking_id SERIAL PRIMARY KEY,
       booking_reference VARCHAR(20) UNIQUE NOT NULL,
@@ -92,17 +91,15 @@ async function initializeDatabase() {
       status VARCHAR(20) DEFAULT 'Pending',
       booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-
     await client.query(`CREATE TABLE IF NOT EXISTS payments (
       payment_id SERIAL PRIMARY KEY,
       booking_id INTEGER REFERENCES bookings(booking_id) ON DELETE CASCADE,
       payment_method VARCHAR(50) NOT NULL,
       amount NUMERIC(10,2) NOT NULL,
       transaction_reference VARCHAR(100) UNIQUE,
-      payment_status VARCHAR(20) DEFAULT 'Completed',
+      payment_status VARCHAR(20) DEFAULT 'Pending',
       payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-
     await client.query(`CREATE TABLE IF NOT EXISTS blogs (
       id SERIAL PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
@@ -113,7 +110,6 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-
     await client.query(`CREATE TABLE IF NOT EXISTS contactmessages (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -123,10 +119,16 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Insert admin if missing (email matches your database)
+    // Add role column if missing
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'customer'`);
+
+    // Set admin role for existing admin
+    await client.query(`UPDATE users SET role = 'admin' WHERE email = 'admin@escoconcepts.com'`);
+
+    // Insert admin if missing
     await client.query(`
-      INSERT INTO users (first_name, last_name, email, phone, password_hash)
-      VALUES ('Esco', 'Admin', 'admin@escoconcepts.com', '0000000000', '$2b$10$sEvVRz6qou8z8GFzfck3MuwTQmDRj7XAYmLOeyZHQhEKggcgciZSW')
+      INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
+      VALUES ('Esco', 'Admin', 'admin@escoconcepts.com', '0000000000', '$2b$10$sEvVRz6qou8z8GFzfck3MuwTQmDRj7XAYmLOeyZHQhEKggcgciZSW', 'admin')
       ON CONFLICT (email) DO NOTHING
     `);
 
@@ -163,22 +165,21 @@ async function generateUniqueSlug(baseTitle, currentId = null) {
 }
 
 // ==========================================
-// TEST DATABASE CONNECTION ENDPOINT
-// ==========================================
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW() as time');
-    res.json({ success: true, message: 'Database connected', time: result.rows[0].time });
-  } catch (err) {
-    console.error('DB test error:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// ==========================================
-// AUTHENTICATION
+// AUTH MIDDLEWARES
 // ==========================================
 function authenticateAdmin(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, message: 'No token.' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ success: false, message: 'Invalid token.' });
+    if (user.role !== 'admin') return res.status(403).json({ success: false, message: 'Admin only.' });
+    req.user = user;
+    next();
+  });
+}
+
+function authenticateCustomer(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ success: false, message: 'No token.' });
@@ -189,15 +190,142 @@ function authenticateAdmin(req, res, next) {
   });
 }
 
+// ==========================================
+// CUSTOMER AUTH ENDPOINTS
+// ==========================================
+app.post('/api/auth/signup', async (req, res) => {
+  const { firstName, lastName, email, phone, password } = req.body;
+  if (!firstName || !lastName || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  try {
+    const existing = await pool.query('SELECT user_id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email already registered.' });
+    }
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const result = await pool.query(
+      `INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
+       VALUES ($1, $2, $3, $4, $5, 'customer') RETURNING user_id`,
+      [firstName, lastName, email, phone || null, hashedPassword]
+    );
+    const token = jwt.sign({ userId: result.rows[0].user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({ success: true, message: 'Signup successful', token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password required.' });
+  }
+  try {
+    const result = await pool.query('SELECT user_id, first_name, last_name, email, password_hash, role FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+    }
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+    }
+    const token = jwt.sign({ userId: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ success: true, message: 'Login successful', token, role: user.role });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// ==========================================
+// MY BOOKINGS (customer only)
+// ==========================================
+app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT b.booking_reference, s.title AS package_name, b.travel_date, b.pax, b.total_amount, b.status, b.booking_date
+      FROM bookings b
+      JOIN services s ON b.service_id = s.service_id
+      WHERE b.user_id = $1
+      ORDER BY b.booking_date DESC
+    `, [req.user.userId]);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch bookings.' });
+  }
+});
+
+// ==========================================
+// SEARCH SERVICES (backend filtering)
+// ==========================================
+app.get('/api/services/search', async (req, res) => {
+  const { location, minPrice, maxPrice, guests, travelDate } = req.query;
+  let query = 'SELECT service_id, title, destination, base_price, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE';
+  const params = [];
+  let paramIndex = 1;
+
+  if (location && location.trim() !== '') {
+    query += ` AND (LOWER(title) LIKE $${paramIndex} OR LOWER(destination) LIKE $${paramIndex})`;
+    params.push(`%${location.toLowerCase()}%`);
+    paramIndex++;
+  }
+  if (minPrice && !isNaN(parseFloat(minPrice))) {
+    query += ` AND base_price >= $${paramIndex}`;
+    params.push(parseFloat(minPrice));
+    paramIndex++;
+  }
+  if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+    query += ` AND base_price <= $${paramIndex}`;
+    params.push(parseFloat(maxPrice));
+    paramIndex++;
+  }
+  if (guests && !isNaN(parseInt(guests))) {
+    query += ` AND max_pax >= $${paramIndex}`;
+    params.push(parseInt(guests));
+    paramIndex++;
+  }
+  // travelDate is not used in filtering because availability is not tracked – ignore for now
+
+  query += ' ORDER BY base_price ASC';
+
+  try {
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Search failed.' });
+  }
+});
+
+// ==========================================
+// TEST DATABASE CONNECTION (unchanged)
+// ==========================================
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW() as time');
+    res.json({ success: true, message: 'Database connected', time: result.rows[0].time });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================================
+// ADMIN LOGIN (unchanged)
+// ==========================================
 app.post('/api/admin/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
     if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    const token = jwt.sign({ role: 'admin', userId: user.user_id }, JWT_SECRET, { expiresIn: '2h' });
+    const token = jwt.sign({ userId: user.user_id, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
     res.json({ success: true, token });
   } catch (err) {
     console.error(err);
@@ -206,7 +334,7 @@ app.post('/api/admin/login', async (req, res) => {
 });
 
 // ==========================================
-// IMAGE UPLOAD
+// IMAGE UPLOAD (admin only)
 // ==========================================
 app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file.' });
@@ -215,7 +343,7 @@ app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) =>
 });
 
 // ==========================================
-// BOOKINGS (GET & UPDATE)
+// BOOKINGS (admin)
 // ==========================================
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   try {
@@ -249,8 +377,7 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const bookingResult = await client.query(`UPDATE bookings SET status = $1 WHERE booking_id = $2 RETURNING *`, [status, id]);
-    if (bookingResult.rows.length === 0) throw new Error('Booking not found');
+    await client.query(`UPDATE bookings SET status = $1 WHERE booking_id = $2`, [status, id]);
     await client.query(`UPDATE payments SET payment_status = $1 WHERE booking_id = $2`, [paymentStatus, id]);
     await client.query('COMMIT');
     res.json({ success: true, message: `Status updated to ${status}` });
@@ -264,7 +391,55 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// SERVICES (public)
+// CHECKOUT (guest or logged‑in user)
+// ==========================================
+app.post('/api/checkout', async (req, res) => {
+  const { firstName, lastName, email, phone, travelDate, pax, totalAmount, paymentMethod, service_id, userId } = req.body;
+  if (!firstName || !lastName || !email || !phone || !travelDate || !pax || !totalAmount || !paymentMethod || !service_id) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const userCheck = await client.query('SELECT user_id FROM users WHERE email = $1', [email]);
+      if (userCheck.rows.length > 0) {
+        finalUserId = userCheck.rows[0].user_id;
+      } else {
+        const insertUser = await client.query(
+          `INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
+           VALUES ($1, $2, $3, $4, $5, 'customer') RETURNING user_id`,
+          [firstName, lastName, email, phone, 'guest_checkout_no_password']
+        );
+        finalUserId = insertUser.rows[0].user_id;
+      }
+    }
+    const bookingRef = 'ECT-' + Math.floor(100000 + Math.random() * 900000);
+    const insertBooking = await client.query(
+      `INSERT INTO bookings (booking_reference, user_id, service_id, travel_date, pax, total_amount, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Pending') RETURNING booking_id`,
+      [bookingRef, finalUserId, service_id, travelDate, pax, totalAmount]
+    );
+    const bookingId = insertBooking.rows[0].booking_id;
+    await client.query(
+      `INSERT INTO payments (booking_id, payment_method, amount, payment_status)
+       VALUES ($1, $2, $3, 'Pending')`,
+      [bookingId, paymentMethod, totalAmount]
+    );
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Checkout error:', err);
+    res.status(500).json({ success: false, message: 'Failed to process booking.' });
+  } finally {
+    client.release();
+  }
+});
+
+// ==========================================
+// SERVICES (public – no filters, used by homepage)
 // ==========================================
 app.get('/api/services', async (req, res) => {
   try {
@@ -277,7 +452,7 @@ app.get('/api/services', async (req, res) => {
 });
 
 // ==========================================
-// ADMIN SERVICES CRUD
+// ADMIN SERVICES CRUD (unchanged)
 // ==========================================
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   try {
@@ -339,7 +514,7 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// BLOG ENDPOINTS (with unique slug generator)
+// BLOG ENDPOINTS (unchanged)
 // ==========================================
 app.get('/api/blogs', async (req, res) => {
   try {
@@ -408,7 +583,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CONTACT MESSAGES
+// CONTACT MESSAGES (unchanged)
 // ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -429,69 +604,6 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch messages.' });
-  }
-});
-
-// ==========================================
-// CHECKOUT – Process booking
-// ==========================================
-app.post('/api/checkout', async (req, res) => {
-  const { firstName, lastName, email, phone, travelDate, pax, specialRequests, totalAmount, paymentMethod, service_id } = req.body;
-
-  // Validate required fields
-  if (!firstName || !lastName || !email || !phone || !travelDate || !pax || !totalAmount || !paymentMethod || !service_id) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // 1. Find or create user
-    let userId;
-    const userCheck = await client.query('SELECT user_id FROM users WHERE email = $1', [email]);
-    if (userCheck.rows.length > 0) {
-      userId = userCheck.rows[0].user_id;
-    } else {
-      const insertUser = await client.query(
-        `INSERT INTO users (first_name, last_name, email, phone, password_hash)
-         VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
-        [firstName, lastName, email, phone, 'guest_checkout_no_password']
-      );
-      userId = insertUser.rows[0].user_id;
-    }
-
-    // 2. Generate unique booking reference
-    const bookingRef = 'ECT-' + Math.floor(100000 + Math.random() * 900000);
-
-    // 3. Insert booking
-    const insertBooking = await client.query(
-      `INSERT INTO bookings (booking_reference, user_id, service_id, travel_date, pax, total_amount, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING booking_id`,
-      [bookingRef, userId, service_id, travelDate, pax, totalAmount, 'Pending']
-    );
-    const bookingId = insertBooking.rows[0].booking_id;
-
-    // 4. Insert payment record
-    await client.query(
-      `INSERT INTO payments (booking_id, payment_method, amount, payment_status)
-       VALUES ($1, $2, $3, $4)`,
-      [bookingId, paymentMethod, totalAmount, 'Pending']
-    );
-
-    await client.query('COMMIT');
-
-    res.status(201).json({
-      success: true,
-      message: `Booking successful! Your reference is ${bookingRef}.`,
-      bookingReference: bookingRef
-    });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Checkout error:', error);
-    res.status(500).json({ success: false, message: 'Failed to process booking. Please try again.' });
-  } finally {
-    client.release();
   }
 });
 
