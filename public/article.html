@@ -3,25 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Dynamic meta tags will be injected by JavaScript -->
-    <title>Loading... | EscoConcepts Travels</title>
-    <meta name="description" content="Read our latest travel story from EscoConcepts Travels – safaris, beaches, and adventures in Kenya.">
-    <meta name="keywords" content="travel blog, Kenya safari, EscoConcepts, adventure">
-    
-    <!-- Open Graph / Social Media -->
-    <meta property="og:title" content="EscoConcepts Travels">
-    <meta property="og:description" content="Discover amazing travel experiences in Kenya.">
-    <meta property="og:image" content="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200">
-    <meta property="og:url" content="">
-    <meta property="og:type" content="article">
-    <meta property="og:site_name" content="EscoConcepts Travels">
-    
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="EscoConcepts Travels">
-    <meta name="twitter:description" content="Read our travel stories and guides.">
-    <meta name="twitter:image" content="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800">
-    
+    <title>Article | EscoConcepts Travels</title>
     <style>
         * {
             margin: 0;
@@ -191,12 +173,6 @@
             font-style: italic;
             color: #555;
         }
-        .status-message {
-            text-align: center;
-            padding: 5rem 20px;
-            font-size: 1.2rem;
-            color: #777;
-        }
 
         footer {
             background-color: #2c3e50;
@@ -329,7 +305,7 @@
             // Description: from plain text excerpt
             const plainContent = stripHtml(blog.content);
             const description = truncateText(plainContent, 160);
-            const metaDescription = document.querySelector('meta[name="description"]');
+            let metaDescription = document.querySelector('meta[name="description"]');
             if (metaDescription) metaDescription.setAttribute('content', description);
             else {
                 const newMeta = document.createElement('meta');
@@ -434,7 +410,8 @@
             }
 
             try {
-                const response = await fetch(`http://localhost:11037/api/blogs/${articleId}`);
+                // Use relative URL – no localhost
+                const response = await fetch(`/api/blogs/${articleId}`);
                 const result = await response.json();
 
                 if (!response.ok || !result.success) {
