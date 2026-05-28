@@ -433,10 +433,66 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CHECKOUT (placeholder)
+// CHECKOUT – Process booking
 // ==========================================
 app.post('/api/checkout', async (req, res) => {
-  res.status(200).json({ success: true, message: 'Checkout placeholder.' });
+  const { firstName, lastName, email, phone, travelDate, pax, specialRequests, totalAmount, paymentMethod, service_id } = req.body;
+
+  // Validate required fields
+  if (!firstName || !lastName || !email || !phone || !travelDate || !pax || !totalAmount || !paymentMethod || !service_id) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Find or create user
+    let userId;
+    const userCheck = await client.query('SELECT user_id FROM users WHERE email = $1', [email]);
+    if (userCheck.rows.length > 0) {
+      userId = userCheck.rows[0].user_id;
+    } else {
+      const insertUser = await client.query(
+        `INSERT INTO users (first_name, last_name, email, phone, password_hash)
+         VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
+        [firstName, lastName, email, phone, 'guest_checkout_no_password']
+      );
+      userId = insertUser.rows[0].user_id;
+    }
+
+    // 2. Generate unique booking reference
+    const bookingRef = 'ECT-' + Math.floor(100000 + Math.random() * 900000);
+
+    // 3. Insert booking
+    const insertBooking = await client.query(
+      `INSERT INTO bookings (booking_reference, user_id, service_id, travel_date, pax, total_amount, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING booking_id`,
+      [bookingRef, userId, service_id, travelDate, pax, totalAmount, 'Pending']
+    );
+    const bookingId = insertBooking.rows[0].booking_id;
+
+    // 4. Insert payment record
+    await client.query(
+      `INSERT INTO payments (booking_id, payment_method, amount, payment_status)
+       VALUES ($1, $2, $3, $4)`,
+      [bookingId, paymentMethod, totalAmount, 'Pending']
+    );
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      success: true,
+      message: `Booking successful! Your reference is ${bookingRef}.`,
+      bookingReference: bookingRef
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Checkout error:', error);
+    res.status(500).json({ success: false, message: 'Failed to process booking. Please try again.' });
+  } finally {
+    client.release();
+  }
 });
 
 app.listen(port, () => {
