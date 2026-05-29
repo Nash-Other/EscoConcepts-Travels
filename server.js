@@ -22,9 +22,8 @@ const APP_URL = process.env.APP_URL || 'https://your-app.onrender.com';
 
 // Email setup
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev'; // Change to your verified email later
+const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 
-// Helper: send email
 async function sendEmail(to, subject, html) {
   if (!process.env.RESEND_API_KEY) {
     console.log('⚠️ RESEND_API_KEY not set. Email not sent.');
@@ -54,7 +53,7 @@ const pool = new Pool({
 });
 
 // ==========================================
-// MULTER SETUP (unchanged)
+// MULTER SETUP
 // ==========================================
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -158,6 +157,7 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Ensure admin exists
     await client.query(`
       INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
       VALUES ('Esco', 'Admin', 'admin@escoconcepts.com', '0000000000', '$2b$10$sEvVRz6qou8z8GFzfck3MuwTQmDRj7XAYmLOeyZHQhEKggcgciZSW', 'admin')
@@ -239,7 +239,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
     const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
     
-    // Send email
     const html = `
       <h2>Password Reset Request</h2>
       <p>Hello ${user.rows[0].first_name || 'there'},</p>
@@ -281,7 +280,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ==========================================
-// CUSTOMER AUTH (unchanged)
+// CUSTOMER AUTH
 // ==========================================
 app.post('/api/auth/signup', async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
@@ -331,10 +330,13 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// ==========================================
+// MY BOOKINGS (customer)
+// ==========================================
 app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT b.booking_reference, s.title AS package_name, b.travel_date, b.pax, b.total_amount, b.status, b.booking_date
+      SELECT b.booking_id, b.booking_reference, s.title AS package_name, b.travel_date, b.pax, b.total_amount, b.status, b.booking_date
       FROM bookings b
       JOIN services s ON b.service_id = s.service_id
       WHERE b.user_id = $1
@@ -348,7 +350,88 @@ app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
 });
 
 // ==========================================
-// SEARCH SERVICES (unchanged)
+// CUSTOMER CANCEL BOOKING (only pending)
+// ==========================================
+app.put('/api/bookings/cancel/:id', authenticateCustomer, async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    const booking = await client.query(
+      `SELECT b.status, b.user_id, b.booking_reference, s.title as package_title, b.total_amount
+       FROM bookings b
+       JOIN services s ON b.service_id = s.service_id
+       WHERE b.booking_id = $1`,
+      [id]
+    );
+    if (booking.rows.length === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
+    if (booking.rows[0].user_id !== req.user.userId) return res.status(403).json({ success: false, message: 'Unauthorised.' });
+    if (booking.rows[0].status !== 'Pending') return res.status(400).json({ success: false, message: 'Only pending bookings can be cancelled.' });
+
+    await client.query('BEGIN');
+    await client.query(`UPDATE bookings SET status = 'Cancelled' WHERE booking_id = $1`, [id]);
+    await client.query(`UPDATE payments SET payment_status = 'Failed' WHERE booking_id = $1`, [id]);
+    await client.query('COMMIT');
+
+    const customer = await client.query('SELECT email, first_name FROM users WHERE user_id = $1', [req.user.userId]);
+    if (customer.rows.length) {
+      const html = `
+        <h2>Booking Cancelled</h2>
+        <p>Hello ${customer.rows[0].first_name},</p>
+        <p>Your booking <strong>${booking.rows[0].booking_reference}</strong> for <strong>${booking.rows[0].package_title}</strong> has been cancelled.</p>
+        <p>No charges have been made. If you paid, a refund will be processed within 5‑7 business days.</p>
+        <p>– EscoConcepts Travels</p>
+      `;
+      await sendEmail(customer.rows[0].email, `Booking Cancelled – ${booking.rows[0].booking_reference}`, html);
+    }
+    res.json({ success: true, message: 'Booking cancelled.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to cancel.' });
+  } finally {
+    client.release();
+  }
+});
+
+// ==========================================
+// SEND RECEIPT EMAIL
+// ==========================================
+app.post('/api/bookings/receipt/:id', authenticateCustomer, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT b.booking_reference, b.travel_date, b.pax, b.total_amount, b.status, b.booking_date,
+             s.title as package_title, s.destination,
+             u.first_name, u.last_name, u.email
+      FROM bookings b
+      JOIN services s ON b.service_id = s.service_id
+      JOIN users u ON b.user_id = u.user_id
+      WHERE b.booking_id = $1 AND b.user_id = $2
+    `, [id, req.user.userId]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
+    const booking = result.rows[0];
+    const html = `
+      <h2>Your Booking Receipt</h2>
+      <p><strong>Reference:</strong> ${booking.booking_reference}</p>
+      <p><strong>Package:</strong> ${booking.package_title}</p>
+      <p><strong>Destination:</strong> ${booking.destination}</p>
+      <p><strong>Travel Date:</strong> ${new Date(booking.travel_date).toLocaleDateString()}</p>
+      <p><strong>Guests:</strong> ${booking.pax}</p>
+      <p><strong>Total:</strong> KES ${Number(booking.total_amount).toLocaleString()}</p>
+      <p><strong>Status:</strong> ${booking.status}</p>
+      <p><strong>Booked On:</strong> ${new Date(booking.booking_date).toLocaleString()}</p>
+      <p>Thank you for choosing EscoConcepts Travels.</p>
+    `;
+    await sendEmail(booking.email, `Your Booking Receipt – ${booking.booking_reference}`, html);
+    res.json({ success: true, message: 'Receipt sent to your email.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to send receipt.' });
+  }
+});
+
+// ==========================================
+// SEARCH SERVICES (public)
 // ==========================================
 app.get('/api/services/search', async (req, res) => {
   const { location, minPrice, maxPrice, guests } = req.query;
@@ -388,7 +471,7 @@ app.get('/api/services/search', async (req, res) => {
 });
 
 // ==========================================
-// TEST DB ENDPOINT
+// TEST DB
 // ==========================================
 app.get('/api/test-db', async (req, res) => {
   try {
@@ -400,7 +483,7 @@ app.get('/api/test-db', async (req, res) => {
 });
 
 // ==========================================
-// ADMIN LOGIN (unchanged)
+// ADMIN LOGIN
 // ==========================================
 app.post('/api/admin/login', async (req, res) => {
   const { email, password } = req.body;
@@ -428,7 +511,7 @@ app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) =>
 });
 
 // ==========================================
-// BOOKINGS (admin) – with email on status change
+// BOOKINGS (admin)
 // ==========================================
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   try {
@@ -464,7 +547,6 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Get old status and customer info before update
     const current = await client.query(`
       SELECT b.status as old_status, u.email, u.first_name, u.last_name, b.booking_reference, s.title as package_title
       FROM bookings b
@@ -483,7 +565,6 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
     await client.query(`UPDATE payments SET payment_status = $1 WHERE booking_id = $2`, [paymentStatus, id]);
     await client.query('COMMIT');
 
-    // Send email if status changed
     if (oldStatus !== status) {
       const statusText = status === 'Confirmed' ? 'confirmed ✅' : (status === 'Cancelled' ? 'cancelled ❌' : 'pending ⏳');
       const subject = `Booking ${statusText} – ${bookingRef}`;
@@ -495,7 +576,6 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
       `;
       await sendEmail(customerEmail, subject, html);
     }
-
     res.json({ success: true, message: `Booking status updated to ${status}${oldStatus !== status ? ' and email sent' : ''}.` });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -507,7 +587,7 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CHECKOUT (unchanged)
+// CHECKOUT (guest or logged‑in user)
 // ==========================================
 app.post('/api/checkout', async (req, res) => {
   const { firstName, lastName, email, phone, travelDate, pax, totalAmount, paymentMethod, service_id, userId } = req.body;
@@ -544,7 +624,6 @@ app.post('/api/checkout', async (req, res) => {
       [bookingId, paymentMethod, totalAmount]
     );
     await client.query('COMMIT');
-    // Optionally send a booking confirmation email here (but not required)
     res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -556,7 +635,7 @@ app.post('/api/checkout', async (req, res) => {
 });
 
 // ==========================================
-// SERVICES (public)
+// PUBLIC SERVICES (no filters)
 // ==========================================
 app.get('/api/services', async (req, res) => {
   try {
@@ -569,7 +648,7 @@ app.get('/api/services', async (req, res) => {
 });
 
 // ==========================================
-// ADMIN SERVICES CRUD (unchanged)
+// ADMIN SERVICES CRUD
 // ==========================================
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   try {
@@ -631,7 +710,7 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// BLOG ENDPOINTS (with pagination, unchanged)
+// BLOG ENDPOINTS (pagination)
 // ==========================================
 app.get('/api/blogs', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -713,7 +792,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CONTACT MESSAGES (unchanged)
+// CONTACT MESSAGES
 // ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -737,6 +816,9 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// START SERVER
+// ==========================================
 app.listen(port, () => {
   console.log(`✅ Server running at http://localhost:${port}`);
 });
