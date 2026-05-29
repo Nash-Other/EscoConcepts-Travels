@@ -17,7 +17,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 const JWT_SECRET = process.env.JWT_SECRET || 'esco_super_secret_key_2026';
-const APP_URL = process.env.APP_URL || 'https://your-app.onrender.com'; // CHANGE to your Render URL
+const APP_URL = process.env.APP_URL || 'https://your-app.onrender.com';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -25,7 +25,7 @@ const pool = new Pool({
 });
 
 // ==========================================
-// MULTER SETUP (unchanged)
+// MULTER SETUP
 // ==========================================
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -67,14 +67,12 @@ async function initializeDatabase() {
       reset_token VARCHAR(255),
       reset_token_expiry TIMESTAMP
     )`);
-    // Add columns if missing (for existing tables)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`);
 
-    // Other tables (services, bookings, payments, blogs, contactmessages) same as before...
     await client.query(`CREATE TABLE IF NOT EXISTS services (
       service_id SERIAL PRIMARY KEY,
-      service_category VARCHAR(50) NOT NULL,
+      service_category VARCHAR(50),
       title VARCHAR(150) NOT NULL,
       destination VARCHAR(100),
       description TEXT,
@@ -87,6 +85,7 @@ async function initializeDatabase() {
       itinerary TEXT,
       gallery TEXT[] DEFAULT '{}'
     )`);
+
     await client.query(`CREATE TABLE IF NOT EXISTS bookings (
       booking_id SERIAL PRIMARY KEY,
       booking_reference VARCHAR(20) UNIQUE NOT NULL,
@@ -99,6 +98,7 @@ async function initializeDatabase() {
       status VARCHAR(20) DEFAULT 'Pending',
       booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+
     await client.query(`CREATE TABLE IF NOT EXISTS payments (
       payment_id SERIAL PRIMARY KEY,
       booking_id INTEGER REFERENCES bookings(booking_id) ON DELETE CASCADE,
@@ -108,6 +108,7 @@ async function initializeDatabase() {
       payment_status VARCHAR(20) DEFAULT 'Pending',
       payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+
     await client.query(`CREATE TABLE IF NOT EXISTS blogs (
       id SERIAL PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
@@ -118,6 +119,7 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+
     await client.query(`CREATE TABLE IF NOT EXISTS contactmessages (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -201,23 +203,14 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const user = await pool.query('SELECT user_id FROM users WHERE email = $1', [email]);
     if (user.rows.length === 0) {
-      // For security, don't reveal that email doesn't exist
       return res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
     }
-    // Generate a secure random token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 1); // token valid for 1 hour
-
+    expiry.setHours(expiry.getHours() + 1);
     await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
-
-    // Create reset link
     const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
-    // Log the link (since email is disabled, we print to console)
     console.log(`\n🔐 PASSWORD RESET LINK for ${email}: ${resetLink}\n`);
-
-    // In production, replace with real email (e.g., using Resend)
-    // For now, return the link in the response (only for testing – remove later)
     res.json({ success: true, message: `Reset link: ${resetLink} (check server logs)` });
   } catch (err) {
     console.error(err);
@@ -250,7 +243,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ==========================================
-// EXISTING ENDPOINTS (customer auth, bookings, search, etc.)
+// CUSTOMER AUTH ENDPOINTS
 // ==========================================
 app.post('/api/auth/signup', async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
@@ -300,6 +293,9 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// ==========================================
+// MY BOOKINGS (customer only)
+// ==========================================
 app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -316,6 +312,9 @@ app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
   }
 });
 
+// ==========================================
+// SEARCH SERVICES (backend filtering)
+// ==========================================
 app.get('/api/services/search', async (req, res) => {
   const { location, minPrice, maxPrice, guests } = req.query;
   let query = 'SELECT service_id, title, destination, base_price, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE';
@@ -353,6 +352,9 @@ app.get('/api/services/search', async (req, res) => {
   }
 });
 
+// ==========================================
+// TEST DATABASE CONNECTION
+// ==========================================
 app.get('/api/test-db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW() as time');
@@ -362,6 +364,9 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
+// ==========================================
+// ADMIN LOGIN
+// ==========================================
 app.post('/api/admin/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -378,12 +383,18 @@ app.post('/api/admin/login', async (req, res) => {
   }
 });
 
+// ==========================================
+// IMAGE UPLOAD (admin only)
+// ==========================================
 app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file.' });
   const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   res.json({ success: true, url });
 });
 
+// ==========================================
+// BOOKINGS (admin)
+// ==========================================
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -429,6 +440,9 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// CHECKOUT (guest or logged‑in user)
+// ==========================================
 app.post('/api/checkout', async (req, res) => {
   const { firstName, lastName, email, phone, travelDate, pax, totalAmount, paymentMethod, service_id, userId } = req.body;
   if (!firstName || !lastName || !email || !phone || !travelDate || !pax || !totalAmount || !paymentMethod || !service_id) {
@@ -474,6 +488,9 @@ app.post('/api/checkout', async (req, res) => {
   }
 });
 
+// ==========================================
+// SERVICES (public – no filters, used by homepage)
+// ==========================================
 app.get('/api/services', async (req, res) => {
   try {
     const result = await pool.query('SELECT service_id, title, destination, base_price, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
@@ -484,6 +501,9 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
+// ==========================================
+// ADMIN SERVICES CRUD
+// ==========================================
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM services ORDER BY service_id');
@@ -543,10 +563,27 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// BLOG ENDPOINTS (with pagination)
+// ==========================================
 app.get('/api/blogs', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 6;  // 6 blogs per page
+  const offset = (page - 1) * limit;
+
   try {
-    const result = await pool.query('SELECT * FROM blogs ORDER BY created_at DESC');
-    res.json(result.rows);
+    const result = await pool.query('SELECT * FROM blogs ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
+    const countResult = await pool.query('SELECT COUNT(*) FROM blogs');
+    const totalBlogs = parseInt(countResult.rows[0].count);
+    res.json({
+      blogs: result.rows,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalBlogs / limit),
+        totalBlogs: totalBlogs,
+        limit: limit
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch blogs.' });
@@ -609,6 +646,9 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// CONTACT MESSAGES
+// ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
   if (!name || !email || !message) return res.status(400).json({ success: false, message: 'Missing fields.' });
