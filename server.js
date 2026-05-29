@@ -783,7 +783,7 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// REVIEWS ENDPOINTS (2.1, 2.2, 2.3)
+// REVIEWS ENDPOINTS
 // ==========================================
 // 2.1 Submit a review (POST)
 app.post('/api/reviews', authenticateCustomer, async (req, res) => {
@@ -848,6 +848,27 @@ app.delete('/api/reviews/:review_id', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Delete failed.' });
+  }
+});
+
+// ==========================================
+// ADMIN GET ALL REVIEWS (missing endpoint)
+// ==========================================
+app.get('/api/admin/reviews', authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT r.review_id, r.rating, r.comment, r.created_at,
+             s.title AS destination_title,
+             u.first_name || ' ' || u.last_name AS user_name
+      FROM reviews r
+      JOIN services s ON r.service_id = s.service_id
+      JOIN users u ON r.user_id = u.user_id
+      ORDER BY r.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
   }
 });
 
