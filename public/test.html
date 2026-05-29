@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Login</title></head>
+<body>
+<button onclick="testLogin()">Test Admin Login</button>
+<pre id="result"></pre>
+<script>
+async function testLogin() {
+    const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@escoconcepts.com', password: 'admin123' })
+    });
+    const data = await res.json();
+    document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+}
+</script>
+</body>
+</html>
