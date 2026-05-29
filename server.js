@@ -78,7 +78,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// DATABASE INIT
+// DATABASE INIT (creates all tables including reviews)
 // ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
@@ -156,6 +156,21 @@ async function initializeDatabase() {
       message TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Reviews table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        review_id SERIAL PRIMARY KEY,
+        service_id INTEGER NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(service_id, user_id)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_service_id ON reviews(service_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`);
 
     // Ensure admin exists
     await client.query(`
@@ -530,7 +545,7 @@ app.get('/api/services/search', async (req, res) => {
 });
 
 // ==========================================
-// TEST DB ENDPOINT
+// TEST DB
 // ==========================================
 app.get('/api/test-db', async (req, res) => {
   try {
@@ -761,6 +776,75 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
     const result = await pool.query('DELETE FROM services WHERE service_id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
     res.json({ success: true, message: 'Deleted!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Delete failed.' });
+  }
+});
+
+// ==========================================
+// REVIEWS ENDPOINTS (2.1, 2.2, 2.3)
+// ==========================================
+// 2.1 Submit a review (POST)
+app.post('/api/reviews', authenticateCustomer, async (req, res) => {
+  const { service_id, rating, comment } = req.body;
+  if (!service_id || !rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ success: false, message: 'Service ID and rating (1-5) required.' });
+  }
+  try {
+    const existing = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ success: false, message: 'You have already reviewed this destination.' });
+    }
+    await pool.query(
+      'INSERT INTO reviews (service_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)',
+      [service_id, req.user.userId, rating, comment || null]
+    );
+    res.status(201).json({ success: true, message: 'Review submitted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to submit review.' });
+  }
+});
+
+// 2.2 Get reviews for a destination (GET)
+app.get('/api/reviews/:service_id', async (req, res) => {
+  const { service_id } = req.params;
+  try {
+    const reviews = await pool.query(`
+      SELECT r.rating, r.comment, r.created_at, u.first_name, u.last_name
+      FROM reviews r
+      JOIN users u ON r.user_id = u.user_id
+      WHERE r.service_id = $1
+      ORDER BY r.created_at DESC
+    `, [service_id]);
+    const avgResult = await pool.query('SELECT AVG(rating) as average FROM reviews WHERE service_id = $1', [service_id]);
+    const average = avgResult.rows[0].average ? parseFloat(avgResult.rows[0].average).toFixed(1) : null;
+    res.json({ success: true, reviews: reviews.rows, average: average });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
+  }
+});
+
+// Check if user has already reviewed a destination (used by frontend)
+app.get('/api/reviews/check/:service_id', authenticateCustomer, async (req, res) => {
+  const { service_id } = req.params;
+  try {
+    const result = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
+    res.json({ success: true, reviewed: result.rows.length > 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error checking review status.' });
+  }
+});
+
+// 2.3 Delete a review (admin only)
+app.delete('/api/reviews/:review_id', authenticateAdmin, async (req, res) => {
+  const { review_id } = req.params;
+  try {
+    await pool.query('DELETE FROM reviews WHERE review_id = $1', [review_id]);
+    res.json({ success: true, message: 'Review deleted.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Delete failed.' });
