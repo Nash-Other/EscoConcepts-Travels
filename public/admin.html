@@ -108,13 +108,17 @@
             <!-- Contact Messages -->
             <div class="dashboard-header"><h1>Customer Inquiries</h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh</button></div>
             <div class="content-wrapper">
-                <table><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody></table>
+                <table><thead></tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
+            20<
             </div>
 
             <!-- Blog Management -->
             <div class="dashboard-header"><h1>Manage Blogs</h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh</button></div>
             <div class="content-wrapper">
-                <table><thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody></table>
+                <table>
+                    <thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead>
+                    <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
+                20<
             </div>
 
             <!-- Publish New Blog -->
@@ -231,13 +235,12 @@
             document.getElementById('btnLogout').style.display = 'none';
         }
 
-        // Quill initialization (only after login and DOM ready)
+        // Quill initialization
         let quillCreate = null, quillEdit = null;
         function initQuillEditors(token) {
             if (quillCreate) return;
             try {
                 quillCreate = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [[{ 'header': [1,2,3,4,5,6,false] }], ['bold','italic','underline','strike'],[{ 'color': [] },{ 'background': [] }],[{ 'list': 'ordered'},{ 'list': 'bullet' }],[{ 'align': [] }],['link','image','clean']] } });
-                // Add custom image handler
                 const toolbar = quillCreate.getModule('toolbar');
                 toolbar.addHandler('image', () => {
                     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
@@ -504,12 +507,12 @@
             } catch(err) { console.error(err); }
         }
 
-        // Blogs (fixed for paginated response)
+        // Blogs (fixed: fetch all blogs by using a large limit)
         async function fetchAdminBlogs() {
             const tbody = document.getElementById('manageBlogsTableBody');
             if (!tbody) return;
             try {
-                const res = await fetch('/api/blogs');
+                const res = await fetch('/api/blogs?limit=1000');
                 const data = await res.json();
                 // The API returns { blogs: [...], pagination: {...} }
                 const blogs = data.blogs || data;
