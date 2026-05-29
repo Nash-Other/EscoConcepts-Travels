@@ -78,7 +78,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// DATABASE INIT
+// DATABASE INIT (creates all tables)
 // ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
@@ -570,23 +570,51 @@ app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) =>
 });
 
 // ==========================================
-// BOOKINGS (admin)
+// BOOKINGS (admin) – WITH PAGINATION & SEARCH
 // ==========================================
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const offset = (page - 1) * limit;
+  const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+
+  let baseQuery = `
+    SELECT b.booking_id, b.booking_reference,
+           u.first_name || ' ' || u.last_name AS customer_name,
+           u.email, u.phone, s.title AS package_booked,
+           b.travel_date, b.pax AS total_guests,
+           p.payment_method, b.total_amount, b.booking_date, b.status
+    FROM bookings b
+    JOIN users u ON b.user_id = u.user_id
+    JOIN services s ON b.service_id = s.service_id
+    JOIN payments p ON b.booking_id = p.booking_id
+  `;
+  let countQuery = 'SELECT COUNT(*) FROM bookings b JOIN users u ON b.user_id = u.user_id JOIN services s ON b.service_id = s.service_id JOIN payments p ON b.booking_id = p.booking_id';
+  let whereClause = '';
+  let params = [];
+
+  if (search) {
+    whereClause = ` WHERE LOWER(b.booking_reference) LIKE $1 OR LOWER(u.first_name) LIKE $1 OR LOWER(u.last_name) LIKE $1 OR LOWER(u.email) LIKE $1 OR LOWER(s.title) LIKE $1`;
+    params.push(search);
+  }
+
   try {
-    const result = await pool.query(`
-      SELECT b.booking_id, b.booking_reference,
-             u.first_name || ' ' || u.last_name AS customer_name,
-             u.email, u.phone, s.title AS package_booked,
-             b.travel_date, b.pax AS total_guests,
-             p.payment_method, b.total_amount, b.booking_date, b.status
-      FROM bookings b
-      JOIN users u ON b.user_id = u.user_id
-      JOIN services s ON b.service_id = s.service_id
-      JOIN payments p ON b.booking_id = p.booking_id
-      ORDER BY b.booking_date DESC
-    `);
-    res.json({ success: true, data: result.rows });
+    const countRes = await pool.query(countQuery + whereClause, params);
+    const total = parseInt(countRes.rows[0].count);
+    const dataRes = await pool.query(
+      baseQuery + whereClause + ` ORDER BY b.booking_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+    res.json({
+      success: true,
+      data: dataRes.rows,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        limit: limit
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch bookings.' });
@@ -645,73 +673,41 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CHECKOUT (guest or logged‑in user)
-// ==========================================
-app.post('/api/checkout', async (req, res) => {
-  const { firstName, lastName, email, phone, travelDate, pax, totalAmount, paymentMethod, service_id, userId } = req.body;
-  if (!firstName || !lastName || !email || !phone || !travelDate || !pax || !totalAmount || !paymentMethod || !service_id) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    let finalUserId = userId;
-    if (!finalUserId) {
-      const userCheck = await client.query('SELECT user_id FROM users WHERE email = $1', [email]);
-      if (userCheck.rows.length > 0) {
-        finalUserId = userCheck.rows[0].user_id;
-      } else {
-        const insertUser = await client.query(
-          `INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
-           VALUES ($1, $2, $3, $4, $5, 'customer') RETURNING user_id`,
-          [firstName, lastName, email, phone, 'guest_checkout_no_password']
-        );
-        finalUserId = insertUser.rows[0].user_id;
-      }
-    }
-    const bookingRef = 'ECT-' + Math.floor(100000 + Math.random() * 900000);
-    const insertBooking = await client.query(
-      `INSERT INTO bookings (booking_reference, user_id, service_id, travel_date, pax, total_amount, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'Pending') RETURNING booking_id`,
-      [bookingRef, finalUserId, service_id, travelDate, pax, totalAmount]
-    );
-    const bookingId = insertBooking.rows[0].booking_id;
-    await client.query(
-      `INSERT INTO payments (booking_id, payment_method, amount, payment_status)
-       VALUES ($1, $2, $3, 'Pending')`,
-      [bookingId, paymentMethod, totalAmount]
-    );
-    await client.query('COMMIT');
-    res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Checkout error:', err);
-    res.status(500).json({ success: false, message: 'Failed to process booking.' });
-  } finally {
-    client.release();
-  }
-});
-
-// ==========================================
-// PUBLIC SERVICES (no filters)
-// ==========================================
-app.get('/api/services', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT service_id, title, destination, base_price, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch services.' });
-  }
-});
-
-// ==========================================
-// ADMIN SERVICES CRUD
+// ADMIN SERVICES (destinations) – WITH PAGINATION & SEARCH
 // ==========================================
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const offset = (page - 1) * limit;
+  const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+
+  let baseQuery = 'SELECT * FROM services';
+  let countQuery = 'SELECT COUNT(*) FROM services';
+  let whereClause = '';
+  let params = [];
+
+  if (search) {
+    whereClause = ` WHERE LOWER(title) LIKE $1 OR LOWER(destination) LIKE $1 OR LOWER(description) LIKE $1`;
+    params.push(search);
+  }
+
   try {
-    const result = await pool.query('SELECT * FROM services ORDER BY service_id');
-    res.json({ success: true, data: result.rows });
+    const countRes = await pool.query(countQuery + whereClause, params);
+    const total = parseInt(countRes.rows[0].count);
+    const dataRes = await pool.query(
+      baseQuery + whereClause + ` ORDER BY service_id ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+    res.json({
+      success: true,
+      data: dataRes.rows,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        limit: limit
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch services.' });
@@ -768,16 +764,73 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// BLOG ENDPOINTS (pagination)
+// ADMIN CONTACT MESSAGES – WITH PAGINATION & SEARCH
+// ==========================================
+app.get('/api/contact', authenticateAdmin, async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const offset = (page - 1) * limit;
+  const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+
+  let baseQuery = 'SELECT * FROM contactmessages';
+  let countQuery = 'SELECT COUNT(*) FROM contactmessages';
+  let whereClause = '';
+  let params = [];
+
+  if (search) {
+    whereClause = ` WHERE LOWER(name) LIKE $1 OR LOWER(email) LIKE $1 OR LOWER(subject) LIKE $1 OR LOWER(message) LIKE $1`;
+    params.push(search);
+  }
+
+  try {
+    const countRes = await pool.query(countQuery + whereClause, params);
+    const total = parseInt(countRes.rows[0].count);
+    const dataRes = await pool.query(
+      baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+    res.json({
+      success: true,
+      data: dataRes.rows,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        limit: limit
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch messages.' });
+  }
+});
+
+// ==========================================
+// BLOGS – WITH SEARCH (pagination already present)
 // ==========================================
 app.get('/api/blogs', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 6;
   const offset = (page - 1) * limit;
+  const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+
+  let baseQuery = 'SELECT * FROM blogs';
+  let countQuery = 'SELECT COUNT(*) FROM blogs';
+  let whereClause = '';
+  let params = [];
+
+  if (search) {
+    whereClause = ` WHERE LOWER(title) LIKE $1 OR LOWER(author) LIKE $1 OR LOWER(content) LIKE $1`;
+    params.push(search);
+  }
+
   try {
-    const result = await pool.query('SELECT * FROM blogs ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
-    const countResult = await pool.query('SELECT COUNT(*) FROM blogs');
-    const totalBlogs = parseInt(countResult.rows[0].count);
+    const countRes = await pool.query(countQuery + whereClause, params);
+    const totalBlogs = parseInt(countRes.rows[0].count);
+    const result = await pool.query(
+      baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
     res.json({
       blogs: result.rows,
       pagination: {
@@ -850,33 +903,66 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CONTACT MESSAGES
+// CHECKOUT (guest or logged‑in user)
 // ==========================================
-app.post('/api/contact', async (req, res) => {
-  const { name, email, subject, message } = req.body;
-  if (!name || !email || !message) return res.status(400).json({ success: false, message: 'Missing fields.' });
+app.post('/api/checkout', async (req, res) => {
+  const { firstName, lastName, email, phone, travelDate, pax, totalAmount, paymentMethod, service_id, userId } = req.body;
+  if (!firstName || !lastName || !email || !phone || !travelDate || !pax || !totalAmount || !paymentMethod || !service_id) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  const client = await pool.connect();
   try {
-    await pool.query(`INSERT INTO contactmessages (name, email, subject, message) VALUES ($1,$2,$3,$4)`, [name, email, subject, message]);
-    res.status(201).json({ success: true, message: 'Message received.' });
+    await client.query('BEGIN');
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const userCheck = await client.query('SELECT user_id FROM users WHERE email = $1', [email]);
+      if (userCheck.rows.length > 0) {
+        finalUserId = userCheck.rows[0].user_id;
+      } else {
+        const insertUser = await client.query(
+          `INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
+           VALUES ($1, $2, $3, $4, $5, 'customer') RETURNING user_id`,
+          [firstName, lastName, email, phone, 'guest_checkout_no_password']
+        );
+        finalUserId = insertUser.rows[0].user_id;
+      }
+    }
+    const bookingRef = 'ECT-' + Math.floor(100000 + Math.random() * 900000);
+    const insertBooking = await client.query(
+      `INSERT INTO bookings (booking_reference, user_id, service_id, travel_date, pax, total_amount, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Pending') RETURNING booking_id`,
+      [bookingRef, finalUserId, service_id, travelDate, pax, totalAmount]
+    );
+    const bookingId = insertBooking.rows[0].booking_id;
+    await client.query(
+      `INSERT INTO payments (booking_id, payment_method, amount, payment_status)
+       VALUES ($1, $2, $3, 'Pending')`,
+      [bookingId, paymentMethod, totalAmount]
+    );
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to send.' });
+    await client.query('ROLLBACK');
+    console.error('Checkout error:', err);
+    res.status(500).json({ success: false, message: 'Failed to process booking.' });
+  } finally {
+    client.release();
   }
 });
 
-app.get('/api/contact', authenticateAdmin, async (req, res) => {
+// ==========================================
+// PUBLIC SERVICES (no filters)
+// ==========================================
+app.get('/api/services', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM contactmessages ORDER BY created_at DESC');
+    const result = await pool.query('SELECT service_id, title, destination, base_price, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
     res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch messages.' });
+    res.status(500).json({ success: false, message: 'Failed to fetch services.' });
   }
 });
 
-// ==========================================
-// START SERVER
-// ==========================================
 app.listen(port, () => {
   console.log(`✅ Server running at http://localhost:${port}`);
 });
