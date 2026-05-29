@@ -78,7 +78,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// DATABASE INIT (creates all tables)
+// DATABASE INIT
 // ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
@@ -157,7 +157,7 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Ensure admin user exists
+    // Ensure admin exists
     await client.query(`
       INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
       VALUES ('Esco', 'Admin', 'admin@escoconcepts.com', '0000000000', '$2b$10$sEvVRz6qou8z8GFzfck3MuwTQmDRj7XAYmLOeyZHQhEKggcgciZSW', 'admin')
@@ -874,6 +874,9 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// START SERVER
+// ==========================================
 app.listen(port, () => {
   console.log(`✅ Server running at http://localhost:${port}`);
 });
