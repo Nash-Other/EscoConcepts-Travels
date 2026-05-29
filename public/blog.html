@@ -160,13 +160,56 @@
             background-color: #2980b9;
         }
 
+        /* Pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 3rem;
+            flex-wrap: wrap;
+        }
+        .pagination button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .pagination button:hover:not(:disabled) {
+            background-color: var(--accent-color);
+        }
+        .pagination button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .page-numbers {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .page-number {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            border: none;
+            padding: 0.5rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .page-number.active {
+            background-color: var(--accent-color);
+            color: white;
+        }
         .loader, .error-message {
             text-align: center;
             grid-column: 1 / -1;
             padding: 2rem;
             font-size: 1.2rem;
         }
-        
         .error-message {
             color: #e74c3c;
         }
@@ -191,62 +234,55 @@
 
     <main class="container">
         <div id="blog-grid">
-            <div class="loader">Loading latest articles...</div>
+            <div class="loader">Loading articles...</div>
         </div>
+        <div id="pagination-container" class="pagination"></div>
     </main>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchBlogs();
-        });
+        let currentPage = 1;
+        let totalPages = 1;
 
-        // Helper: strip HTML tags and truncate for excerpt
-        function getPlainTextExcerpt(html, maxLength = 120) {
-            if (!html) return 'Discover more about this journey...';
-            const div = document.createElement('div');
-            div.innerHTML = html;
-            const text = div.textContent || div.innerText || '';
-            return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-        }
-
-        async function fetchBlogs() {
+        async function fetchBlogs(page = 1) {
             const blogGrid = document.getElementById('blog-grid');
-            
-            try {
-                const response = await fetch('/api/blogs');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const blogs = await response.json();
-                
-                blogGrid.innerHTML = '';
+            const paginationContainer = document.getElementById('pagination-container');
+            blogGrid.innerHTML = '<div class="loader">Loading articles...</div>';
+            paginationContainer.innerHTML = '';
 
-                if (blogs.length === 0) {
+            try {
+                const response = await fetch(`/api/blogs?page=${page}&limit=6`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                const blogs = data.blogs;
+                const pagination = data.pagination;
+
+                if (!blogs || blogs.length === 0) {
                     blogGrid.innerHTML = '<div class="loader">No blog posts available at the moment. Check back soon!</div>';
+                    paginationContainer.innerHTML = '';
                     return;
                 }
 
+                currentPage = pagination.currentPage;
+                totalPages = pagination.totalPages;
+
+                // Render blog cards
+                blogGrid.innerHTML = '';
                 blogs.forEach(blog => {
                     const date = new Date(blog.created_at).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
+                        year: 'numeric', month: 'long', day: 'numeric'
                     });
 
                     const defaultImage = 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
                     const imageUrl = blog.image_url ? blog.image_url : defaultImage;
-
-                    // Generate plain-text excerpt from HTML content
-                    const excerpt = getPlainTextExcerpt(blog.content);
+                    const excerpt = blog.content ? stripHtml(blog.content).substring(0, 120) + '...' : 'Discover more about this journey...';
 
                     const cardHTML = `
                         <article class="blog-card">
                             <img src="${imageUrl}" alt="${blog.title}" class="blog-image" onerror="this.onerror=null; this.src='${defaultImage}';" onclick="readFullPost(${blog.id})">
                             <div class="blog-content">
                                 <div class="blog-meta">
-                                    <span>By ${blog.author || 'EscoConcepts Team'}</span>
+                                    <span>By ${escapeHtml(blog.author || 'EscoConcepts Team')}</span>
                                     <span>${date}</span>
                                 </div>
                                 <h2 class="blog-title" onclick="readFullPost(${blog.id})">${escapeHtml(blog.title)}</h2>
@@ -255,18 +291,60 @@
                             </div>
                         </article>
                     `;
-                    
                     blogGrid.insertAdjacentHTML('beforeend', cardHTML);
                 });
+
+                // Render pagination controls
+                renderPagination(pagination);
 
             } catch (error) {
                 console.error('Error fetching blogs:', error);
                 blogGrid.innerHTML = '<div class="error-message">Unable to load blogs. Please ensure the server is running.</div>';
+                paginationContainer.innerHTML = '';
             }
         }
 
-        function readFullPost(id) {
-            window.location.href = `article.html?id=${id}`;
+        function renderPagination(pagination) {
+            const container = document.getElementById('pagination-container');
+            container.innerHTML = '';
+
+            // Previous button
+            const prevBtn = document.createElement('button');
+            prevBtn.innerText = '‹ Previous';
+            prevBtn.disabled = pagination.currentPage === 1;
+            prevBtn.onclick = () => {
+                if (pagination.currentPage > 1) fetchBlogs(pagination.currentPage - 1);
+            };
+            container.appendChild(prevBtn);
+
+            // Page numbers
+            const pageNumbersDiv = document.createElement('div');
+            pageNumbersDiv.className = 'page-numbers';
+            for (let i = 1; i <= pagination.totalPages; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.innerText = i;
+                pageBtn.className = 'page-number';
+                if (i === pagination.currentPage) pageBtn.classList.add('active');
+                pageBtn.onclick = () => fetchBlogs(i);
+                pageNumbersDiv.appendChild(pageBtn);
+            }
+            container.appendChild(pageNumbersDiv);
+
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.innerText = 'Next ›';
+            nextBtn.disabled = pagination.currentPage === pagination.totalPages;
+            nextBtn.onclick = () => {
+                if (pagination.currentPage < pagination.totalPages) fetchBlogs(pagination.currentPage + 1);
+            };
+            container.appendChild(nextBtn);
+        }
+
+        function stripHtml(html) {
+            if (!html) return '';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
         }
 
         function escapeHtml(str) {
@@ -278,6 +356,14 @@
                 return m;
             });
         }
+
+        function readFullPost(id) {
+            window.location.href = `article.html?id=${id}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBlogs(1);
+        });
     </script>
 </body>
 </html>
