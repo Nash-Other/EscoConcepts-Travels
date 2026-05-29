@@ -223,7 +223,7 @@ function authenticateCustomer(req, res, next) {
 }
 
 // ==========================================
-// PASSWORD RESET (with real email)
+// PASSWORD RESET
 // ==========================================
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -238,13 +238,12 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     expiry.setHours(expiry.getHours() + 1);
     await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
     const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
-    
     const html = `
       <h2>Password Reset Request</h2>
       <p>Hello ${user.rows[0].first_name || 'there'},</p>
-      <p>You requested to reset your password. Click the link below to set a new password. This link expires in 1 hour.</p>
+      <p>Click the link below to set a new password (expires in 1 hour).</p>
       <p><a href="${resetLink}">${resetLink}</a></p>
-      <p>If you did not request this, please ignore this email.</p>
+      <p>If you did not request this, ignore this email.</p>
       <p>— EscoConcepts Travels</p>
     `;
     await sendEmail(email, 'Reset Your Password', html);
@@ -267,12 +266,12 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
     const expiry = new Date(user.rows[0].reset_token_expiry);
     if (expiry < new Date()) {
-      return res.status(400).json({ success: false, message: 'Token has expired. Request a new reset link.' });
+      return res.status(400).json({ success: false, message: 'Token expired. Request a new reset link.' });
     }
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
     await pool.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2', [hashedPassword, user.rows[0].user_id]);
-    res.json({ success: true, message: 'Password reset successful. You can now log in with your new password.' });
+    res.json({ success: true, message: 'Password reset successful. You can now log in.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -280,7 +279,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ==========================================
-// CUSTOMER AUTH
+// CUSTOMER AUTH (signup, login, profile)
 // ==========================================
 app.post('/api/auth/signup', async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
@@ -330,6 +329,67 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.get('/api/auth/me', authenticateCustomer, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT user_id, first_name, last_name, email, phone, role FROM users WHERE user_id = $1',
+      [req.user.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.put('/api/auth/profile', authenticateCustomer, async (req, res) => {
+  const { firstName, lastName, phone, email } = req.body;
+  const userId = req.user.userId;
+  if (!firstName || !lastName || !email) {
+    return res.status(400).json({ success: false, message: 'First name, last name, and email are required.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (email !== req.user.email) {
+      const emailCheck = await client.query('SELECT user_id FROM users WHERE email = $1 AND user_id != $2', [email, userId]);
+      if (emailCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'Email already in use by another account.' });
+      }
+    }
+    const result = await client.query(
+      `UPDATE users 
+       SET first_name = $1, last_name = $2, phone = $3, email = $4 
+       WHERE user_id = $5 
+       RETURNING user_id, first_name, last_name, email, phone, role`,
+      [firstName, lastName, phone || null, email, userId]
+    );
+    await client.query('COMMIT');
+    const updatedUser = result.rows[0];
+    const newToken = jwt.sign(
+      { userId: updatedUser.user_id, email: updatedUser.email, role: updatedUser.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: updatedUser,
+      token: newToken
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Profile update error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    client.release();
+  }
+});
+
 // ==========================================
 // MY BOOKINGS (customer)
 // ==========================================
@@ -350,14 +410,14 @@ app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
 });
 
 // ==========================================
-// CUSTOMER CANCEL BOOKING (only pending)
+// CUSTOMER CANCEL BOOKING
 // ==========================================
 app.put('/api/bookings/cancel/:id', authenticateCustomer, async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
   try {
     const booking = await client.query(
-      `SELECT b.status, b.user_id, b.booking_reference, s.title as package_title, b.total_amount
+      `SELECT b.status, b.user_id, b.booking_reference, s.title as package_title
        FROM bookings b
        JOIN services s ON b.service_id = s.service_id
        WHERE b.booking_id = $1`,
@@ -378,7 +438,6 @@ app.put('/api/bookings/cancel/:id', authenticateCustomer, async (req, res) => {
         <h2>Booking Cancelled</h2>
         <p>Hello ${customer.rows[0].first_name},</p>
         <p>Your booking <strong>${booking.rows[0].booking_reference}</strong> for <strong>${booking.rows[0].package_title}</strong> has been cancelled.</p>
-        <p>No charges have been made. If you paid, a refund will be processed within 5‑7 business days.</p>
         <p>– EscoConcepts Travels</p>
       `;
       await sendEmail(customer.rows[0].email, `Booking Cancelled – ${booking.rows[0].booking_reference}`, html);
@@ -471,7 +530,7 @@ app.get('/api/services/search', async (req, res) => {
 });
 
 // ==========================================
-// TEST DB
+// TEST DB ENDPOINT
 // ==========================================
 app.get('/api/test-db', async (req, res) => {
   try {
@@ -571,7 +630,6 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
       const html = `
         <h2>Hello ${customerName},</h2>
         <p>Your booking <strong>${bookingRef}</strong> for <strong>${packageTitle}</strong> has been <strong>${statusText}</strong>.</p>
-        <p>If you have any questions, please contact us at info@escoconcepts.com.</p>
         <p>Thank you for choosing EscoConcepts Travels.</p>
       `;
       await sendEmail(customerEmail, subject, html);
