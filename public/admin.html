@@ -22,38 +22,7 @@
         .login-card button:hover { background: #2980b9; }
         #loginFeedback { margin-top: 1rem; color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
         #dashboardContainer { display: none; padding: 2rem; }
-        .tab-bar {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 2rem;
-            border-bottom: 2px solid #ddd;
-            flex-wrap: wrap;
-        }
-        .tab-button {
-            background: none;
-            border: none;
-            padding: 0.8rem 1.5rem;
-            font-size: 1rem;
-            font-weight: bold;
-            color: #555;
-            cursor: pointer;
-            transition: 0.2s;
-            border-radius: 8px 8px 0 0;
-        }
-        .tab-button:hover {
-            background-color: #e0e0e0;
-        }
-        .tab-button.active {
-            background-color: #3498db;
-            color: white;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active-tab {
-            display: block;
-        }
-        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 0; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 2rem; }
         .dashboard-header h1 { color: #2c3e50; }
         .btn-refresh { background-color: #3498db; color: #fff; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .content-wrapper { background: #fff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow-x: auto; margin-bottom: 2rem; }
@@ -85,10 +54,20 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         select.status-select { padding: 0.4rem; border-radius: 4px; border: 1px solid #ccc; }
         .blog-form { padding: 2rem; display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+        .blog-form { grid-template-columns: 1fr !important; }
         .form-group.full-width { grid-column: 1 / -1; }
         .quill-editor-wrapper { border: 1px solid #ddd; border-radius: 4px; background: #fff; }
         #editor-container, #edit-editor-container { height: 300px; }
         .btn-submit { background-color: #2ecc71; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: fit-content; }
+        .pagination { display: flex; justify-content: center; gap: 10px; margin-top: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .pagination button { background-color: #3498db; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+        .pagination button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .page-numbers { display: flex; gap: 5px; flex-wrap: wrap; }
+        .page-numbers button { background-color: #ecf0f1; color: #2c3e50; }
+        .page-numbers button.active { background-color: #e67e22; color: white; }
+        .search-box { margin-bottom: 1rem; display: flex; gap: 10px; align-items: center; }
+        .search-box input { flex: 1; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+        .search-box button { background-color: #3498db; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -110,7 +89,7 @@
     <div id="dashboardContainer"></div>
 
     <script>
-        // Helper functions
+        // ---------- Helper functions ----------
         function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
         function getAuthHeaders() { return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }; }
         function handleApiError(res) { if (res.status === 401 || res.status === 403) { alert('Session expired'); handleLogout(); return true; } return false; }
@@ -123,7 +102,7 @@
         }
         function isValidImageFile(file) { return ['image/jpeg','image/png','image/gif','image/webp'].includes(file.type); }
 
-        // Login / Logout
+        // ---------- Login / Logout ----------
         async function handleLogin(event) {
             event.preventDefault();
             const email = document.getElementById('loginEmail').value;
@@ -156,15 +135,7 @@
             location.reload();
         }
 
-        // Tab switching
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active-tab'));
-            document.getElementById(`tab-${tabId}`).classList.add('active-tab');
-            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-            document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
-        }
-
-        // Dashboard injection
+        // ---------- Dashboard injection (full HTML with modals) ----------
         async function showDashboard() {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'block';
@@ -172,61 +143,97 @@
 
             const dashboardHtml = `
                 <div class="dashboard-container">
-                    <div class="tab-bar">
-                        <button class="tab-button active" data-tab="bookings" onclick="showTab('bookings')">📅 Bookings</button>
-                        <button class="tab-button" data-tab="destinations" onclick="showTab('destinations')">🌍 Destinations</button>
-                        <button class="tab-button" data-tab="inquiries" onclick="showTab('inquiries')">✉️ Inquiries</button>
-                        <button class="tab-button" data-tab="blogs" onclick="showTab('blogs')">📝 Blogs</button>
+                    <!-- Bookings Section -->
+                    <div class="dashboard-header">
+                        <h1>Recent Bookings</h1>
+                        <button class="btn-refresh" onclick="fetchBookings(1)">Refresh</button>
                     </div>
-
-                    <div id="tab-bookings" class="tab-content active-tab">
-                        <div class="dashboard-header"><h1>Recent Bookings</h1><button class="btn-refresh" onclick="fetchBookings()">Refresh</button></div>
-                        <div class="content-wrapper">
-                            <table><thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
-                        <\/div>
+                    <div class="content-wrapper">
+                        <div class="search-box">
+                            <input type="text" id="bookingsSearch" placeholder="Search by reference, customer, email, or package...">
+                            <button onclick="fetchBookings(1)">Search</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+                            <tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="bookingsPagination" class="pagination"><\/div>
                     <\/div>
 
-                    <div id="tab-destinations" class="tab-content">
-                        <div class="dashboard-header"><h1>Manage Destinations<\/h1><button class="btn-refresh" onclick="fetchDestinations()">Refresh<\/button><\/div>
-                        <div class="content-wrapper">
-                            <div class="inline-form">
-                                <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
-                                <input type="text" id="newDestLocation" placeholder="Destination" style="flex:1">
-                                <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
-                                <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
-                                <label><input type="checkbox" id="newDestActive" checked> Active<\/label>
-                                <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination<\/button>
-                            <\/div>
-                            <table><thead><tr><th>ID<\/th><th>Title<\/th><th>Destination<\/th><th>Price<\/th><th>Image<\/th><th>Active<\/th><th>Actions<\/th></tr></thead><tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                    <!-- Destinations Management -->
+                    <div class="dashboard-header">
+                        <h1>Manage Destinations<\/h1>
+                        <button class="btn-refresh" onclick="fetchDestinations(1)">Refresh<\/button>
+                    <\/div>
+                    <div class="content-wrapper">
+                        <div class="inline-form">
+                            <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
+                            <input type="text" id="newDestLocation" placeholder="Destination" style="flex:1">
+                            <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
+                            <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
+                            <label><input type="checkbox" id="newDestActive" checked> Active<\/label>
+                            <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination<\/button>
                         <\/div>
+                        <div class="search-box">
+                            <input type="text" id="destinationsSearch" placeholder="Search by title, destination, or description...">
+                            <button onclick="fetchDestinations(1)">Search<\/button>
+                        <\/div>
+                        </table>
+                            <thead><tr><th>ID<\/th><th>Title<\/th><th>Destination<\/th><th>Price<\/th><th>Image<\/th><th>Active<\/th><th>Actions<\/th><\/tr><\/thead>
+                            <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="destinationsPagination" class="pagination"><\/div>
                     <\/div>
 
-                    <div id="tab-inquiries" class="tab-content">
-                        <div class="dashboard-header"><h1>Customer Inquiries<\/h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh<\/button><\/div>
-                        <div class="content-wrapper">
-                            </table><thead><tr><th>Date<\/th><th>Name<\/th><th>Email<\/th><th>Subject<\/th><th>Message<\/th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                    <!-- Contact Messages -->
+                    <div class="dashboard-header">
+                        <h1>Customer Inquiries<\/h1>
+                        <button class="btn-refresh" onclick="fetchContactMessages(1)">Refresh<\/button>
+                    <\/div>
+                    <div class="content-wrapper">
+                        <div class="search-box">
+                            <input type="text" id="messagesSearch" placeholder="Search by name, email, subject, or message...">
+                            <button onclick="fetchContactMessages(1)">Search<\/button>
                         <\/div>
+                        <table>
+                            <thead><tr><th>Date<\/th><th>Name<\/th><th>Email<\/th><th>Subject<\/th><th>Message<\/th><\/tr><\/thead>
+                            <tbody id="contactTableBody"><td><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="messagesPagination" class="pagination"><\/div>
                     <\/div>
 
-                    <div id="tab-blogs" class="tab-content">
-                        <div class="dashboard-header"><h1>Manage Blogs<\/h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh<\/button><\/div>
-                        <div class="content-wrapper">
-                            <table><thead><tr><th>ID<\/th><th>Title<\/th><th>Author<\/th><th>Date<\/th><th>Actions<\/th></tr></thead><tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                    <!-- Manage Blogs Table -->
+                    <div class="dashboard-header">
+                        <h1>Manage Blogs<\/h1>
+                        <button class="btn-refresh" onclick="fetchAdminBlogs(1)">Refresh<\/button>
+                    <\/div>
+                    <div class="content-wrapper">
+                        <div class="search-box">
+                            <input type="text" id="blogsSearch" placeholder="Search by title or author...">
+                            <button onclick="fetchAdminBlogs(1)">Search<\/button>
                         <\/div>
-                        <div class="dashboard-header"><h1>Publish New Blog<\/h1><\/div>
-                        <div class="content-wrapper">
-                            <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
-                                <div id="formFeedback" class="form-feedback"><\/div>
-                                <div class="form-group"><label>Title *<\/label><input type="text" id="blogTitle" required><\/div>
-                                <div class="form-group"><label>Author<\/label><input type="text" id="blogAuthor" value="EscoConcepts Team"><\/div>
-                                <div class="form-group full-width"><label>Featured Image<\/label><input type="file" id="blogImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB<\/small><\/div>
-                                <div class="form-group full-width"><label>Content<\/label><div class="quill-editor-wrapper"><div id="editor-container"><\/div><\/div><\/div>
-                                <button type="submit" class="btn-submit">Publish<\/button>
-                            <\/form>
-                        <\/div>
+                        <table>
+                            <thead><tr><th>ID<\/th><th>Title<\/th><th>Author<\/th><th>Date<\/th><th>Actions<\/th><\/tr><\/thead>
+                            <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="blogsPagination" class="pagination"><\/div>
+                    <\/div>
+
+                    <!-- Publish New Blog Form -->
+                    <div class="dashboard-header"><h1>Publish New Blog<\/h1><\/div>
+                    <div class="content-wrapper">
+                        <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
+                            <div id="formFeedback" class="form-feedback"><\/div>
+                            <div class="form-group"><label>Title *<\/label><input type="text" id="blogTitle" required><\/div>
+                            <div class="form-group"><label>Author<\/label><input type="text" id="blogAuthor" value="EscoConcepts Team"><\/div>
+                            <div class="form-group full-width"><label>Featured Image<\/label><input type="file" id="blogImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB<\/small><\/div>
+                            <div class="form-group full-width"><label>Content<\/label><div class="quill-editor-wrapper"><div id="editor-container"><\/div><\/div><\/div>
+                            <button type="submit" class="btn-submit">Publish<\/button>
+                        <\/form>
                     <\/div>
                 <\/div>
 
+                <!-- Modals (destination and edit blog) -->
                 <div id="destModal" class="modal">
                     <div class="modal-content"><span class="close-modal" onclick="closeDestModal()">&times;<\/span>
                         <h2 id="destModalTitle">Add Destination<\/h2><input type="hidden" id="editDestId">
@@ -262,10 +269,9 @@
                     <\/div>
                 <\/div>
             `;
-
             document.getElementById('dashboardContainer').innerHTML = dashboardHtml;
 
-            // Initialize Quill and image previews
+            // Initialize Quill and previews
             initQuillEditors();
             setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
             setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
@@ -274,15 +280,186 @@
                 if (fileInput.files.length === 0) alert('Please select an image file first.');
                 else uploadDestinationImage(fileInput.files[0]);
             });
-
-            // Load data
-            fetchBookings();
-            fetchDestinations();
-            fetchContactMessages();
-            fetchAdminBlogs();
+            // Fetch initial data (page 1)
+            fetchBookings(1);
+            fetchDestinations(1);
+            fetchContactMessages(1);
+            fetchAdminBlogs(1);
         }
 
-        // Quill initialization
+        // ---------- Paginated data fetching ----------
+        async function fetchBookings(page) {
+            const search = document.getElementById('bookingsSearch')?.value || '';
+            const tbody = document.getElementById('bookingsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr>';
+            try {
+                const res = await fetch(`/api/bookings?page=${page}&limit=10&search=${encodeURIComponent(search)}`, { headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const data = await res.json();
+                tbody.innerHTML = '';
+                if (!data.data.length) {
+                    tbody.innerHTML = '<tr><td colspan="9">No bookings found.<\/td><\/tr>';
+                    document.getElementById('bookingsPagination').innerHTML = '';
+                    return;
+                }
+                data.data.forEach(b => {
+                    const statusClass = b.status === 'Pending' ? 'status-pending' : (b.status === 'Confirmed' ? 'status-confirmed' : 'status-cancelled');
+                    tbody.innerHTML += `
+                        <tr id="booking-row-${b.booking_id}">
+                            <td><strong>${b.booking_reference}<\/strong><\/td>
+                            <td>${b.customer_name}<\/td>
+                            <td>${b.email}<br>${b.phone}<\/td>
+                            <td>${b.package_booked}<\/td>
+                            <td>${new Date(b.travel_date).toLocaleDateString()}<\/td>
+                            <td>${b.total_guests}<\/td>
+                            <td>${Number(b.total_amount).toLocaleString()}<\/td>
+                            <td><span class="status-badge ${statusClass}">${b.status}<\/span><\/td>
+                            <td>
+                                <select id="status-select-${b.booking_id}" class="status-select">
+                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending<\/option>
+                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed<\/option>
+                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled<\/option>
+                                <\/select>
+                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update<\/button>
+                            <\/td>
+                        <\/tr>
+                    `;
+                });
+                renderPagination('bookingsPagination', data.pagination, fetchBookings);
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="9">Error loading bookings.<\/td><\/tr>'; }
+        }
+
+        async function fetchDestinations(page) {
+            const search = document.getElementById('destinationsSearch')?.value || '';
+            const tbody = document.getElementById('destinationsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<td><td colspan="7" class="loading-state">Loading...<\/td><\/tr>';
+            try {
+                const res = await fetch(`/api/admin/services?page=${page}&limit=10&search=${encodeURIComponent(search)}`, { headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const data = await res.json();
+                tbody.innerHTML = '';
+                if (!data.data.length) {
+                    tbody.innerHTML = '<tr><td colspan="7">No destinations found.<\/td><\/tr>';
+                    document.getElementById('destinationsPagination').innerHTML = '';
+                    return;
+                }
+                data.data.forEach(s => {
+                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active</span>' : '<span class="inactive-badge status-badge">Inactive</span>';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${s.service_id}<\/td>
+                            <td>${s.title}<\/td>
+                            <td>${s.destination}<\/td>
+                            <td>${Number(s.base_price).toLocaleString()}<\/td>
+                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View</a>' : 'None'}<\/td>
+                            <td>${activeBadge}<\/td>
+                            <td>
+                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
+                    `;
+                });
+                renderPagination('destinationsPagination', data.pagination, fetchDestinations);
+            } catch(err) { console.error(err); tbody.innerHTML = '</table><td colspan="7">Error loading destinations.<\/td><\/tr>'; }
+        }
+
+        async function fetchContactMessages(page) {
+            const search = document.getElementById('messagesSearch')?.value || '';
+            const tbody = document.getElementById('contactTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<td><td colspan="5" class="loading-state">Loading...<\/td><\/tr>';
+            try {
+                const res = await fetch(`/api/contact?page=${page}&limit=10&search=${encodeURIComponent(search)}`, { headers: getAuthHeaders() });
+                if (handleApiError(res)) return;
+                const data = await res.json();
+                tbody.innerHTML = '';
+                if (!data.data.length) {
+                    tbody.innerHTML = '<tr><td colspan="5">No messages found.<\/td><\/tr>';
+                    document.getElementById('messagesPagination').innerHTML = '';
+                    return;
+                }
+                data.data.forEach(m => {
+                    tbody.innerHTML += `<tr><td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}<\/td><td>${m.name}<\/td><td><a href="mailto:${m.email}">${m.email}<\/a><\/td><td>${m.subject || ''}<\/td><td>${m.message}<\/td><\/tr>`;
+                });
+                renderPagination('messagesPagination', data.pagination, fetchContactMessages);
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="5">Error loading messages.<\/td><\/tr>'; }
+        }
+
+        async function fetchAdminBlogs(page) {
+            const search = document.getElementById('blogsSearch')?.value || '';
+            const tbody = document.getElementById('manageBlogsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr>';
+            try {
+                const res = await fetch(`/api/blogs?page=${page}&limit=10&search=${encodeURIComponent(search)}`);
+                const data = await res.json();
+                const blogs = data.blogs || [];
+                tbody.innerHTML = '';
+                if (!blogs.length) {
+                    tbody.innerHTML = '<tr><td colspan="5">No blogs found.<\/td><\/tr>';
+                    document.getElementById('blogsPagination').innerHTML = '';
+                    return;
+                }
+                blogs.forEach(blog => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>#${blog.id}<\/td>
+                            <td><strong>${escapeHtml(blog.title)}<\/strong><\/td>
+                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}<\/td>
+                            <td>${new Date(blog.created_at).toLocaleDateString()}<\/td>
+                            <td>
+                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
+                    `;
+                });
+                const pagination = data.pagination || { currentPage: page, totalPages: Math.ceil(blogs.length / 10), totalItems: blogs.length, limit: 10 };
+                renderPagination('blogsPagination', pagination, fetchAdminBlogs);
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="5">Error loading blogs.<\/td><\/tr>'; }
+        }
+
+        function renderPagination(containerId, pagination, fetchFunction) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            if (!pagination || pagination.totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            let html = `<div class="pagination">
+                <button onclick="${fetchFunction.name}(${pagination.currentPage - 1})" ${pagination.currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                <div class="page-numbers">`;
+            for (let i = 1; i <= pagination.totalPages; i++) {
+                html += `<button onclick="${fetchFunction.name}(${i})" class="${i === pagination.currentPage ? 'active' : ''}">${i}</button>`;
+            }
+            html += `</div>
+                <button onclick="${fetchFunction.name}(${pagination.currentPage + 1})" ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}>Next</button>
+            </div>`;
+            container.innerHTML = html;
+        }
+
+        // ---------- Existing functions (unchanged from working version) ----------
+        async function updateBookingStatus(bookingId) {
+            const select = document.getElementById(`status-select-${bookingId}`);
+            const newStatus = select.value;
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = 'Updating...';
+            btn.disabled = true;
+            try {
+                const res = await fetch(`/api/bookings/${bookingId}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ status: newStatus }) });
+                if (handleApiError(res)) return;
+                const result = await res.json();
+                if (result.success) { alert(`Booking status updated to ${newStatus}`); fetchBookings(1); }
+                else alert('Update failed: ' + result.message);
+            } catch(err) { alert('Error updating status'); }
+            finally { btn.innerText = originalText; btn.disabled = false; }
+        }
+
+        // Destination functions (openAddDestModal, openEditDestModal, saveDestination, deleteDestination, closeDestModal)
         let quillCreate = null, quillEdit = null;
         function initQuillEditors() {
             const token = localStorage.getItem('adminToken');
@@ -333,89 +510,6 @@
                     reader.readAsDataURL(file);
                 } else previewImg.style.display = 'none';
             });
-        }
-
-        // ========== Bookings ==========
-        async function fetchBookings() {
-            const tbody = document.getElementById('bookingsTableBody');
-            if (!tbody) return;
-            try {
-                const res = await fetch('/api/bookings', { headers: getAuthHeaders() });
-                if (handleApiError(res)) return;
-                const data = await res.json();
-                tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings<\/td><\/tr>'; return; }
-                data.data.forEach(b => {
-                    const statusClass = b.status === 'Pending' ? 'status-pending' : (b.status === 'Confirmed' ? 'status-confirmed' : 'status-cancelled');
-                    tbody.innerHTML += `
-                        <tr id="booking-row-${b.booking_id}">
-                            <td><strong>${b.booking_reference}<\/strong><\/td>
-                            <td>${b.customer_name}<\/td>
-                            <td>${b.email}<br>${b.phone}<\/td>
-                            <td>${b.package_booked}<\/td>
-                            <td>${new Date(b.travel_date).toLocaleDateString()}<\/td>
-                            <td>${b.total_guests}<\/td>
-                            <td>${Number(b.total_amount).toLocaleString()}<\/td>
-                            <td><span class="status-badge ${statusClass}">${b.status}<\/span><\/td>
-                            <td>
-                                <select id="status-select-${b.booking_id}" class="status-select">
-                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending<\/option>
-                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed<\/option>
-                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled<\/option>
-                                <\/select>
-                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update<\/button>
-                            <\/td>
-                        <\/tr>
-                    `;
-                });
-            } catch(err) { console.error(err); }
-        }
-
-        async function updateBookingStatus(bookingId) {
-            const select = document.getElementById(`status-select-${bookingId}`);
-            const newStatus = select.value;
-            const btn = event.target;
-            const originalText = btn.innerText;
-            btn.innerText = 'Updating...';
-            btn.disabled = true;
-            try {
-                const res = await fetch(`/api/bookings/${bookingId}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ status: newStatus }) });
-                if (handleApiError(res)) return;
-                const result = await res.json();
-                if (result.success) { alert(`Booking status updated to ${newStatus}`); fetchBookings(); }
-                else alert('Update failed: ' + result.message);
-            } catch(err) { alert('Error updating status'); }
-            finally { btn.innerText = originalText; btn.disabled = false; }
-        }
-
-        // ========== Destinations ==========
-        async function fetchDestinations() {
-            const tbody = document.getElementById('destinationsTableBody');
-            if (!tbody) return;
-            try {
-                const res = await fetch('/api/admin/services', { headers: getAuthHeaders() });
-                if (handleApiError(res)) return;
-                const data = await res.json();
-                tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations<\/td><\/tr>'; return; }
-                data.data.forEach(s => {
-                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active<\/span>' : '<span class="inactive-badge status-badge">Inactive<\/span>';
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>${s.service_id}<\/td>
-                            <td>${s.title}<\/td>
-                            <td>${s.destination}<\/td>
-                            <td>${Number(s.base_price).toLocaleString()}<\/td>
-                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View<\/a>' : 'None'}<\/td>
-                            <td>${activeBadge}<\/td>
-                            <td>
-                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit<\/button>
-                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete<\/button>
-                            <\/td>
-                        <\/tr>
-                    `;
-                });
-            } catch(err) { console.error(err); }
         }
 
         async function uploadDestinationImage(file) {
@@ -509,7 +603,7 @@
                 if (result.success) {
                     alert(id ? 'Destination updated!' : 'Destination added!');
                     closeDestModal();
-                    fetchDestinations();
+                    fetchDestinations(1);
                 } else alert(result.message);
             } catch(err) { alert('Error saving destination'); }
         }
@@ -520,58 +614,13 @@
                 const res = await fetch(`/api/admin/services/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const result = await res.json();
-                if (result.success) { alert('Destination deleted.'); fetchDestinations(); }
+                if (result.success) { alert('Destination deleted.'); fetchDestinations(1); }
                 else alert(result.message);
             } catch(err) { alert('Error deleting destination'); }
         }
         function closeDestModal() { document.getElementById('destModal').style.display = 'none'; }
 
-        // ========== Contact Messages ==========
-        async function fetchContactMessages() {
-            const tbody = document.getElementById('contactTableBody');
-            if (!tbody) return;
-            try {
-                const res = await fetch('/api/contact', { headers: getAuthHeaders() });
-                if (handleApiError(res)) return;
-                const data = await res.json();
-                tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages<\/td><\/tr>'; return; }
-                data.data.forEach(m => {
-                    tbody.innerHTML += `<tr><td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}<\/td><td>${m.name}<\/td><td><a href="mailto:${m.email}">${m.email}<\/a><\/td><td>${m.subject || ''}<\/td><td>${m.message}<\/td><\/tr>`;
-                });
-            } catch(err) { console.error(err); }
-        }
-
-        // ========== Blogs ==========
-        async function fetchAdminBlogs() {
-            const tbody = document.getElementById('manageBlogsTableBody');
-            if (!tbody) return;
-            try {
-                const res = await fetch('/api/blogs?limit=1000');
-                const data = await res.json();
-                const blogs = data.blogs || data;
-                tbody.innerHTML = '';
-                if (!blogs.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="loading-state">No published blogs found.<\/td><\/tr>';
-                    return;
-                }
-                blogs.forEach(blog => {
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>#${blog.id}<\/td>
-                            <td><strong>${escapeHtml(blog.title)}<\/strong><\/td>
-                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}<\/td>
-                            <td>${new Date(blog.created_at).toLocaleDateString()}<\/td>
-                            <td>
-                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit<\/button>
-                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete<\/button>
-                            <\/td>
-                        <\/tr>
-                    `;
-                });
-            } catch(err) { console.error(err); }
-        }
-
+        // Blog functions (submit, edit, delete, open modal)
         async function submitBlogPost(e) {
             e.preventDefault();
             const token = localStorage.getItem('adminToken');
@@ -586,7 +635,7 @@
                 const res = await fetch('/api/blogs', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
                 if (handleApiError(res)) return;
                 const result = await res.json();
-                if (result.success) { alert('Published!'); document.getElementById('createBlogForm').reset(); if(quillCreate) quillCreate.root.innerHTML = ''; document.getElementById('featuredImagePreview').style.display = 'none'; fetchAdminBlogs(); }
+                if (result.success) { alert('Published!'); document.getElementById('createBlogForm').reset(); if(quillCreate) quillCreate.root.innerHTML = ''; document.getElementById('featuredImagePreview').style.display = 'none'; fetchAdminBlogs(1); }
                 else alert(result.message);
             } catch(err) { alert('Error'); }
         }
@@ -597,7 +646,7 @@
                 const res = await fetch(`/api/blogs/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const result = await res.json();
-                if (result.success) { alert('Blog deleted.'); fetchAdminBlogs(); }
+                if (result.success) { alert('Blog deleted.'); fetchAdminBlogs(1); }
                 else alert(result.message);
             } catch(err) { alert('Delete failed'); }
         }
@@ -621,9 +670,7 @@
                 document.getElementById('editModal').style.display = 'flex';
             } catch(err) { alert('Failed to load blog: '+err.message); }
         }
-
         function closeModal() { document.getElementById('editModal').style.display = 'none'; }
-
         async function submitEditBlog(e) {
             e.preventDefault();
             const id = document.getElementById('editBlogId').value;
@@ -649,12 +696,12 @@
                 const res = await fetch(`/api/blogs/${id}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(putData) });
                 if (handleApiError(res)) return;
                 const result = await res.json();
-                if (result.success) { closeModal(); fetchAdminBlogs(); alert('Updated!'); }
+                if (result.success) { closeModal(); fetchAdminBlogs(1); alert('Updated!'); }
                 else alert(result.message);
             } catch(err) { alert('Update failed'); }
         }
 
-        // Start
+        // Start login listener and check existing token
         document.getElementById('loginForm').addEventListener('submit', handleLogin);
         if (localStorage.getItem('adminToken')) showDashboard();
     </script>
