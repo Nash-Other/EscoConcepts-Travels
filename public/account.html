@@ -19,6 +19,7 @@
         .toggle a { color: #3498db; cursor: pointer; }
         .error { color: #e74c3c; margin-bottom: 1rem; }
         .success { color: #2ecc71; margin-bottom: 1rem; }
+        .info { color: #3498db; margin-bottom: 1rem; }
         .booking-card {
             background: #f9f9f9;
             padding: 1rem;
@@ -26,32 +27,36 @@
             border-radius: 8px;
             border-left: 4px solid #e67e22;
         }
-        .booking-card strong { color: #2c3e50; }
         .booking-actions {
             margin-top: 1rem;
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
         }
-        .booking-actions button {
-            flex: 1;
-            margin: 0;
-            padding: 0.5rem;
-            font-size: 0.9rem;
-        }
+        .booking-actions button { flex: 1; margin: 0; padding: 0.5rem; font-size: 0.9rem; }
         .cancel-btn { background-color: #e74c3c; }
         .cancel-btn:hover { background-color: #c0392b; }
         .receipt-btn { background-color: #3498db; }
         .receipt-btn:hover { background-color: #2980b9; }
         .logout { background-color: #95a5a6; margin-top: 1rem; }
         .logout:hover { background-color: #7f8c8d; }
+        .profile-section {
+            background: #f0f0f0;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .profile-info { margin-bottom: 1rem; }
+        .profile-info p { margin: 0.5rem 0; }
+        .edit-profile-form { display: none; margin-top: 1rem; border-top: 1px solid #ccc; padding-top: 1rem; }
+        .edit-profile-form input { margin-bottom: 0.8rem; }
         hr { margin: 1rem 0; }
         .print-only { display: none; }
         @media print {
             body * { visibility: hidden; }
             .print-area, .print-area * { visibility: visible; }
             .print-area { position: absolute; top: 0; left: 0; width: 100%; padding: 1rem; }
-            .booking-actions, .logout, .nav { display: none; }
+            .booking-actions, .logout, .nav, .profile-section { display: none; }
         }
     </style>
 </head>
@@ -87,7 +92,26 @@
 
     <!-- Dashboard after login -->
     <div id="dashboardSection" style="display:none;">
-        <h2>Welcome, <span id="userName"></span>!</h2>
+        <div class="profile-section">
+            <h3>My Profile</h3>
+            <div id="profileDisplay" class="profile-info">
+                <p><strong>Name:</strong> <span id="profileName"></span></p>
+                <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+                <p><strong>Phone:</strong> <span id="profilePhone"></span></p>
+                <button id="editProfileBtn" class="receipt-btn" style="background-color:#3498db;">Edit Profile</button>
+            </div>
+            <div id="editProfileForm" class="edit-profile-form">
+                <input type="text" id="editFirstName" placeholder="First Name">
+                <input type="text" id="editLastName" placeholder="Last Name">
+                <input type="tel" id="editPhone" placeholder="Phone">
+                <input type="email" id="editEmail" placeholder="Email">
+                <button id="saveProfileBtn">Save Changes</button>
+                <button id="cancelEditBtn" style="background-color:#95a5a6;">Cancel</button>
+                <div id="profileError" class="error"></div>
+                <div id="profileSuccess" class="success"></div>
+            </div>
+        </div>
+
         <h3>My Bookings</h3>
         <div id="bookingsList" class="booking-list">Loading your bookings...</div>
         <hr>
@@ -95,25 +119,22 @@
     </div>
 </div>
 
-<!-- Hidden print template (will be populated for invoice) -->
-<div id="printTemplate" style="display: none;"></div>
-
 <script>
     const API_BASE = '';
     let isLogin = true;
+    let currentUser = null;
 
-    function showError(msg) { const div = document.getElementById('errorMsg'); div.innerText = msg; setTimeout(() => div.innerText = '', 5000); }
-    function showSuccess(msg) { const div = document.getElementById('successMsg'); div.innerText = msg; setTimeout(() => div.innerText = '', 3000); }
+    function showError(divId, msg) { const div = document.getElementById(divId); if(div) div.innerText = msg; setTimeout(() => { if(div) div.innerText = ''; }, 5000); }
+    function showSuccess(divId, msg) { const div = document.getElementById(divId); if(div) div.innerText = msg; setTimeout(() => { if(div) div.innerText = ''; }, 3000); }
 
     async function handleAuth(e) {
         e.preventDefault();
-        showError('');
-        showSuccess('');
+        showError('errorMsg', '');
+        showSuccess('successMsg', '');
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
-        if (!email || !password) { showError('Email and password are required.'); return; }
+        if (!email || !password) { showError('errorMsg', 'Email and password are required.'); return; }
         if (isLogin) {
-            // LOGIN
             try {
                 const res = await fetch(`${API_BASE}/api/auth/login`, {
                     method: 'POST',
@@ -125,18 +146,17 @@
                     localStorage.setItem('customerToken', data.token);
                     localStorage.setItem('customerRole', data.role);
                     localStorage.setItem('customerEmail', email);
-                    showSuccess('Login successful!');
+                    showSuccess('successMsg', 'Login successful!');
                     setTimeout(() => window.location.reload(), 1000);
                 } else {
-                    showError(data.message);
+                    showError('errorMsg', data.message);
                 }
-            } catch (err) { showError('Server error.'); }
+            } catch (err) { showError('errorMsg', 'Server error.'); }
         } else {
-            // SIGNUP
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
             const phone = document.getElementById('phone').value.trim();
-            if (!firstName || !lastName) { showError('First name and last name are required.'); return; }
+            if (!firstName || !lastName) { showError('errorMsg', 'First name and last name are required.'); return; }
             try {
                 const res = await fetch(`${API_BASE}/api/auth/signup`, {
                     method: 'POST',
@@ -148,13 +168,36 @@
                     localStorage.setItem('customerToken', data.token);
                     localStorage.setItem('customerRole', 'customer');
                     localStorage.setItem('customerEmail', email);
-                    showSuccess('Account created! You are now logged in.');
+                    showSuccess('successMsg', 'Account created! You are now logged in.');
                     setTimeout(() => window.location.reload(), 1000);
                 } else {
-                    showError(data.message);
+                    showError('errorMsg', data.message);
                 }
-            } catch (err) { showError('Server error.'); }
+            } catch (err) { showError('errorMsg', 'Server error.'); }
         }
+    }
+
+    async function loadUserProfile() {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/me`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    document.getElementById('profileName').innerText = `${data.user.first_name} ${data.user.last_name}`;
+                    document.getElementById('profileEmail').innerText = data.user.email;
+                    document.getElementById('profilePhone').innerText = data.user.phone || '—';
+                    document.getElementById('editFirstName').value = data.user.first_name;
+                    document.getElementById('editLastName').value = data.user.last_name;
+                    document.getElementById('editPhone').value = data.user.phone || '';
+                    document.getElementById('editEmail').value = data.user.email;
+                }
+            }
+        } catch (err) { console.error('Failed to load profile:', err); }
     }
 
     async function loadBookings() {
@@ -191,8 +234,54 @@
         }
     }
 
+    async function updateProfile() {
+        const token = localStorage.getItem('customerToken');
+        if (!token) return;
+        const firstName = document.getElementById('editFirstName').value.trim();
+        const lastName = document.getElementById('editLastName').value.trim();
+        const phone = document.getElementById('editPhone').value.trim();
+        const email = document.getElementById('editEmail').value.trim();
+        if (!firstName || !lastName || !email) {
+            showError('profileError', 'First name, last name, and email are required.');
+            return;
+        }
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ firstName, lastName, phone, email })
+            });
+            const data = await res.json();
+            if (data.success) {
+                localStorage.setItem('customerToken', data.token);
+                localStorage.setItem('customerEmail', email);
+                showSuccess('profileSuccess', 'Profile updated successfully!');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showError('profileError', data.message);
+            }
+        } catch (err) {
+            showError('profileError', 'Server error.');
+        }
+    }
+
+    function cancelEdit() {
+        document.getElementById('editProfileForm').style.display = 'none';
+        document.getElementById('profileDisplay').style.display = 'block';
+    }
+
+    function showEditForm() {
+        document.getElementById('profileDisplay').style.display = 'none';
+        document.getElementById('editProfileForm').style.display = 'block';
+        document.getElementById('profileError').innerText = '';
+        document.getElementById('profileSuccess').innerText = '';
+    }
+
     async function cancelBooking(bookingId) {
-        if (!confirm('Are you sure you want to cancel this booking? This action cannot be undone.')) return;
+        if (!confirm('Cancel this booking? This action cannot be undone.')) return;
         const token = localStorage.getItem('customerToken');
         try {
             const res = await fetch(`${API_BASE}/api/bookings/cancel/${bookingId}`, {
@@ -201,62 +290,46 @@
             });
             const data = await res.json();
             if (data.success) {
-                showSuccess('Booking cancelled successfully.');
-                loadBookings(); // refresh list
+                alert('Booking cancelled.');
+                loadBookings();
             } else {
-                showError(data.message);
+                alert(data.message);
             }
-        } catch (err) {
-            showError('Failed to cancel booking.');
-        }
+        } catch (err) { alert('Error cancelling.'); }
     }
 
     async function downloadInvoice(bookingId) {
-        // Fetch booking details to generate printable receipt
-        const token = localStorage.getItem('customerToken');
-        try {
-            // We need the full booking data – but we already have it in the card's data attributes.
-            // Simpler: use the data stored in the card's data-* attributes.
-            const card = document.querySelector(`.booking-card[data-id='${bookingId}']`);
-            if (!card) return;
-            const ref = card.dataset.ref;
-            const packageName = card.dataset.package;
-            const travelDate = new Date(card.dataset.date).toLocaleDateString();
-            const pax = card.dataset.pax;
-            const amount = Number(card.dataset.amount).toLocaleString();
-            const status = card.dataset.status;
-            const userName = document.getElementById('userName').innerText;
-            const now = new Date().toLocaleString();
-
-            const html = `
-                <div class="print-area" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2>EscoConcepts Travels</h2>
-                    <h3>Booking Invoice</h3>
-                    <p><strong>Invoice Date:</strong> ${now}</p>
-                    <p><strong>Customer:</strong> ${userName}</p>
-                    <hr>
-                    <p><strong>Booking Reference:</strong> ${ref}</p>
-                    <p><strong>Package:</strong> ${packageName}</p>
-                    <p><strong>Travel Date:</strong> ${travelDate}</p>
-                    <p><strong>Guests:</strong> ${pax}</p>
-                    <p><strong>Total Amount:</strong> KES ${amount}</p>
-                    <p><strong>Status:</strong> ${status}</p>
-                    <hr>
-                    <p>Thank you for choosing EscoConcepts Travels.</p>
-                    <p style="font-size: 12px; color: gray;">This is a system-generated invoice. No signature required.</p>
-                </div>
-            `;
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html><head><title>Invoice ${ref}</title>
-                <style>body { margin: 0; padding: 0; }</style>
-                </head><body>${html}</body></html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-        } catch (err) {
-            showError('Could not generate invoice.');
-        }
+        const card = document.querySelector(`.booking-card[data-id='${bookingId}']`);
+        if (!card) return;
+        const ref = card.dataset.ref;
+        const packageName = card.dataset.package;
+        const travelDate = new Date(card.dataset.date).toLocaleDateString();
+        const pax = card.dataset.pax;
+        const amount = Number(card.dataset.amount).toLocaleString();
+        const status = card.dataset.status;
+        const userName = document.getElementById('profileName').innerText;
+        const now = new Date().toLocaleString();
+        const html = `
+            <div class="print-area" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2>EscoConcepts Travels</h2>
+                <h3>Booking Invoice</h3>
+                <p><strong>Invoice Date:</strong> ${now}</p>
+                <p><strong>Customer:</strong> ${userName}</p>
+                <hr>
+                <p><strong>Booking Reference:</strong> ${ref}</p>
+                <p><strong>Package:</strong> ${packageName}</p>
+                <p><strong>Travel Date:</strong> ${travelDate}</p>
+                <p><strong>Guests:</strong> ${pax}</p>
+                <p><strong>Total Amount:</strong> KES ${amount}</p>
+                <p><strong>Status:</strong> ${status}</p>
+                <hr>
+                <p>Thank you for choosing EscoConcepts Travels.</p>
+            </div>
+        `;
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`<html><head><title>Invoice ${ref}</title><style>body{margin:0;padding:0;}</style></head><body>${html}</body></html>`);
+        printWindow.document.close();
+        printWindow.print();
     }
 
     async function emailReceipt(bookingId) {
@@ -267,14 +340,38 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            if (data.success) {
-                showSuccess('Receipt sent to your email address.');
-            } else {
-                showError(data.message);
-            }
-        } catch (err) {
-            showError('Failed to send receipt.');
-        }
+            if (data.success) alert('Receipt sent to your email.');
+            else alert(data.message);
+        } catch (err) { alert('Failed to send receipt.'); }
+    }
+
+    function logout() {
+        localStorage.removeItem('customerToken');
+        localStorage.removeItem('customerRole');
+        localStorage.removeItem('customerEmail');
+        window.location.reload();
+    }
+
+    // Check login status on page load
+    const token = localStorage.getItem('customerToken');
+    if (token) {
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('dashboardSection').style.display = 'block';
+        loadUserProfile();
+        loadBookings();
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+        document.getElementById('editProfileBtn').addEventListener('click', showEditForm);
+        document.getElementById('saveProfileBtn').addEventListener('click', updateProfile);
+        document.getElementById('cancelEditBtn').addEventListener('click', cancelEdit);
+    } else {
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('dashboardSection').style.display = 'none';
+        document.getElementById('authForm').addEventListener('submit', handleAuth);
+        document.getElementById('toggleLink').addEventListener('click', toggleForm);
+        isLogin = true;
+        document.getElementById('nameFields').style.display = 'none';
+        document.getElementById('firstName').required = false;
+        document.getElementById('lastName').required = false;
     }
 
     function toggleForm() {
@@ -298,33 +395,6 @@
             document.getElementById('firstName').required = true;
             document.getElementById('lastName').required = true;
         }
-    }
-
-    function logout() {
-        localStorage.removeItem('customerToken');
-        localStorage.removeItem('customerRole');
-        localStorage.removeItem('customerEmail');
-        window.location.reload();
-    }
-
-    // Check login status
-    const token = localStorage.getItem('customerToken');
-    if (token) {
-        document.getElementById('authSection').style.display = 'none';
-        document.getElementById('dashboardSection').style.display = 'block';
-        const email = localStorage.getItem('customerEmail') || 'Customer';
-        document.getElementById('userName').innerText = email.split('@')[0];
-        loadBookings();
-        document.getElementById('logoutBtn').addEventListener('click', logout);
-    } else {
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('dashboardSection').style.display = 'none';
-        document.getElementById('authForm').addEventListener('submit', handleAuth);
-        document.getElementById('toggleLink').addEventListener('click', toggleForm);
-        isLogin = true;
-        document.getElementById('nameFields').style.display = 'none';
-        document.getElementById('firstName').required = false;
-        document.getElementById('lastName').required = false;
     }
 </script>
 </body>
