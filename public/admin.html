@@ -22,7 +22,40 @@
         .login-card button:hover { background: #2980b9; }
         #loginFeedback { margin-top: 1rem; color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
         #dashboardContainer { display: none; padding: 2rem; }
-        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 2rem; }
+        /* Tab bar styles */
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #ddd;
+            flex-wrap: wrap;
+        }
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #555;
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-button:hover {
+            background-color: #e0e0e0;
+        }
+        .tab-button.active {
+            background-color: #3498db;
+            color: white;
+            border-bottom: 2px solid #3498db;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active-tab {
+            display: block;
+        }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 0; }
         .dashboard-header h1 { color: #2c3e50; }
         .btn-refresh { background-color: #3498db; color: #fff; padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .content-wrapper { background: #fff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow-x: auto; margin-bottom: 2rem; }
@@ -54,7 +87,7 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         select.status-select { padding: 0.4rem; border-radius: 4px; border: 1px solid #ccc; }
         .blog-form { padding: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-	.blog-form { grid-template-columns: 1fr !important; }
+        .blog-form { grid-template-columns: 1fr !important; }
         .form-group.full-width { grid-column: 1 / -1; }
         .quill-editor-wrapper { border: 1px solid #ddd; border-radius: 4px; background: #fff; }
         #editor-container, #edit-editor-container { height: 300px; }
@@ -126,58 +159,82 @@
             location.reload();
         }
 
+        // Tab switching
+        function showTab(tabId) {
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active-tab'));
+            document.getElementById(`tab-${tabId}`).classList.add('active-tab');
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
+        }
+
         // Dashboard HTML (injected after login)
         async function showDashboard() {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'block';
             document.getElementById('btnLogout').style.display = 'block';
 
-            // Load dashboard HTML
+            // Load dashboard HTML with tabs
             const dashboardHtml = `
                 <div class="dashboard-container">
-                    <!-- Bookings Section -->
-                    <div class="dashboard-header"><h1>Recent Bookings</h1><button class="btn-refresh" onclick="fetchBookings()">Refresh</button></div>
-                    <div class="content-wrapper">
-                        <table><thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...</td></tr></tbody></table>
+                    <!-- Tab Bar -->
+                    <div class="tab-bar">
+                        <button class="tab-button active" data-tab="bookings" onclick="showTab('bookings')">📅 Bookings</button>
+                        <button class="tab-button" data-tab="destinations" onclick="showTab('destinations')">🌍 Destinations</button>
+                        <button class="tab-button" data-tab="inquiries" onclick="showTab('inquiries')">✉️ Inquiries</button>
+                        <button class="tab-button" data-tab="blogs" onclick="showTab('blogs')">📝 Blogs</button>
                     </div>
 
-                    <!-- Destinations Management -->
-                    <div class="dashboard-header"><h1>Manage Destinations</h1><button class="btn-refresh" onclick="fetchDestinations()">Refresh</button></div>
-                    <div class="content-wrapper">
-                        <div class="inline-form">
-                            <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
-                            <input type="text" id="newDestLocation" placeholder="Destination" style="flex:1">
-                            <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
-                            <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
-                            <label><input type="checkbox" id="newDestActive" checked> Active</label>
-                            <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination</button>
+                    <!-- Bookings Tab -->
+                    <div id="tab-bookings" class="tab-content active-tab">
+                        <div class="dashboard-header"><h1>Recent Bookings</h1><button class="btn-refresh" onclick="fetchBookings()">Refresh</button></div>
+                        <div class="content-wrapper">
+                            <table><thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                        <\/div>
+                    <\/div>
+
+                    <!-- Destinations Tab -->
+                    <div id="tab-destinations" class="tab-content">
+                        <div class="dashboard-header"><h1>Manage Destinations</h1><button class="btn-refresh" onclick="fetchDestinations()">Refresh</button></div>
+                        <div class="content-wrapper">
+                            <div class="inline-form">
+                                <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
+                                <input type="text" id="newDestLocation" placeholder="Destination" style="flex:1">
+                                <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
+                                <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
+                                <label><input type="checkbox" id="newDestActive" checked> Active</label>
+                                <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination</button>
+                            </div>
+                            <table><thead><tr><th>ID</th><th>Title</th><th>Destination</th><th>Price</th><th>Image</th><th>Active</th><th>Actions</th></tr></thead><tbody id="destinationsTableBody"><td><td colspan="7" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                        <\/div>
+                    <\/div>
+
+                    <!-- Inquiries Tab -->
+                    <div id="tab-inquiries" class="tab-content">
+                        <div class="dashboard-header"><h1>Customer Inquiries</h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh</button></div>
+                        <div class="content-wrapper">
+                            </table><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                        <\/div>
+                    <\/div>
+
+                    <!-- Blogs Tab (Manage Blogs + Publish New Blog) -->
+                    <div id="tab-blogs" class="tab-content">
+                        <div class="dashboard-header"><h1>Manage Blogs</h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh</button></div>
+                        <div class="content-wrapper">
+                            <tr><thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody id="manageBlogsTableBody"></td><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>20<
+                        <\/div>
+                        <div class="dashboard-header"><h1>Publish New Blog</h1></div>
+                        <div class="content-wrapper">
+                            <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
+                                <div id="formFeedback" class="form-feedback"></div>
+                                <div class="form-group"><label>Title *</label><input type="text" id="blogTitle" required></div>
+                                <div class="form-group"><label>Author</label><input type="text" id="blogAuthor" value="EscoConcepts Team"></div>
+                                <div class="form-group full-width"><label>Featured Image</label><input type="file" id="blogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB</small></div>
+                                <div class="form-group full-width"><label>Content</label><div class="quill-editor-wrapper"><div id="editor-container"></div></div></div>
+                                <button type="submit" class="btn-submit">Publish</button>
+                            </form>
                         </div>
-                        <table><thead><tr><th>ID</th><th>Title</th><th>Destination</th><th>Price</th><th>Image</th><th>Active</th><th>Actions</th></tr></thead><tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...</td></tr></tbody></table>
-                    </div>
-
-                    <!-- Contact Messages -->
-                    <div class="dashboard-header"><h1>Customer Inquiries</h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh</button></div>
-                    <div class="content-wrapper">
-                        <table><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody></table>
-                    </div>
-
-                    <!-- Manage Blogs Table -->
-                    <div class="dashboard-header"><h1>Manage Blogs</h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh</button></div>
-                    <div class="content-wrapper">
-                        <table><thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody></table>
-                    </div>
-
-                    <!-- Publish New Blog Form -->
-                    <div class="dashboard-header"><h1>Publish New Blog</h1></div>
-                    <div class="content-wrapper">
-                        <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
-                            <div id="formFeedback" class="form-feedback"></div>
-                            <div class="form-group"><label>Title *</label><input type="text" id="blogTitle" required></div>
-                            <div class="form-group"><label>Author</label><input type="text" id="blogAuthor" value="EscoConcepts Team"></div>
-                            <div class="form-group full-width"><label>Featured Image</label><input type="file" id="blogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB</small></div>
-                            <div class="form-group full-width"><label>Content</label><div class="quill-editor-wrapper"><div id="editor-container"></div></div></div>
-                            <button type="submit" class="btn-submit">Publish</button>
-                        </form>
                     </div>
                 </div>
 
@@ -219,7 +276,7 @@
             `;
             document.getElementById('dashboardContainer').innerHTML = dashboardHtml;
 
-            // Now attach event listeners and initialize Quill
+            // Initialize Quill and event listeners
             initQuillEditors();
             setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
             setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
@@ -228,8 +285,10 @@
                 if (fileInput.files.length === 0) alert('Please select an image file first.');
                 else uploadDestinationImage(fileInput.files[0]);
             });
-            // Fetch data
+            // Fetch data for all tabs (they will populate when tab is opened? better to fetch all initially)
             fetchBookings(); fetchDestinations(); fetchContactMessages(); fetchAdminBlogs();
+            // Ensure first tab is active
+            showTab('bookings');
         }
 
         // Quill initialization
@@ -284,7 +343,7 @@
             });
         }
 
-        // ---------- API calls (same as before, but functions must be global) ----------
+        // ---------- API calls (all kept exactly as before) ----------
         async function fetchBookings() {
             const tbody = document.getElementById('bookingsTableBody');
             if (!tbody) return;
@@ -293,28 +352,28 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings</td></tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings<\/td><\/tr>'; return; }
                 data.data.forEach(b => {
                     const statusClass = b.status === 'Pending' ? 'status-pending' : (b.status === 'Confirmed' ? 'status-confirmed' : 'status-cancelled');
                     tbody.innerHTML += `
                         <tr id="booking-row-${b.booking_id}">
-                            <td><strong>${b.booking_reference}</strong></td>
-                            <td>${b.customer_name}</td>
-                            <td>${b.email}<br>${b.phone}</td>
-                            <td>${b.package_booked}</td>
-                            <td>${new Date(b.travel_date).toLocaleDateString()}</td>
-                            <td>${b.total_guests}</td>
-                            <td>${Number(b.total_amount).toLocaleString()}</td>
-                            <td><span class="status-badge ${statusClass}">${b.status}</span></td>
+                            <td><strong>${b.booking_reference}<\/strong><\/td>
+                            <td>${b.customer_name}<\/td>
+                            <td>${b.email}<br>${b.phone}<\/td>
+                            <td>${b.package_booked}<\/td>
+                            <td>${new Date(b.travel_date).toLocaleDateString()}<\/td>
+                            <td>${b.total_guests}<\/td>
+                            <td>${Number(b.total_amount).toLocaleString()}<\/td>
+                            <td><span class="status-badge ${statusClass}">${b.status}<\/span><\/td>
                             <td>
                                 <select id="status-select-${b.booking_id}" class="status-select">
-                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
-                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                                </select>
-                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update</button>
-                            </td>
-                        </tr>
+                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending<\/option>
+                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed<\/option>
+                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled<\/option>
+                                <\/select>
+                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
             } catch(err) { console.error(err); }
@@ -345,22 +404,22 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations</td></tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations<\/td><\/tr>'; return; }
                 data.data.forEach(s => {
-                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active</span>' : '<span class="inactive-badge status-badge">Inactive</span>';
+                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active<\/span>' : '<span class="inactive-badge status-badge">Inactive<\/span>';
                     tbody.innerHTML += `
                         <tr>
-                            <td>${s.service_id}</td>
-                            <td>${s.title}</td>
-                            <td>${s.destination}</td>
-                            <td>${Number(s.base_price).toLocaleString()}</td>
-                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View</a>' : 'None'}</td>
-                            <td>${activeBadge}</td>
+                            <td>${s.service_id}<\/td>
+                            <td>${s.title}<\/td>
+                            <td>${s.destination}<\/td>
+                            <td>${Number(s.base_price).toLocaleString()}<\/td>
+                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View<\/a>' : 'None'}<\/td>
+                            <td>${activeBadge}<\/td>
                             <td>
-                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit</button>
-                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete</button>
-                            </td>
-                        </tr>
+                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
             } catch(err) { console.error(err); }
@@ -482,9 +541,9 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages</td></tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages<\/td><\/tr>'; return; }
                 data.data.forEach(m => {
-                    tbody.innerHTML += `<tr><td>${new Date(m.created_at).toLocaleDateString()}</td><td>${m.name}</td><td><a href="mailto:${m.email}">${m.email}</a></td><td>${m.subject || ''}</td><td>${m.message}</td></tr>`;
+                    tbody.innerHTML += `<tr><td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}<\/td><td>${m.name}<\/td><td><a href="mailto:${m.email}">${m.email}<\/a><\/td><td>${m.subject || ''}<\/td><td>${m.message}<\/td><\/tr>`;
                 });
             } catch(err) { console.error(err); }
         }
@@ -498,21 +557,21 @@
                 const blogs = data.blogs || data;
                 tbody.innerHTML = '';
                 if (!blogs.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="loading-state">No published blogs found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="loading-state">No published blogs found.在线<\/td><\/tr>';
                     return;
                 }
                 blogs.forEach(blog => {
                     tbody.innerHTML += `
                         <tr>
-                            <td>#${blog.id}</td>
-                            <td><strong>${escapeHtml(blog.title)}</strong></td>
-                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}</td>
-                            <td>${new Date(blog.created_at).toLocaleDateString()}</td>
+                            <td>#${blog.id}<\/td>
+                            <td><strong>${escapeHtml(blog.title)}<\/strong><\/td>
+                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}<\/td>
+                            <td>${new Date(blog.created_at).toLocaleDateString()}<\/td>
                             <td>
-                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit</button>
-                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete</button>
-                            </td>
-                        </tr>
+                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
             } catch(err) { console.error(err); }
@@ -602,7 +661,6 @@
 
         // Start
         document.getElementById('loginForm').addEventListener('submit', handleLogin);
-        // If already logged in, show dashboard immediately
         if (localStorage.getItem('adminToken')) showDashboard();
     </script>
 </body>
