@@ -82,108 +82,107 @@
             <!-- Bookings Section -->
             <div class="dashboard-header"><h1>Recent Bookings</h1><button class="btn-refresh" onclick="fetchBookings()">Refresh</button></div>
             <div class="content-wrapper">
-                <table>
-                    <thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
-                    <tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...</td></tr></tbody>
-                </table>
-            </div>
+                <table><thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+            20<
+            <\/div>
 
             <!-- Destinations Management -->
-            <div class="dashboard-header"><h1>Manage Destinations</h1><button class="btn-refresh" onclick="fetchDestinations()">Refresh</button></div>
+            <div class="dashboard-header"><h1>Manage Destinations<\/h1><button class="btn-refresh" onclick="fetchDestinations()">Refresh<\/button><\/div>
             <div class="content-wrapper">
                 <div class="inline-form">
                     <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
-                    <input type="text" id="newDestLocation" placeholder="Destination (city/region)" style="flex:1">
+                    <input type="text" id="newDestLocation" placeholder="Destination (city\/region)" style="flex:1">
                     <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
                     <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
-                    <label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="newDestActive" checked> Active</label>
-                    <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination</button>
-                </div>
+                    <label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="newDestActive" checked> Active<\/label>
+                    <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination<\/button>
+                <\/div>
                 <table>
-                    <thead><tr><th>ID</th><th>Title</th><th>Destination</th><th>Price</th><th>Image</th><th>Active</th><th>Actions</th></tr></thead>
-                    <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...</td></tr></tbody>
-                </table>
-            </div>
+                    <thead><tr><th>ID<\/th><th>Title<\/th><th>Destination<\/th><th>Price<\/th><th>Image<\/th><th>Active<\/th><th>Actions<\/th><\/tr><\/thead>
+                    <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                <\/table>
+            <\/div>
 
             <!-- Contact Messages -->
-            <div class="dashboard-header"><h1>Customer Inquiries</h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh</button></div>
+            <div class="dashboard-header"><h1>Customer Inquiries<\/h1><button class="btn-refresh" onclick="fetchContactMessages()">Refresh<\/button><\/div>
             <div class="content-wrapper">
-                <table><thead></tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
+                <table><thead><tr><th>Date<\/th><th>Name<\/th><th>Email<\/th><th>Subject<\/th><th>Message<\/th><\/tr><\/thead>
+                <tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
             20<
-            </div>
+            <\/div>
 
-            <!-- Blog Management -->
-            <div class="dashboard-header"><h1>Manage Blogs</h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh</button></div>
+            <!-- Blog Management Table (all blogs) -->
+            <div class="dashboard-header"><h1>Manage Blogs<\/h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh<\/button><\/div>
             <div class="content-wrapper">
                 <table>
-                    <thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead>
-                    <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
+                    <thead><tr><th>ID<\/th><th>Title<\/th><th>Author<\/th><th>Date<\/th><th>Actions<\/th><\/tr><\/thead>
+                    <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
                 20<
-            </div>
+            <\/div>
 
-            <!-- Publish New Blog -->
-            <div class="dashboard-header"><h1>Publish New Blog</h1></div>
+            <!-- Publish New Blog Form -->
+            <div class="dashboard-header"><h1>Publish New Blog<\/h1><\/div>
             <div class="content-wrapper">
                 <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
-                    <div id="formFeedback" class="form-feedback"></div>
-                    <div class="form-group"><label>Title *</label><input type="text" id="blogTitle" required></div>
-                    <div class="form-group"><label>Author</label><input type="text" id="blogAuthor" value="EscoConcepts Team"></div>
-                    <div class="form-group full-width"><label>Featured Image</label><input type="file" id="blogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB</small></div>
-                    <div class="form-group full-width"><label>Content</label><div class="quill-editor-wrapper"><div id="editor-container"></div></div></div>
-                    <button type="submit" class="btn-submit">Publish</button>
-                </form>
-            </div>
-        </div>
-    </div>
+                    <div id="formFeedback" class="form-feedback"><\/div>
+                    <div class="form-group"><label>Title *<\/label><input type="text" id="blogTitle" required><\/div>
+                    <div class="form-group"><label>Author<\/label><input type="text" id="blogAuthor" value="EscoConcepts Team"><\/div>
+                    <div class="form-group full-width"><label>Featured Image<\/label><input type="file" id="blogImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB<\/small><\/div>
+                    <div class="form-group full-width"><label>Content<\/label><div class="quill-editor-wrapper"><div id="editor-container"><\/div><\/div><\/div>
+                    <button type="submit" class="btn-submit">Publish<\/button>
+                <\/form>
+            <\/div>
+        <\/div>
+    <\/div>
 
-    <!-- Modal for Add/Edit Destination -->
+    <!-- Modals (unchanged) -->
     <div id="destModal" class="modal">
         <div class="modal-content">
-            <span class="close-modal" onclick="closeDestModal()">&times;</span>
-            <h2 id="destModalTitle">Add Destination</h2>
+            <span class="close-modal" onclick="closeDestModal()">&times;<\/span>
+            <h2 id="destModalTitle">Add Destination<\/h2>
             <input type="hidden" id="editDestId">
-            <div class="form-group"><label>Title *</label><input type="text" id="destTitle" required></div>
-            <div class="form-group"><label>Destination (location) *</label><input type="text" id="destLocation" required></div>
-            <div class="form-group"><label>Base Price (KES) *</label><input type="number" id="destPrice" required></div>
+            <div class="form-group"><label>Title *<\/label><input type="text" id="destTitle" required><\/div>
+            <div class="form-group"><label>Destination (location) *<\/label><input type="text" id="destLocation" required><\/div>
+            <div class="form-group"><label>Base Price (KES) *<\/label><input type="number" id="destPrice" required><\/div>
             <div class="form-group">
-                <label>Main Image (Upload or provide URL)</label>
+                <label>Main Image (Upload or provide URL)<\/label>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <input type="file" id="destImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="flex:2">
-                    <button type="button" id="uploadDestImageBtn" class="action-btn btn-update" style="background-color: #3498db;">Upload</button>
-                    <div class="upload-spinner" id="destUploadSpinner"></div>
-                </div>
+                    <input type="file" id="destImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp" style="flex:2">
+                    <button type="button" id="uploadDestImageBtn" class="action-btn btn-update" style="background-color: #3498db;">Upload<\/button>
+                    <div class="upload-spinner" id="destUploadSpinner"><\/div>
+                <\/div>
                 <input type="text" id="destImage" placeholder="Or paste image URL here" style="margin-top: 10px;">
                 <img id="destImagePreview" class="image-preview" alt="Preview">
-                <small>Upload an image (max 5MB) or enter a URL. After upload, the URL will be filled automatically.</small>
-                <div id="destUploadError" style="color: #e74c3c; font-size: 0.85rem; display: none;"></div>
-            </div>
-            <div class="form-group"><label>Description (HTML allowed)</label><textarea id="destDescription" rows="4" placeholder="Detailed description of the destination"></textarea></div>
-            <div class="form-group"><label>Itinerary (HTML allowed)</label><textarea id="destItinerary" rows="6" placeholder="Day by day plan, HTML formatting allowed"></textarea></div>
-            <div class="form-group"><label>Gallery Image URLs (comma separated)</label><input type="text" id="destGallery" placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"></div>
-            <div class="form-group"><label><input type="checkbox" id="destActive"> Active (visible to customers)</label></div>
-            <button class="action-btn btn-update" onclick="saveDestination()">Save Destination</button>
-        </div>
-    </div>
+                <small>Upload an image (max 5MB) or enter a URL. After upload, the URL will be filled automatically.<\/small>
+                <div id="destUploadError" style="color: #e74c3c; font-size: 0.85rem; display: none;"><\/div>
+            <\/div>
+            <div class="form-group"><label>Description (HTML allowed)<\/label><textarea id="destDescription" rows="4" placeholder="Detailed description of the destination"><\/textarea><\/div>
+            <div class="form-group"><label>Itinerary (HTML allowed)<\/label><textarea id="destItinerary" rows="6" placeholder="Day by day plan, HTML formatting allowed"><\/textarea><\/div>
+            <div class="form-group"><label>Gallery Image URLs (comma separated)<\/label><input type="text" id="destGallery" placeholder="https:\/\/example.com\/img1.jpg, https:\/\/example.com\/img2.jpg"><\/div>
+            <div class="form-group"><label><input type="checkbox" id="destActive"> Active (visible to customers)<\/label><\/div>
+            <button class="action-btn btn-update" onclick="saveDestination()">Save Destination<\/button>
+        <\/div>
+    <\/div>
 
-    <!-- Edit Blog Modal -->
     <div id="editModal" class="modal">
         <div class="modal-content">
-            <span class="close-modal" onclick="closeModal()">&times;</span>
-            <h2>Edit Blog Post</h2>
+            <span class="close-modal" onclick="closeModal()">&times;<\/span>
+            <h2>Edit Blog Post<\/h2>
             <form id="editBlogForm" style="padding:0;" onsubmit="submitEditBlog(event)">
                 <input type="hidden" id="editBlogId">
-                <div id="editFormFeedback" class="form-feedback"></div>
-                <div class="form-group"><label>Title *</label><input type="text" id="editBlogTitle" required></div>
-                <div class="form-group"><label>Author</label><input type="text" id="editBlogAuthor"></div>
-                <div class="form-group"><label>Featured Image (Upload new to replace)</label><div style="display:flex; align-items:center; gap:10px;"><input type="file" id="editBlogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><div class="upload-spinner" id="editUploadSpinner"></div></div><img id="editFeaturedImagePreview" class="image-preview"><div id="editUploadError" style="color:#e74c3c; font-size:0.85rem; display:none;"></div></div>
-                <div class="form-group"><label>Content</label><div class="quill-editor-wrapper"><div id="edit-editor-container" style="height:300px;"></div></div></div>
-                <button type="submit" id="editSaveBtn" class="btn-submit" style="background-color:#f39c12;">Save Changes</button>
-            </form>
-        </div>
-    </div>
+                <div id="editFormFeedback" class="form-feedback"><\/div>
+                <div class="form-group"><label>Title *<\/label><input type="text" id="editBlogTitle" required><\/div>
+                <div class="form-group"><label>Author<\/label><input type="text" id="editBlogAuthor"><\/div>
+                <div class="form-group"><label>Featured Image (Upload new to replace)<\/label><div style="display:flex; align-items:center; gap:10px;"><input type="file" id="editBlogImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp"><div class="upload-spinner" id="editUploadSpinner"><\/div><\/div><img id="editFeaturedImagePreview" class="image-preview"><div id="editUploadError" style="color:#e74c3c; font-size:0.85rem; display:none;"><\/div><\/div>
+                <div class="form-group"><label>Content<\/label><div class="quill-editor-wrapper"><div id="edit-editor-container" style="height:300px;"><\/div><\/div><\/div>
+                <button type="submit" id="editSaveBtn" class="btn-submit" style="background-color:#f39c12;">Save Changes<\/button>
+            <\/form>
+        <\/div>
+    <\/div>
 
     <script>
-        // Helper functions
+        // ========== Helper functions ==========
         function isValidImageFile(file) { return ['image/jpeg','image/png','image/gif','image/webp'].includes(file.type); }
         function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
         function getAuthHeaders() { return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }; }
@@ -197,16 +196,14 @@
             return data.url;
         }
 
-        // Login / Logout
+        // ========== Login / Logout ==========
         async function handleLogin(event) {
             event.preventDefault();
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
             const feedback = document.getElementById('loginFeedback');
             const btn = document.getElementById('btnLoginBtn');
-            btn.disabled = true;
-            btn.innerText = 'Authenticating...';
-            feedback.innerText = '';
+            btn.disabled = true; btn.innerText = 'Authenticating...'; feedback.innerText = '';
             try {
                 const res = await fetch('/api/admin/login', {
                     method: 'POST',
@@ -220,12 +217,8 @@
                 } else {
                     feedback.innerText = data.message || 'Login failed.';
                 }
-            } catch (err) {
-                feedback.innerText = 'Server connection failed.';
-            } finally {
-                btn.disabled = false;
-                btn.innerText = 'Secure Login';
-            }
+            } catch (err) { feedback.innerText = 'Server connection failed.'; }
+            finally { btn.disabled = false; btn.innerText = 'Secure Login'; }
         }
 
         function handleLogout() {
@@ -233,6 +226,19 @@
             document.getElementById('loginScreen').style.display = 'flex';
             document.getElementById('dashboardArea').style.display = 'none';
             document.getElementById('btnLogout').style.display = 'none';
+        }
+
+        function checkAuthStatus() {
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('dashboardArea').style.display = 'block';
+                document.getElementById('btnLogout').style.display = 'block';
+                initQuillEditors(token);
+                setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
+                setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
+                fetchBookings(); fetchDestinations(); fetchContactMessages(); fetchAdminBlogs();
+            } else handleLogout();
         }
 
         // Quill initialization
@@ -285,22 +291,7 @@
             });
         }
 
-        function checkAuthStatus() {
-            const token = localStorage.getItem('adminToken');
-            if (token) {
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('dashboardArea').style.display = 'block';
-                document.getElementById('btnLogout').style.display = 'block';
-                initQuillEditors(token);
-                setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
-                setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
-                fetchBookings(); fetchDestinations(); fetchAdminBlogs(); fetchContactMessages();
-            } else {
-                handleLogout();
-            }
-        }
-
-        // Bookings
+        // ========== Bookings ==========
         async function fetchBookings() {
             const tbody = document.getElementById('bookingsTableBody');
             if (!tbody) return;
@@ -309,28 +300,28 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings</td></tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings<\/td><\/tr>'; return; }
                 data.data.forEach(b => {
                     const statusClass = b.status === 'Pending' ? 'status-pending' : (b.status === 'Confirmed' ? 'status-confirmed' : 'status-cancelled');
                     tbody.innerHTML += `
                         <tr id="booking-row-${b.booking_id}">
-                            <td><strong>${b.booking_reference}</strong></td>
-                            <td>${b.customer_name}</td>
-                            <td>${b.email}<br>${b.phone}</td>
-                            <td>${b.package_booked}</td>
-                            <td>${new Date(b.travel_date).toLocaleDateString()}</td>
-                            <td>${b.total_guests}</td>
-                            <td>${Number(b.total_amount).toLocaleString()}</td>
-                            <td><span class="status-badge ${statusClass}">${b.status}</span></td>
+                            <td><strong>${b.booking_reference}<\/strong><\/td>
+                            <td>${b.customer_name}<\/td>
+                            <td>${b.email}<br>${b.phone}<\/td>
+                            <td>${b.package_booked}<\/td>
+                            <td>${new Date(b.travel_date).toLocaleDateString()}<\/td>
+                            <td>${b.total_guests}<\/td>
+                            <td>${Number(b.total_amount).toLocaleString()}<\/td>
+                            <td><span class="status-badge ${statusClass}">${b.status}<\/span><\/td>
                             <td>
                                 <select id="status-select-${b.booking_id}" class="status-select">
-                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
-                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                                </select>
-                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update</button>
-                            </td>
-                        </tr>
+                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending<\/option>
+                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed<\/option>
+                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled<\/option>
+                                <\/select>
+                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
             } catch(err) { console.error(err); }
@@ -353,7 +344,7 @@
             finally { btn.innerText = originalText; btn.disabled = false; }
         }
 
-        // Destinations
+        // ========== Destinations ==========
         async function fetchDestinations() {
             const tbody = document.getElementById('destinationsTableBody');
             if (!tbody) return;
@@ -362,22 +353,22 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations</td></tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations<\/td><\/tr>'; return; }
                 data.data.forEach(s => {
-                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active</span>' : '<span class="inactive-badge status-badge">Inactive</span>';
+                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active<\/span>' : '<span class="inactive-badge status-badge">Inactive<\/span>';
                     tbody.innerHTML += `
                         <tr>
-                            <td>${s.service_id}</td>
-                            <td>${s.title}</td>
-                            <td>${s.destination}</td>
-                            <td>${Number(s.base_price).toLocaleString()}</td>
-                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View</a>' : 'None'}</td>
-                            <td>${activeBadge}</td>
+                            <td>${s.service_id}<\/td>
+                            <td>${s.title}<\/td>
+                            <td>${s.destination}<\/td>
+                            <td>${Number(s.base_price).toLocaleString()}<\/td>
+                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View<\/a>' : 'None'}<\/td>
+                            <td>${activeBadge}<\/td>
                             <td>
-                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit</button>
-                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete</button>
-                            </td>
-                        </tr>
+                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
             } catch(err) { console.error(err); }
@@ -491,7 +482,7 @@
         }
         function closeDestModal() { document.getElementById('destModal').style.display = 'none'; }
 
-        // Contact Messages
+        // ========== Contact Messages ==========
         async function fetchContactMessages() {
             const tbody = document.getElementById('contactTableBody');
             if (!tbody) return;
@@ -500,39 +491,38 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages</td></tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages<\/td><\/tr>'; return; }
                 data.data.forEach(m => {
-                    tbody.innerHTML += `<tr><td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}</td><td>${m.name}</td><td><a href="mailto:${m.email}">${m.email}</a></td><td>${m.subject || ''}</td><td>${m.message}</td></tr>`;
+                    tbody.innerHTML += `<tr><td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}<\/td><td>${m.name}<\/td><td><a href="mailto:${m.email}">${m.email}<\/a><\/td><td>${m.subject || ''}<\/td><td>${m.message}<\/td><\/tr>`;
                 });
             } catch(err) { console.error(err); }
         }
 
-        // Blogs (fixed: fetch all blogs by using a large limit)
+        // ========== Blogs (fetch all with ?limit=1000) ==========
         async function fetchAdminBlogs() {
             const tbody = document.getElementById('manageBlogsTableBody');
             if (!tbody) return;
             try {
                 const res = await fetch('/api/blogs?limit=1000');
                 const data = await res.json();
-                // The API returns { blogs: [...], pagination: {...} }
                 const blogs = data.blogs || data;
                 tbody.innerHTML = '';
                 if (!blogs.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="loading-state">No published blogs found.</td></tr>';
+                    tbody.innerHTML = '<td><td colspan="5" class="loading-state">No published blogs found.在线<\/td><\/tr>';
                     return;
                 }
                 blogs.forEach(blog => {
                     tbody.innerHTML += `
                         <tr>
-                            <td>#${blog.id}</td>
-                            <td><strong>${escapeHtml(blog.title)}</strong></td>
-                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}</td>
-                            <td>${new Date(blog.created_at).toLocaleDateString()}</td>
+                            <td>#${blog.id}<\/td>
+                            <td><strong>${escapeHtml(blog.title)}<\/strong><\/td>
+                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}<\/td>
+                            <td>${new Date(blog.created_at).toLocaleDateString()}<\/td>
                             <td>
-                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit</button>
-                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete</button>
-                            </td>
-                        </tr>
+                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
             } catch(err) { console.error(err); }
@@ -620,7 +610,7 @@
             } catch(err) { alert('Update failed'); }
         }
 
-        // Initialize event listeners
+        // ========== Initialize ==========
         document.getElementById('loginForm').addEventListener('submit', handleLogin);
         document.getElementById('uploadDestImageBtn').addEventListener('click', () => {
             const fileInput = document.getElementById('destImageFile');
