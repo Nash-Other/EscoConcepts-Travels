@@ -5,90 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Account | EscoConcepts Travels</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        body {
-            background: #f4f7f6;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 2rem;
-        }
-        .container {
-            max-width: 600px;
-            width: 100%;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            padding: 2rem;
-        }
-        h2, h3 {
-            color: #2c3e50;
-            margin-bottom: 1rem;
-        }
-        .nav {
-            margin-bottom: 2rem;
-            text-align: center;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid #eee;
-        }
-        .nav a {
-            color: #3498db;
-            text-decoration: none;
-            margin: 0 1rem;
-        }
-        .nav a:hover {
-            text-decoration: underline;
-        }
-        input, button {
-            width: 100%;
-            padding: 0.8rem;
-            margin-bottom: 1rem;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 1rem;
-        }
-        button {
-            background: #e67e22;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background: #d35400;
-        }
-        .toggle {
-            text-align: center;
-            margin-top: 1rem;
-        }
-        .toggle a {
-            color: #3498db;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .error {
-            color: #e74c3c;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-        }
-        .success {
-            color: #2ecc71;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-        }
-        .booking-list {
-            margin-top: 2rem;
-            border-top: 1px solid #eee;
-            padding-top: 1rem;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f4f7f6; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 2rem; }
+        .container { max-width: 800px; width: 100%; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 2rem; }
+        .nav { margin-bottom: 2rem; text-align: center; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+        .nav a { color: #3498db; text-decoration: none; margin: 0 1rem; }
+        .nav a:hover { text-decoration: underline; }
+        h2, h3 { color: #2c3e50; margin-bottom: 1rem; }
+        input, button { width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+        button { background: #e67e22; color: white; font-weight: bold; cursor: pointer; border: none; transition: background 0.3s; }
+        button:hover { background: #d35400; }
+        .toggle { text-align: center; margin-top: 1rem; }
+        .toggle a { color: #3498db; cursor: pointer; }
+        .error { color: #e74c3c; margin-bottom: 1rem; }
+        .success { color: #2ecc71; margin-bottom: 1rem; }
         .booking-card {
             background: #f9f9f9;
             padding: 1rem;
@@ -96,18 +26,32 @@
             border-radius: 8px;
             border-left: 4px solid #e67e22;
         }
-        .booking-card strong {
-            color: #2c3e50;
-        }
-        .logout {
-            background: #e74c3c;
+        .booking-card strong { color: #2c3e50; }
+        .booking-actions {
             margin-top: 1rem;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
-        .logout:hover {
-            background: #c0392b;
+        .booking-actions button {
+            flex: 1;
+            margin: 0;
+            padding: 0.5rem;
+            font-size: 0.9rem;
         }
-        hr {
-            margin: 1rem 0;
+        .cancel-btn { background-color: #e74c3c; }
+        .cancel-btn:hover { background-color: #c0392b; }
+        .receipt-btn { background-color: #3498db; }
+        .receipt-btn:hover { background-color: #2980b9; }
+        .logout { background-color: #95a5a6; margin-top: 1rem; }
+        .logout:hover { background-color: #7f8c8d; }
+        hr { margin: 1rem 0; }
+        .print-only { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            .print-area, .print-area * { visibility: visible; }
+            .print-area { position: absolute; top: 0; left: 0; width: 100%; padding: 1rem; }
+            .booking-actions, .logout, .nav { display: none; }
         }
     </style>
 </head>
@@ -116,7 +60,8 @@
     <div class="nav">
         <a href="index.html">Home</a> | 
         <a href="checkout.html">Book Now</a> | 
-        <a href="destinations.html">Destinations</a>
+        <a href="destinations.html">Destinations</a> | 
+        <a href="account.html">My Account</a>
     </div>
 
     <!-- Login / Signup Section -->
@@ -126,18 +71,18 @@
         <div id="successMsg" class="success"></div>
         <form id="authForm">
             <div id="nameFields" style="display:none;">
-                <input type="text" id="firstName" placeholder="First Name *" required>
-                <input type="text" id="lastName" placeholder="Last Name *" required>
+                <input type="text" id="firstName" placeholder="First Name *">
+                <input type="text" id="lastName" placeholder="Last Name *">
                 <input type="tel" id="phone" placeholder="Phone (optional)">
             </div>
-            <input type="email" id="email" placeholder="Email *" required>
-            <input type="password" id="password" placeholder="Password *" required>
+            <input type="email" id="email" placeholder="Email *">
+            <input type="password" id="password" placeholder="Password *">
             <button type="submit" id="submitBtn">Login</button>
         </form>
         <div class="toggle">
-    <a id="toggleLink">Don't have an account? Sign up</a><br>
-    <a href="forgot-password.html" style="font-size: 0.9rem;">Forgot password?</a>
-    </div>
+            <a id="toggleLink">Don't have an account? Sign up</a><br>
+            <a href="forgot-password.html" style="font-size: 0.9rem;">Forgot password?</a>
+        </div>
     </div>
 
     <!-- Dashboard after login -->
@@ -150,20 +95,15 @@
     </div>
 </div>
 
+<!-- Hidden print template (will be populated for invoice) -->
+<div id="printTemplate" style="display: none;"></div>
+
 <script>
-    const API_BASE = '';  // empty because we use relative URLs
+    const API_BASE = '';
     let isLogin = true;
 
-    function showError(msg) {
-        const errDiv = document.getElementById('errorMsg');
-        errDiv.innerText = msg;
-        setTimeout(() => errDiv.innerText = '', 5000);
-    }
-    function showSuccess(msg) {
-        const sucDiv = document.getElementById('successMsg');
-        sucDiv.innerText = msg;
-        setTimeout(() => sucDiv.innerText = '', 3000);
-    }
+    function showError(msg) { const div = document.getElementById('errorMsg'); div.innerText = msg; setTimeout(() => div.innerText = '', 5000); }
+    function showSuccess(msg) { const div = document.getElementById('successMsg'); div.innerText = msg; setTimeout(() => div.innerText = '', 3000); }
 
     async function handleAuth(e) {
         e.preventDefault();
@@ -171,10 +111,7 @@
         showSuccess('');
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
-        if (!email || !password) {
-            showError('Email and password are required.');
-            return;
-        }
+        if (!email || !password) { showError('Email and password are required.'); return; }
         if (isLogin) {
             // LOGIN
             try {
@@ -188,23 +125,18 @@
                     localStorage.setItem('customerToken', data.token);
                     localStorage.setItem('customerRole', data.role);
                     localStorage.setItem('customerEmail', email);
-                    showSuccess('Login successful! Redirecting...');
+                    showSuccess('Login successful!');
                     setTimeout(() => window.location.reload(), 1000);
                 } else {
                     showError(data.message);
                 }
-            } catch (err) {
-                showError('Server error. Please try again later.');
-            }
+            } catch (err) { showError('Server error.'); }
         } else {
             // SIGNUP
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
             const phone = document.getElementById('phone').value.trim();
-            if (!firstName || !lastName) {
-                showError('First name and last name are required.');
-                return;
-            }
+            if (!firstName || !lastName) { showError('First name and last name are required.'); return; }
             try {
                 const res = await fetch(`${API_BASE}/api/auth/signup`, {
                     method: 'POST',
@@ -221,9 +153,7 @@
                 } else {
                     showError(data.message);
                 }
-            } catch (err) {
-                showError('Server error. Please try again later.');
-            }
+            } catch (err) { showError('Server error.'); }
         }
     }
 
@@ -238,13 +168,18 @@
             const container = document.getElementById('bookingsList');
             if (data.success && data.data && data.data.length) {
                 container.innerHTML = data.data.map(b => `
-                    <div class="booking-card">
+                    <div class="booking-card" data-id="${b.booking_id}" data-ref="${b.booking_reference}" data-package="${b.package_name}" data-date="${b.travel_date}" data-pax="${b.pax}" data-amount="${b.total_amount}" data-status="${b.status}">
                         <strong>${b.booking_reference}</strong><br>
                         Package: ${b.package_name}<br>
                         Travel Date: ${new Date(b.travel_date).toLocaleDateString()}<br>
                         Guests: ${b.pax}<br>
                         Total: KES ${Number(b.total_amount).toLocaleString()}<br>
                         Status: ${b.status}
+                        <div class="booking-actions">
+                            ${b.status === 'Pending' ? `<button class="cancel-btn" onclick="cancelBooking('${b.booking_id}')">Cancel Booking</button>` : ''}
+                            <button class="receipt-btn" onclick="downloadInvoice('${b.booking_id}')">Download Invoice (PDF)</button>
+                            <button class="receipt-btn" onclick="emailReceipt('${b.booking_id}')">Email Receipt</button>
+                        </div>
                     </div>
                 `).join('');
             } else {
@@ -252,7 +187,93 @@
             }
         } catch (err) {
             console.error(err);
-            document.getElementById('bookingsList').innerHTML = '<p>Failed to load your bookings. Please try again later.</p>';
+            document.getElementById('bookingsList').innerHTML = '<p>Failed to load your bookings.</p>';
+        }
+    }
+
+    async function cancelBooking(bookingId) {
+        if (!confirm('Are you sure you want to cancel this booking? This action cannot be undone.')) return;
+        const token = localStorage.getItem('customerToken');
+        try {
+            const res = await fetch(`${API_BASE}/api/bookings/cancel/${bookingId}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showSuccess('Booking cancelled successfully.');
+                loadBookings(); // refresh list
+            } else {
+                showError(data.message);
+            }
+        } catch (err) {
+            showError('Failed to cancel booking.');
+        }
+    }
+
+    async function downloadInvoice(bookingId) {
+        // Fetch booking details to generate printable receipt
+        const token = localStorage.getItem('customerToken');
+        try {
+            // We need the full booking data – but we already have it in the card's data attributes.
+            // Simpler: use the data stored in the card's data-* attributes.
+            const card = document.querySelector(`.booking-card[data-id='${bookingId}']`);
+            if (!card) return;
+            const ref = card.dataset.ref;
+            const packageName = card.dataset.package;
+            const travelDate = new Date(card.dataset.date).toLocaleDateString();
+            const pax = card.dataset.pax;
+            const amount = Number(card.dataset.amount).toLocaleString();
+            const status = card.dataset.status;
+            const userName = document.getElementById('userName').innerText;
+            const now = new Date().toLocaleString();
+
+            const html = `
+                <div class="print-area" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2>EscoConcepts Travels</h2>
+                    <h3>Booking Invoice</h3>
+                    <p><strong>Invoice Date:</strong> ${now}</p>
+                    <p><strong>Customer:</strong> ${userName}</p>
+                    <hr>
+                    <p><strong>Booking Reference:</strong> ${ref}</p>
+                    <p><strong>Package:</strong> ${packageName}</p>
+                    <p><strong>Travel Date:</strong> ${travelDate}</p>
+                    <p><strong>Guests:</strong> ${pax}</p>
+                    <p><strong>Total Amount:</strong> KES ${amount}</p>
+                    <p><strong>Status:</strong> ${status}</p>
+                    <hr>
+                    <p>Thank you for choosing EscoConcepts Travels.</p>
+                    <p style="font-size: 12px; color: gray;">This is a system-generated invoice. No signature required.</p>
+                </div>
+            `;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html><head><title>Invoice ${ref}</title>
+                <style>body { margin: 0; padding: 0; }</style>
+                </head><body>${html}</body></html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        } catch (err) {
+            showError('Could not generate invoice.');
+        }
+    }
+
+    async function emailReceipt(bookingId) {
+        const token = localStorage.getItem('customerToken');
+        try {
+            const res = await fetch(`${API_BASE}/api/bookings/receipt/${bookingId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showSuccess('Receipt sent to your email address.');
+            } else {
+                showError(data.message);
+            }
+        } catch (err) {
+            showError('Failed to send receipt.');
         }
     }
 
@@ -267,7 +288,6 @@
             btn.innerText = 'Login';
             toggleLink.innerText = "Don't have an account? Sign up";
             nameFields.style.display = 'none';
-            // remove required attributes
             document.getElementById('firstName').required = false;
             document.getElementById('lastName').required = false;
         } else {
@@ -287,10 +307,9 @@
         window.location.reload();
     }
 
-    // Check login status on page load
+    // Check login status
     const token = localStorage.getItem('customerToken');
     if (token) {
-        // Already logged in
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('dashboardSection').style.display = 'block';
         const email = localStorage.getItem('customerEmail') || 'Customer';
@@ -302,7 +321,6 @@
         document.getElementById('dashboardSection').style.display = 'none';
         document.getElementById('authForm').addEventListener('submit', handleAuth);
         document.getElementById('toggleLink').addEventListener('click', toggleForm);
-        // set initial form state
         isLogin = true;
         document.getElementById('nameFields').style.display = 'none';
         document.getElementById('firstName').required = false;
