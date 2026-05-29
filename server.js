@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { Resend } = require('resend');
 
 const app = express();
 const port = process.env.PORT || 11037;
@@ -19,13 +20,41 @@ app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] })
 const JWT_SECRET = process.env.JWT_SECRET || 'esco_super_secret_key_2026';
 const APP_URL = process.env.APP_URL || 'https://your-app.onrender.com';
 
+// Email setup
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev'; // Change to your verified email later
+
+// Helper: send email
+async function sendEmail(to, subject, html) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log('⚠️ RESEND_API_KEY not set. Email not sent.');
+    return;
+  }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: subject,
+      html: html,
+    });
+    if (error) {
+      console.error('Email send error:', error);
+    } else {
+      console.log(`✅ Email sent to ${to} (${subject})`);
+    }
+  } catch (err) {
+    console.error('Email send failed:', err);
+  }
+}
+
+// Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { require: true, rejectUnauthorized: false }
 });
 
 // ==========================================
-// MULTER SETUP
+// MULTER SETUP (unchanged)
 // ==========================================
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -50,7 +79,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// DATABASE INIT (adds reset token columns)
+// DATABASE INIT
 // ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
@@ -129,7 +158,6 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Insert admin if missing
     await client.query(`
       INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
       VALUES ('Esco', 'Admin', 'admin@escoconcepts.com', '0000000000', '$2b$10$sEvVRz6qou8z8GFzfck3MuwTQmDRj7XAYmLOeyZHQhEKggcgciZSW', 'admin')
@@ -195,13 +223,13 @@ function authenticateCustomer(req, res, next) {
 }
 
 // ==========================================
-// PASSWORD RESET ENDPOINTS
+// PASSWORD RESET (with real email)
 // ==========================================
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
   try {
-    const user = await pool.query('SELECT user_id FROM users WHERE email = $1', [email]);
+    const user = await pool.query('SELECT user_id, first_name FROM users WHERE email = $1', [email]);
     if (user.rows.length === 0) {
       return res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
     }
@@ -210,8 +238,18 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     expiry.setHours(expiry.getHours() + 1);
     await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
     const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
-    console.log(`\n🔐 PASSWORD RESET LINK for ${email}: ${resetLink}\n`);
-    res.json({ success: true, message: `Reset link: ${resetLink} (check server logs)` });
+    
+    // Send email
+    const html = `
+      <h2>Password Reset Request</h2>
+      <p>Hello ${user.rows[0].first_name || 'there'},</p>
+      <p>You requested to reset your password. Click the link below to set a new password. This link expires in 1 hour.</p>
+      <p><a href="${resetLink}">${resetLink}</a></p>
+      <p>If you did not request this, please ignore this email.</p>
+      <p>— EscoConcepts Travels</p>
+    `;
+    await sendEmail(email, 'Reset Your Password', html);
+    res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -243,7 +281,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ==========================================
-// CUSTOMER AUTH ENDPOINTS
+// CUSTOMER AUTH (unchanged)
 // ==========================================
 app.post('/api/auth/signup', async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
@@ -293,9 +331,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ==========================================
-// MY BOOKINGS (customer only)
-// ==========================================
 app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -313,7 +348,7 @@ app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
 });
 
 // ==========================================
-// SEARCH SERVICES (backend filtering)
+// SEARCH SERVICES (unchanged)
 // ==========================================
 app.get('/api/services/search', async (req, res) => {
   const { location, minPrice, maxPrice, guests } = req.query;
@@ -353,7 +388,7 @@ app.get('/api/services/search', async (req, res) => {
 });
 
 // ==========================================
-// TEST DATABASE CONNECTION
+// TEST DB ENDPOINT
 // ==========================================
 app.get('/api/test-db', async (req, res) => {
   try {
@@ -365,7 +400,7 @@ app.get('/api/test-db', async (req, res) => {
 });
 
 // ==========================================
-// ADMIN LOGIN
+// ADMIN LOGIN (unchanged)
 // ==========================================
 app.post('/api/admin/login', async (req, res) => {
   const { email, password } = req.body;
@@ -393,7 +428,7 @@ app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) =>
 });
 
 // ==========================================
-// BOOKINGS (admin)
+// BOOKINGS (admin) – with email on status change
 // ==========================================
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   try {
@@ -421,16 +456,47 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
   const { status } = req.body;
   const allowedStatuses = ['Pending', 'Confirmed', 'Cancelled'];
   if (!allowedStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status.' });
+  
   let paymentStatus = 'Pending';
   if (status === 'Confirmed') paymentStatus = 'Completed';
   if (status === 'Cancelled') paymentStatus = 'Failed';
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Get old status and customer info before update
+    const current = await client.query(`
+      SELECT b.status as old_status, u.email, u.first_name, u.last_name, b.booking_reference, s.title as package_title
+      FROM bookings b
+      JOIN users u ON b.user_id = u.user_id
+      JOIN services s ON b.service_id = s.service_id
+      WHERE b.booking_id = $1
+    `, [id]);
+    if (current.rows.length === 0) throw new Error('Booking not found');
+    const oldStatus = current.rows[0].old_status;
+    const customerEmail = current.rows[0].email;
+    const customerName = `${current.rows[0].first_name} ${current.rows[0].last_name}`;
+    const bookingRef = current.rows[0].booking_reference;
+    const packageTitle = current.rows[0].package_title;
+
     await client.query(`UPDATE bookings SET status = $1 WHERE booking_id = $2`, [status, id]);
     await client.query(`UPDATE payments SET payment_status = $1 WHERE booking_id = $2`, [paymentStatus, id]);
     await client.query('COMMIT');
-    res.json({ success: true, message: `Status updated to ${status}` });
+
+    // Send email if status changed
+    if (oldStatus !== status) {
+      const statusText = status === 'Confirmed' ? 'confirmed ✅' : (status === 'Cancelled' ? 'cancelled ❌' : 'pending ⏳');
+      const subject = `Booking ${statusText} – ${bookingRef}`;
+      const html = `
+        <h2>Hello ${customerName},</h2>
+        <p>Your booking <strong>${bookingRef}</strong> for <strong>${packageTitle}</strong> has been <strong>${statusText}</strong>.</p>
+        <p>If you have any questions, please contact us at info@escoconcepts.com.</p>
+        <p>Thank you for choosing EscoConcepts Travels.</p>
+      `;
+      await sendEmail(customerEmail, subject, html);
+    }
+
+    res.json({ success: true, message: `Booking status updated to ${status}${oldStatus !== status ? ' and email sent' : ''}.` });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
@@ -441,7 +507,7 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CHECKOUT (guest or logged‑in user)
+// CHECKOUT (unchanged)
 // ==========================================
 app.post('/api/checkout', async (req, res) => {
   const { firstName, lastName, email, phone, travelDate, pax, totalAmount, paymentMethod, service_id, userId } = req.body;
@@ -478,6 +544,7 @@ app.post('/api/checkout', async (req, res) => {
       [bookingId, paymentMethod, totalAmount]
     );
     await client.query('COMMIT');
+    // Optionally send a booking confirmation email here (but not required)
     res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -489,7 +556,7 @@ app.post('/api/checkout', async (req, res) => {
 });
 
 // ==========================================
-// SERVICES (public – no filters, used by homepage)
+// SERVICES (public)
 // ==========================================
 app.get('/api/services', async (req, res) => {
   try {
@@ -502,7 +569,7 @@ app.get('/api/services', async (req, res) => {
 });
 
 // ==========================================
-// ADMIN SERVICES CRUD
+// ADMIN SERVICES CRUD (unchanged)
 // ==========================================
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   try {
@@ -564,13 +631,12 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// BLOG ENDPOINTS (with pagination)
+// BLOG ENDPOINTS (with pagination, unchanged)
 // ==========================================
 app.get('/api/blogs', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 6;  // 6 blogs per page
+  const limit = parseInt(req.query.limit) || 6;
   const offset = (page - 1) * limit;
-
   try {
     const result = await pool.query('SELECT * FROM blogs ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
     const countResult = await pool.query('SELECT COUNT(*) FROM blogs');
@@ -647,7 +713,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// CONTACT MESSAGES
+// CONTACT MESSAGES (unchanged)
 // ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
