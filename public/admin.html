@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | EscoConcepts Travels</title>
-    <!-- Quill for blog editing -->
+    <!-- Quill for blog editing (unchanged) -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <style>
+        /* ========== STYLES (same as before) ========== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f7f6; color: #333; }
         header { background-color: #2c3e50; padding: 1rem 5%; color: #fff; display: flex; justify-content: space-between; align-items: center; }
@@ -99,7 +100,7 @@
                     <label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="newDestActive" checked> Active<\/label>
                     <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination<\/button>
                 <\/div>
-                <table>
+                <tr>
                     <thead><tr><th>ID<\/th><th>Title<\/th><th>Destination<\/th><th>Price<\/th><th>Image<\/th><th>Active<\/th><th>Actions<\/th><\/tr><\/thead>
                     <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...<\/td><\/tr><\/tbody>
                 <\/table>
@@ -112,8 +113,8 @@
             <!-- Blog Management -->
             <div class="dashboard-header"><h1>Manage Blogs<\/h1><button class="btn-refresh" onclick="fetchAdminBlogs()">Refresh<\/button><\/div>
             <div class="content-wrapper">
-                <table><thead><tr><th>ID<\/th><th>Title<\/th><th>Author<\/th><th>Date<\/th><th>Actions<\/th><\/tr><\/thead>
-                <tbody id="manageBlogsTableBody"><td><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                表<thead><tr><th>ID<\/th><th>Title<\/th><th>Author<\/th><th>Date<\/th><th>Actions<\/th><\/tr><\/thead>
+                <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
             20<
             <\/div>
 
@@ -190,15 +191,6 @@
         }
         function getAuthHeaders() { return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }; }
         function handleApiError(res) { if (res.status === 401 || res.status === 403) { alert('Session expired'); handleLogout(); return true; } return false; }
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
 
         // ========== Login / Logout ==========
         async function handleLogin(event) {
@@ -244,53 +236,16 @@
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('dashboardArea').style.display = 'block';
                 document.getElementById('btnLogout').style.display = 'block';
-                initQuillEditors(token);
+                // Initialize Quill editors if they exist
+                if (typeof Quill !== 'undefined') {
+                    if (!window.quillCreate) {
+                        window.quillCreate = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [[{ 'header': [1,2,3,4,5,6,false] }], ['bold','italic','underline','strike'],[{ 'color': [] },{ 'background': [] }],[{ 'list': 'ordered'},{ 'list': 'bullet' }],[{ 'align': [] }],['link','image','clean']] } });
+                    }
+                }
                 fetchBookings(); fetchDestinations(); fetchAdminBlogs(); fetchContactMessages();
             } else {
                 handleLogout();
             }
-        }
-
-        function initQuillEditors(token) {
-            if (!window.quillCreate) {
-                window.quillCreate = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [[{ 'header': [1,2,3,4,5,6,false] }], ['bold','italic','underline','strike'],[{ 'color': [] },{ 'background': [] }],[{ 'list': 'ordered'},{ 'list': 'bullet' }],[{ 'align': [] }],['link','image','clean']] } });
-                setupQuillImageHandler(window.quillCreate, token);
-            }
-            if (!window.quillEdit) {
-                window.quillEdit = new Quill('#edit-editor-container', { theme: 'snow', modules: { toolbar: [[{ 'header': [1,2,3,4,5,6,false] }], ['bold','italic','underline','strike'],[{ 'color': [] },{ 'background': [] }],[{ 'list': 'ordered'},{ 'list': 'bullet' }],[{ 'align': [] }],['link','image','clean']] } });
-                setupQuillImageHandler(window.quillEdit, token);
-            }
-            setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
-            setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
-        }
-
-        function setupQuillImageHandler(quill, token) {
-            const toolbar = quill.getModule('toolbar');
-            toolbar.addHandler('image', () => {
-                const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
-                input.onchange = async () => {
-                    if (!input.files[0]) return;
-                    if (!isValidImageFile(input.files[0])) { alert('Invalid file type'); return; }
-                    try {
-                        const url = await uploadImage(input.files[0], token);
-                        const range = quill.getSelection(true);
-                        quill.insertEmbed(range.index, 'image', url);
-                    } catch (err) { alert('Upload failed: '+err.message); }
-                };
-                input.click();
-            });
-        }
-
-        function setupImagePreview(fileInput, previewImg) {
-            fileInput.addEventListener('change', function() {
-                if (this.files && this.files[0]) {
-                    const file = this.files[0];
-                    if (!isValidImageFile(file)) { alert('Invalid type'); this.value = ''; previewImg.style.display = 'none'; return; }
-                    const reader = new FileReader();
-                    reader.onload = (e) => { previewImg.src = e.target.result; previewImg.style.display = 'block'; };
-                    reader.readAsDataURL(file);
-                } else previewImg.style.display = 'none';
-            });
         }
 
         // ========== Bookings ==========
@@ -328,7 +283,6 @@
                 });
             } catch(err) { console.error(err); }
         }
-
         async function updateBookingStatus(bookingId) {
             const select = document.getElementById(`status-select-${bookingId}`);
             const newStatus = select.value;
@@ -346,7 +300,7 @@
             finally { btn.innerText = originalText; btn.disabled = false; }
         }
 
-        // ========== Destinations ==========
+        // ========== Destinations CRUD ==========
         async function fetchDestinations() {
             const tbody = document.getElementById('destinationsTableBody');
             if (!tbody) return;
@@ -493,7 +447,7 @@
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<td><td colspan="5">No messages<\/td><\/tr>'; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages<\/td><\/tr>'; return; }
                 data.data.forEach(m => {
                     tbody.innerHTML += `<tr><td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}<\/td><td>${m.name}<\/td><td><a href="mailto:${m.email}">${m.email}<\/a><\/td><td>${m.subject || ''}<\/td><td>${m.message}<\/td><\/tr>`;
                 });
