@@ -222,7 +222,7 @@
             margin-bottom: 0.5rem;
         }
 
-        /* ----- MODERN DESTINATION CARDS (updated) ----- */
+        /* ----- MODERN DESTINATION CARDS (same as before) ----- */
         .carousel-container {
             position: relative;
             max-width: 1200px;
@@ -311,11 +311,6 @@
             font-size: 1.2rem;
             color: #e67e22;
         }
-        .card-price small {
-            font-size: 0.7rem;
-            font-weight: normal;
-            color: #718096;
-        }
         .btn-view-details {
             background: #e67e22;
             color: white;
@@ -387,7 +382,7 @@
             }
         }
 
-        /* ----- MODERN MODAL STYLES (updated to match reference) ----- */
+        /* ----- MODERN MODAL (inspired by reference image) ----- */
         .modal {
             display: none;
             position: fixed;
@@ -403,9 +398,9 @@
         }
         .modal-content {
             background-color: #fff;
-            border-radius: 20px;
+            border-radius: 24px;
             width: 90%;
-            max-width: 900px;
+            max-width: 850px;
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
@@ -414,94 +409,90 @@
         }
         .close-modal {
             position: absolute;
-            top: 15px;
+            top: 20px;
             right: 25px;
             font-size: 2rem;
             font-weight: bold;
-            color: #aaa;
+            color: #fff;
+            background: rgba(0,0,0,0.5);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            transition: color 0.2s;
-            z-index: 10;
+            transition: background 0.2s;
+            z-index: 20;
         }
         .close-modal:hover {
-            color: #333;
+            background: rgba(0,0,0,0.8);
+            color: white;
         }
         .modal-hero {
             width: 100%;
-            height: 300px;
+            height: 280px;
             object-fit: cover;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
         }
         .modal-body {
             padding: 2rem;
         }
         .modal-title {
-            font-size: 2rem;
-            font-weight: 700;
+            font-size: 1.8rem;
+            font-weight: 800;
             color: #1e2a3a;
             margin-bottom: 0.25rem;
         }
         .modal-location {
             font-size: 1rem;
             color: #e67e22;
-            font-weight: 500;
+            font-weight: 600;
             margin-bottom: 1rem;
             display: flex;
             align-items: center;
             gap: 5px;
         }
-        .modal-price {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #e67e22;
-            margin: 0.5rem 0 1rem;
-            background: #fef3e8;
-            display: inline-block;
-            padding: 0.5rem 1.2rem;
-            border-radius: 40px;
-        }
-        .modal-section {
-            margin: 1.5rem 0;
-        }
-        .modal-section h3 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #1e2a3a;
-            margin-bottom: 0.75rem;
-            border-left: 4px solid #e67e22;
-            padding-left: 12px;
-        }
         .modal-description {
             font-size: 1rem;
             line-height: 1.6;
             color: #4a5568;
+            margin: 1rem 0;
         }
-        .modal-itinerary {
+        .modal-requirements {
             background: #f8fafc;
-            padding: 1rem;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            color: #2d3748;
+            padding: 1rem 1.2rem;
+            border-radius: 16px;
+            margin: 1rem 0;
         }
-        .gallery-preview {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 0.5rem;
+        .modal-requirements h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1e2a3a;
+            margin-bottom: 0.5rem;
         }
-        .gallery-preview img {
-            width: 100px;
-            height: 70px;
-            object-fit: cover;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: transform 0.2s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        .modal-requirements ul {
+            margin-left: 1.5rem;
+            color: #4a5568;
         }
-        .gallery-preview img:hover {
-            transform: scale(1.05);
+        .modal-requirements li {
+            margin-bottom: 0.3rem;
+        }
+        .modal-price {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #e67e22;
+            margin: 1rem 0;
+            display: inline-block;
+            padding: 0.3rem 1rem;
+            background: #fef3e8;
+            border-radius: 40px;
+        }
+        .modal-price small {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #718096;
         }
         .modal-book-btn {
             display: inline-block;
@@ -509,22 +500,50 @@
             color: white;
             padding: 0.9rem 2rem;
             text-decoration: none;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 1rem;
+            border-radius: 60px;
+            font-weight: 800;
+            font-size: 1.1rem;
             letter-spacing: 1px;
             margin-top: 1rem;
             transition: background 0.3s;
-            border: none;
-            cursor: pointer;
             width: 100%;
             text-align: center;
+            border: none;
+            cursor: pointer;
         }
         .modal-book-btn:hover {
             background-color: #d35400;
         }
+        /* Gallery (optional – placed after button but less prominent) */
+        .modal-gallery {
+            margin-top: 1.5rem;
+            border-top: 1px solid #edf2f7;
+            padding-top: 1rem;
+        }
+        .modal-gallery h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #718096;
+            margin-bottom: 0.5rem;
+        }
+        .gallery-preview {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .gallery-preview img {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .gallery-preview img:hover {
+            transform: scale(1.05);
+        }
 
-        /* Footer (unchanged) */
+        /* Footer */
         footer {
             background-color: #2c3e50;
             color: #ecf0f1;
@@ -668,28 +687,26 @@
         <div id="carouselDots" class="carousel-dots"></div>
     </section>
 
-    <!-- Modal Structure (modern) -->
+    <!-- Modal (modern design) -->
     <div id="detailModal" class="modal">
         <div class="modal-content">
-            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <span class="close-modal" onclick="closeModal()">✕</span>
             <img id="modalImage" class="modal-hero" src="" alt="">
             <div class="modal-body">
                 <h2 id="modalTitle" class="modal-title"></h2>
                 <div id="modalLocation" class="modal-location"></div>
+                <div id="modalDescription" class="modal-description"></div>
+                <div id="requirementsSection" class="modal-requirements" style="display: none;">
+                    <h4>Requirements</h4>
+                    <ul id="modalRequirementsList"></ul>
+                </div>
                 <div id="modalPrice" class="modal-price"></div>
-                <div class="modal-section">
-                    <h3>Overview</h3>
-                    <div id="modalDescription" class="modal-description"></div>
-                </div>
-                <div class="modal-section" id="itinerarySection" style="display:none;">
-                    <h3>Itinerary</h3>
-                    <div id="modalItinerary" class="modal-itinerary"></div>
-                </div>
-                <div class="modal-section" id="gallerySection" style="display:none;">
-                    <h3>Gallery</h3>
+                <a id="modalBookLink" href="#" class="modal-book-btn">BOOK / ENQUIRE NOW</a>
+                <!-- Optional gallery (collapsed) -->
+                <div id="gallerySection" class="modal-gallery" style="display: none;">
+                    <h4>Gallery</h4>
                     <div id="modalGallery" class="gallery-preview"></div>
                 </div>
-                <a id="modalBookLink" href="#" class="modal-book-btn">BOOK / ENQUIRE NOW</a>
             </div>
         </div>
     </div>
@@ -736,13 +753,12 @@
         let destinationsData = [];
         let currentSlide = 0;
         let slideInterval;
-        const itemsPerSlide = 9; // 9 items per slide (3x3 grid)
+        const itemsPerSlide = 9;
 
         function toggleMenu() {
             document.getElementById('navLinks').classList.toggle('show');
         }
 
-        // Backend search function (replaces carousel content with search results)
         async function searchDestinations() {
             const location = document.getElementById('searchLocation').value.trim();
             const guests = document.getElementById('searchGuests').value;
@@ -755,7 +771,7 @@
             
             const slideContainer = document.getElementById('carouselSlide');
             const dotsContainer = document.getElementById('carouselDots');
-            slideContainer.innerHTML = '<div class="loader" style="text-align:center; padding:2rem;">Searching...</div>';
+            slideContainer.innerHTML = '<div style="text-align:center; padding:2rem;">Searching...</div>';
             dotsContainer.innerHTML = '';
             stopAutoSlide();
             try {
@@ -789,10 +805,8 @@
             for (let i = 0; i < totalSlides; i++) {
                 const slideDiv = document.createElement('div');
                 slideDiv.className = 'carousel-slide-item';
-                
                 const gridDiv = document.createElement('div');
                 gridDiv.className = 'slide-grid';
-                
                 const start = i * itemsPerSlide;
                 const end = Math.min(start + itemsPerSlide, destinationsData.length);
                 for (let j = start; j < end; j++) {
@@ -820,7 +834,6 @@
                 slideContainer.appendChild(slideDiv);
             }
             
-            // Create dots
             for (let i = 0; i < totalSlides; i++) {
                 const dot = document.createElement('span');
                 dot.className = 'dot';
@@ -828,7 +841,6 @@
                 dot.addEventListener('click', () => goToSlide(i));
                 dotsContainer.appendChild(dot);
             }
-            
             goToSlide(0);
         }
         
@@ -839,7 +851,6 @@
             if (index >= totalSlides) index = 0;
             currentSlide = index;
             slideContainer.style.transform = `translateX(-${currentSlide * 100}%)`;
-            
             const dots = document.querySelectorAll('.dot');
             dots.forEach((dot, i) => {
                 if (i === currentSlide) dot.classList.add('active');
@@ -859,16 +870,11 @@
         
         function startAutoSlide() {
             if (slideInterval) clearInterval(slideInterval);
-            slideInterval = setInterval(() => {
-                nextSlide();
-            }, 10000); // 10 seconds
+            slideInterval = setInterval(() => { nextSlide(); }, 10000);
         }
         
         function stopAutoSlide() {
-            if (slideInterval) {
-                clearInterval(slideInterval);
-                slideInterval = null;
-            }
+            if (slideInterval) { clearInterval(slideInterval); slideInterval = null; }
         }
         
         function resetAutoSlideTimer() {
@@ -876,34 +882,54 @@
             startAutoSlide();
         }
         
-        // Pause on hover
         const carouselContainer = document.getElementById('carouselContainer');
         if (carouselContainer) {
             carouselContainer.addEventListener('mouseenter', () => stopAutoSlide());
             carouselContainer.addEventListener('mouseleave', () => startAutoSlide());
         }
         
-        // Modal functions
+        // Modal functions (reformatted)
         function openModal(destination) {
             document.getElementById('modalTitle').innerText = destination.title;
             document.getElementById('modalLocation').innerHTML = `📍 ${destination.destination}`;
-            document.getElementById('modalPrice').innerHTML = `KES ${Number(destination.base_price).toLocaleString()} per person`;
+            document.getElementById('modalPrice').innerHTML = `TOTAL PRICE<br>KES ${Number(destination.base_price).toLocaleString()}`;
             const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800';
             const modalImg = document.getElementById('modalImage');
             modalImg.src = destination.image_url || defaultImage;
             modalImg.onerror = () => { modalImg.src = defaultImage; };
             
+            // Overview (description)
             const descHtml = destination.description ? destination.description : `<p>Experience the beauty of ${destination.title}. Contact us for more details.</p>`;
             document.getElementById('modalDescription').innerHTML = descHtml;
             
-            const itineraryDiv = document.getElementById('itinerarySection');
+            // Requirements (use itinerary if present, else fallback)
+            const requirementsDiv = document.getElementById('requirementsSection');
+            const reqList = document.getElementById('modalRequirementsList');
             if (destination.itinerary && destination.itinerary.trim() !== '') {
-                document.getElementById('modalItinerary').innerHTML = destination.itinerary;
-                itineraryDiv.style.display = 'block';
+                // Convert itinerary HTML to list items (simple: split by <p> or <br> or treat as HTML)
+                // For simplicity, we'll display the raw HTML inside a div with bullets? Better to create list items.
+                // We'll assume itinerary contains <li> or plain text with line breaks.
+                let reqText = destination.itinerary;
+                // Remove surrounding HTML tags and split by newlines
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = reqText;
+                const items = [];
+                // If there are <li> elements, use them
+                const lis = tempDiv.querySelectorAll('li');
+                if (lis.length) {
+                    lis.forEach(li => items.push(li.innerText));
+                } else {
+                    // Split by <br> or paragraphs
+                    const lines = tempDiv.innerText.split(/\r?\n/).filter(l => l.trim());
+                    items.push(...lines);
+                }
+                reqList.innerHTML = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+                requirementsDiv.style.display = 'block';
             } else {
-                itineraryDiv.style.display = 'none';
+                requirementsDiv.style.display = 'none';
             }
             
+            // Gallery
             const galleryDiv = document.getElementById('gallerySection');
             const galleryContainer = document.getElementById('modalGallery');
             if (destination.gallery && destination.gallery.length > 0) {
@@ -945,12 +971,7 @@
 
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
+            return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
         }
 
         async function loadFeaturedDestinations() {
