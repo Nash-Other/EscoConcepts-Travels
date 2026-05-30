@@ -382,7 +382,7 @@
             }
         }
 
-        /* ----- TWO-COLUMN MODAL (image left, details right) ----- */
+        /* ----- TWO-COLUMN MODAL (image left, details right) - enlarged ----- */
         .modal {
             display: none;
             position: fixed;
@@ -400,7 +400,7 @@
             background-color: #fff;
             border-radius: 24px;
             width: 90%;
-            max-width: 1000px;
+            max-width: 1200px;  /* increased from 1000px */
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
@@ -434,7 +434,7 @@
         }
         .modal-left {
             flex: 1.2;
-            min-width: 250px;
+            min-width: 280px;
             background: #f8fafc;
             border-top-left-radius: 24px;
             border-bottom-left-radius: 24px;
@@ -442,26 +442,26 @@
         }
         .modal-right {
             flex: 1.8;
-            min-width: 300px;
+            min-width: 320px;
             padding: 1.5rem 2rem;
         }
         .modal-main-img {
             width: 100%;
             height: auto;
-            max-height: 320px;
+            max-height: 360px;
             object-fit: cover;
             border-radius: 16px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         .modal-gallery {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             margin-top: 1rem;
             flex-wrap: wrap;
         }
         .modal-gallery img {
-            width: 70px;
-            height: 70px;
+            width: 90px;   /* increased from 70px */
+            height: 90px;
             object-fit: cover;
             border-radius: 12px;
             cursor: pointer;
@@ -512,18 +512,24 @@
             margin-bottom: 0.3rem;
         }
         .modal-price {
-            font-size: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin: 1rem 0;
+            padding: 0.5rem 0;
+            border-top: 1px solid #edf2f7;
+            border-bottom: 1px solid #edf2f7;
+        }
+        .modal-price span:first-child {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #4a5568;
+            letter-spacing: 1px;
+        }
+        .modal-price span:last-child {
+            font-size: 1.6rem;
             font-weight: 800;
             color: #e67e22;
-            margin: 1rem 0;
-            display: inline-block;
-            padding: 0.3rem 1rem;
-            background: #fef3e8;
-            border-radius: 40px;
-        }
-        .modal-price small {
-            font-size: 0.9rem;
-            font-weight: normal;
         }
         .modal-book-btn {
             display: inline-block;
@@ -555,6 +561,9 @@
             }
             .modal-right {
                 padding: 1.5rem;
+            }
+            .modal-price span:last-child {
+                font-size: 1.3rem;
             }
         }
 
@@ -693,7 +702,7 @@
         <div id="carouselDots" class="carousel-dots"></div>
     </section>
 
-    <!-- Two-Column Modal -->
+    <!-- Two-Column Modal with redesigned price row -->
     <div id="detailModal" class="modal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal()">✕</span>
@@ -710,7 +719,10 @@
                         <h4>Requirements</h4>
                         <ul id="modalRequirementsList"></ul>
                     </div>
-                    <div id="modalPrice" class="modal-price"></div>
+                    <div class="modal-price">
+                        <span>TOTAL PRICE</span>
+                        <span id="modalPriceAmount"></span>
+                    </div>
                     <a id="modalBookLink" href="#" class="modal-book-btn">BOOK / ENQUIRE NOW</a>
                 </div>
             </div>
@@ -894,11 +906,11 @@
             carouselContainer.addEventListener('mouseleave', () => startAutoSlide());
         }
         
-        // Modal functions with two‑column layout
+        // Modal functions with two‑column layout, price row, larger thumbnails
         function openModal(destination) {
             document.getElementById('modalTitle').innerText = destination.title;
             document.getElementById('modalLocation').innerHTML = `📍 ${destination.destination}`;
-            document.getElementById('modalPrice').innerHTML = `TOTAL PRICE<br>KES ${Number(destination.base_price).toLocaleString()}`;
+            document.getElementById('modalPriceAmount').innerHTML = `KES ${Number(destination.base_price).toLocaleString()}`;
             const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800';
             const modalImg = document.getElementById('modalImage');
             modalImg.src = destination.image_url || defaultImage;
