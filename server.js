@@ -157,6 +157,21 @@ async function initializeDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Reviews table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        review_id SERIAL PRIMARY KEY,
+        service_id INTEGER NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(service_id, user_id)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_service_id ON reviews(service_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`);
+
     // Ensure admin exists
     await client.query(`
       INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
@@ -570,13 +585,16 @@ app.post('/api/upload', authenticateAdmin, upload.single('image'), (req, res) =>
 });
 
 // ==========================================
-// BOOKINGS (admin) – WITH PAGINATION & SEARCH
+// BOOKINGS (admin) – WITH PAGINATION, SEARCH, STATUS & DATE FILTERS
 // ==========================================
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+  const status = req.query.status; // 'Pending', 'Confirmed', 'Cancelled', or undefined
+  const dateFrom = req.query.dateFrom; // YYYY-MM-DD
+  const dateTo = req.query.dateTo;     // YYYY-MM-DD
 
   let baseQuery = `
     SELECT b.booking_id, b.booking_reference,
@@ -592,17 +610,37 @@ app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   let countQuery = 'SELECT COUNT(*) FROM bookings b JOIN users u ON b.user_id = u.user_id JOIN services s ON b.service_id = s.service_id JOIN payments p ON b.booking_id = p.booking_id';
   let whereClause = '';
   let params = [];
+  let paramIndex = 1;
 
   if (search) {
-    whereClause = ` WHERE LOWER(b.booking_reference) LIKE $1 OR LOWER(u.first_name) LIKE $1 OR LOWER(u.last_name) LIKE $1 OR LOWER(u.email) LIKE $1 OR LOWER(s.title) LIKE $1`;
+    whereClause += ` WHERE (LOWER(b.booking_reference) LIKE $${paramIndex} OR LOWER(u.first_name) LIKE $${paramIndex} OR LOWER(u.last_name) LIKE $${paramIndex} OR LOWER(u.email) LIKE $${paramIndex} OR LOWER(s.title) LIKE $${paramIndex})`;
     params.push(search);
+    paramIndex++;
+  } else {
+    whereClause += ` WHERE 1=1`;
+  }
+
+  if (status) {
+    whereClause += ` AND b.status = $${paramIndex}`;
+    params.push(status);
+    paramIndex++;
+  }
+  if (dateFrom) {
+    whereClause += ` AND b.travel_date >= $${paramIndex}`;
+    params.push(dateFrom);
+    paramIndex++;
+  }
+  if (dateTo) {
+    whereClause += ` AND b.travel_date <= $${paramIndex}`;
+    params.push(dateTo);
+    paramIndex++;
   }
 
   try {
     const countRes = await pool.query(countQuery + whereClause, params);
     const total = parseInt(countRes.rows[0].count);
     const dataRes = await pool.query(
-      baseQuery + whereClause + ` ORDER BY b.booking_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      baseQuery + whereClause + ` ORDER BY b.booking_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
     res.json({
@@ -673,29 +711,41 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// ADMIN SERVICES (destinations) – WITH PAGINATION & SEARCH
+// ADMIN SERVICES (destinations) – WITH PAGINATION, SEARCH & ACTIVE FILTER
 // ==========================================
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+  const isActive = req.query.is_active; // 'true', 'false', or undefined
 
   let baseQuery = 'SELECT * FROM services';
   let countQuery = 'SELECT COUNT(*) FROM services';
   let whereClause = '';
   let params = [];
+  let paramIndex = 1;
 
   if (search) {
-    whereClause = ` WHERE LOWER(title) LIKE $1 OR LOWER(destination) LIKE $1 OR LOWER(description) LIKE $1`;
+    whereClause += ` WHERE (LOWER(title) LIKE $${paramIndex} OR LOWER(destination) LIKE $${paramIndex} OR LOWER(description) LIKE $${paramIndex})`;
     params.push(search);
+    paramIndex++;
+  } else {
+    whereClause += ` WHERE 1=1`;
+  }
+
+  if (isActive !== undefined && isActive !== '') {
+    const activeBool = isActive === 'true';
+    whereClause += ` AND is_active = $${paramIndex}`;
+    params.push(activeBool);
+    paramIndex++;
   }
 
   try {
     const countRes = await pool.query(countQuery + whereClause, params);
     const total = parseInt(countRes.rows[0].count);
     const dataRes = await pool.query(
-      baseQuery + whereClause + ` ORDER BY service_id ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      baseQuery + whereClause + ` ORDER BY service_id ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
     res.json({
@@ -764,29 +814,46 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// ADMIN CONTACT MESSAGES – WITH PAGINATION & SEARCH
+// ADMIN CONTACT MESSAGES – WITH PAGINATION, SEARCH & DATE FILTERS
 // ==========================================
 app.get('/api/contact', authenticateAdmin, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+  const dateFrom = req.query.dateFrom;
+  const dateTo = req.query.dateTo;
 
   let baseQuery = 'SELECT * FROM contactmessages';
   let countQuery = 'SELECT COUNT(*) FROM contactmessages';
   let whereClause = '';
   let params = [];
+  let paramIndex = 1;
 
   if (search) {
-    whereClause = ` WHERE LOWER(name) LIKE $1 OR LOWER(email) LIKE $1 OR LOWER(subject) LIKE $1 OR LOWER(message) LIKE $1`;
+    whereClause += ` WHERE (LOWER(name) LIKE $${paramIndex} OR LOWER(email) LIKE $${paramIndex} OR LOWER(subject) LIKE $${paramIndex} OR LOWER(message) LIKE $${paramIndex})`;
     params.push(search);
+    paramIndex++;
+  } else {
+    whereClause += ` WHERE 1=1`;
+  }
+
+  if (dateFrom) {
+    whereClause += ` AND created_at >= $${paramIndex}`;
+    params.push(dateFrom);
+    paramIndex++;
+  }
+  if (dateTo) {
+    whereClause += ` AND created_at <= $${paramIndex}`;
+    params.push(dateTo);
+    paramIndex++;
   }
 
   try {
     const countRes = await pool.query(countQuery + whereClause, params);
     const total = parseInt(countRes.rows[0].count);
     const dataRes = await pool.query(
-      baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
     res.json({
@@ -806,29 +873,53 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// BLOGS – WITH SEARCH (pagination already present)
+// BLOG AUTHORS LIST (for dropdown)
+// ==========================================
+app.get('/api/blogs/authors', authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT DISTINCT author FROM blogs WHERE author IS NOT NULL ORDER BY author');
+    res.json({ success: true, authors: result.rows.map(r => r.author) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch authors.' });
+  }
+});
+
+// ==========================================
+// BLOGS – WITH PAGINATION, SEARCH & AUTHOR FILTER
 // ==========================================
 app.get('/api/blogs', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 6;
   const offset = (page - 1) * limit;
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
+  const author = req.query.author;
 
   let baseQuery = 'SELECT * FROM blogs';
   let countQuery = 'SELECT COUNT(*) FROM blogs';
   let whereClause = '';
   let params = [];
+  let paramIndex = 1;
 
   if (search) {
-    whereClause = ` WHERE LOWER(title) LIKE $1 OR LOWER(author) LIKE $1 OR LOWER(content) LIKE $1`;
+    whereClause += ` WHERE (LOWER(title) LIKE $${paramIndex} OR LOWER(author) LIKE $${paramIndex} OR LOWER(content) LIKE $${paramIndex})`;
     params.push(search);
+    paramIndex++;
+  } else {
+    whereClause += ` WHERE 1=1`;
+  }
+
+  if (author && author !== 'all') {
+    whereClause += ` AND author = $${paramIndex}`;
+    params.push(author);
+    paramIndex++;
   }
 
   try {
     const countRes = await pool.query(countQuery + whereClause, params);
     const totalBlogs = parseInt(countRes.rows[0].count);
     const result = await pool.query(
-      baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
     res.json({
@@ -899,6 +990,89 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Delete failed.' });
+  }
+});
+
+// ==========================================
+// REVIEWS ENDPOINTS (unchanged)
+// ==========================================
+app.post('/api/reviews', authenticateCustomer, async (req, res) => {
+  const { service_id, rating, comment } = req.body;
+  if (!service_id || !rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ success: false, message: 'Service ID and rating (1-5) required.' });
+  }
+  try {
+    const existing = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ success: false, message: 'You have already reviewed this destination.' });
+    }
+    await pool.query(
+      'INSERT INTO reviews (service_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)',
+      [service_id, req.user.userId, rating, comment || null]
+    );
+    res.status(201).json({ success: true, message: 'Review submitted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to submit review.' });
+  }
+});
+
+app.get('/api/reviews/:service_id', async (req, res) => {
+  const { service_id } = req.params;
+  try {
+    const reviews = await pool.query(`
+      SELECT r.rating, r.comment, r.created_at, u.first_name, u.last_name
+      FROM reviews r
+      JOIN users u ON r.user_id = u.user_id
+      WHERE r.service_id = $1
+      ORDER BY r.created_at DESC
+    `, [service_id]);
+    const avgResult = await pool.query('SELECT AVG(rating) as average FROM reviews WHERE service_id = $1', [service_id]);
+    const average = avgResult.rows[0].average ? parseFloat(avgResult.rows[0].average).toFixed(1) : null;
+    res.json({ success: true, reviews: reviews.rows, average: average });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
+  }
+});
+
+app.get('/api/reviews/check/:service_id', authenticateCustomer, async (req, res) => {
+  const { service_id } = req.params;
+  try {
+    const result = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
+    res.json({ success: true, reviewed: result.rows.length > 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error checking review status.' });
+  }
+});
+
+app.delete('/api/reviews/:review_id', authenticateAdmin, async (req, res) => {
+  const { review_id } = req.params;
+  try {
+    await pool.query('DELETE FROM reviews WHERE review_id = $1', [review_id]);
+    res.json({ success: true, message: 'Review deleted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Delete failed.' });
+  }
+});
+
+app.get('/api/admin/reviews', authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT r.review_id, r.rating, r.comment, r.created_at,
+             s.title AS destination_title,
+             u.first_name || ' ' || u.last_name AS user_name
+      FROM reviews r
+      JOIN services s ON r.service_id = s.service_id
+      JOIN users u ON r.user_id = u.user_id
+      ORDER BY r.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
   }
 });
 
