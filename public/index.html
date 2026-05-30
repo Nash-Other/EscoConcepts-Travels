@@ -316,7 +316,7 @@
             font-weight: normal;
             color: #718096;
         }
-        .btn-book-now {
+        .btn-view-details {
             background: #e67e22;
             color: white;
             border: none;
@@ -326,10 +326,8 @@
             font-size: 0.75rem;
             cursor: pointer;
             transition: background 0.2s;
-            text-decoration: none;
-            display: inline-block;
         }
-        .btn-book-now:hover {
+        .btn-view-details:hover {
             background: #d35400;
         }
         /* Carousel Controls */
@@ -389,7 +387,7 @@
             }
         }
 
-        /* Modal Styles (unchanged) */
+        /* ----- MODERN MODAL STYLES (updated to match reference) ----- */
         .modal {
             display: none;
             position: fixed;
@@ -405,14 +403,14 @@
         }
         .modal-content {
             background-color: #fff;
-            border-radius: 12px;
+            border-radius: 20px;
             width: 90%;
             max-width: 900px;
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
             margin: 2rem auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
         }
         .close-modal {
             position: absolute;
@@ -432,18 +430,22 @@
             width: 100%;
             height: 300px;
             object-fit: cover;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
         }
         .modal-body {
             padding: 2rem;
         }
         .modal-title {
             font-size: 2rem;
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
+            font-weight: 700;
+            color: #1e2a3a;
+            margin-bottom: 0.25rem;
         }
         .modal-location {
+            font-size: 1rem;
             color: #e67e22;
-            font-weight: bold;
+            font-weight: 500;
             margin-bottom: 1rem;
             display: flex;
             align-items: center;
@@ -451,45 +453,52 @@
         }
         .modal-price {
             font-size: 1.5rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin: 1rem 0;
-            background: #f0f0f0;
+            font-weight: 800;
+            color: #e67e22;
+            margin: 0.5rem 0 1rem;
+            background: #fef3e8;
             display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
+            padding: 0.5rem 1.2rem;
+            border-radius: 40px;
         }
         .modal-section {
             margin: 1.5rem 0;
         }
         .modal-section h3 {
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e2a3a;
+            margin-bottom: 0.75rem;
             border-left: 4px solid #e67e22;
-            padding-left: 10px;
+            padding-left: 12px;
         }
         .modal-description {
-            line-height: 1.8;
-            color: #555;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #4a5568;
         }
         .modal-itinerary {
-            background: #f9f9f9;
+            background: #f8fafc;
             padding: 1rem;
-            border-radius: 8px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #2d3748;
         }
         .gallery-preview {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-top: 1rem;
+            margin-top: 0.5rem;
         }
         .gallery-preview img {
             width: 100px;
             height: 70px;
             object-fit: cover;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             transition: transform 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .gallery-preview img:hover {
             transform: scale(1.05);
@@ -498,18 +507,24 @@
             display: inline-block;
             background-color: #e67e22;
             color: white;
-            padding: 0.8rem 2rem;
+            padding: 0.9rem 2rem;
             text-decoration: none;
-            border-radius: 4px;
-            font-weight: bold;
-            margin-top: 1.5rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            margin-top: 1rem;
             transition: background 0.3s;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
         }
         .modal-book-btn:hover {
             background-color: #d35400;
         }
 
-        /* Footer */
+        /* Footer (unchanged) */
         footer {
             background-color: #2c3e50;
             color: #ecf0f1;
@@ -576,6 +591,9 @@
             .modal-hero {
                 height: 200px;
             }
+            .modal-body {
+                padding: 1.2rem;
+            }
         }
     </style>
 </head>
@@ -592,7 +610,7 @@
                 <li><a href="blog.html">Blog</a></li>
                 <li><a href="contact.html">Contact</a></li>
                 <li><a href="account.html">Account</a></li>
-                <li><a href="checkout.html" class="nav-btn">View Details</a></li>
+                <li><a href="checkout.html" class="nav-btn">Book Now</a></li>
             </ul>
         </div>
     </header>
@@ -650,7 +668,7 @@
         <div id="carouselDots" class="carousel-dots"></div>
     </section>
 
-    <!-- Modal Structure -->
+    <!-- Modal Structure (modern) -->
     <div id="detailModal" class="modal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal()">&times;</span>
@@ -671,7 +689,7 @@
                     <h3>Gallery</h3>
                     <div id="modalGallery" class="gallery-preview"></div>
                 </div>
-                <a id="modalBookLink" href="#" class="modal-book-btn">Book This Package</a>
+                <a id="modalBookLink" href="#" class="modal-book-btn">BOOK / ENQUIRE NOW</a>
             </div>
         </div>
     </div>
@@ -792,7 +810,7 @@
                             <div class="card-description">${escapeHtml(plainDesc)}</div>
                             <div class="card-footer">
                                 <div class="card-price">KES ${Number(dest.base_price).toLocaleString()}</div>
-                                <button class="btn-book-now" onclick="openModalById(${dest.service_id})">Book Now →</button>
+                                <button class="btn-view-details" onclick="openModalById(${dest.service_id})">View Details</button>
                             </div>
                         </div>
                     `;
