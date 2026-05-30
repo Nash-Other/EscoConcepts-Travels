@@ -73,7 +73,7 @@
             color: #2c3e50;
         }
 
-        /* Hero Section */
+        /* Hero Section (unchanged) */
         .hero {
             background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1920');
             background-size: cover;
@@ -175,7 +175,7 @@
             }
         }
 
-        /* Features grid */
+        /* Features grid (unchanged) */
         .section {
             max-width: 1200px;
             margin: 5rem auto;
@@ -222,21 +222,33 @@
             margin-bottom: 0.5rem;
         }
 
-        /* Destination cards */
-        .destinations-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 2rem;
-            margin-top: 2rem;
+        /* Carousel Styles */
+        .carousel-container {
+            position: relative;
+            max-width: 1200px;
+            margin: 2rem auto 0;
+            overflow: hidden;
         }
-        .card {
+        .carousel-slide {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+        }
+        .carousel-card {
+            flex: 0 0 calc(100% / 3);
+            padding: 0 15px;
+            box-sizing: border-box;
+        }
+        .carousel-card .card {
             background: #fff;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             transition: transform 0.3s, box-shadow 0.3s;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
         }
-        .card:hover {
+        .carousel-card .card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 30px rgba(0,0,0,0.12);
         }
@@ -244,13 +256,12 @@
             width: 100%;
             height: 220px;
             object-fit: cover;
-            transition: transform 0.5s;
-        }
-        .card:hover .card-img {
-            transform: scale(1.03);
         }
         .card-content {
             padding: 1.5rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         .card-title {
             font-size: 1.3rem;
@@ -279,7 +290,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 1rem;
+            margin-top: auto;
             padding-top: 1rem;
             border-top: 1px solid #eee;
         }
@@ -317,13 +328,58 @@
         .btn-book:hover {
             background-color: #d35400;
         }
-        .loader {
+        /* Carousel Controls */
+        .carousel-control {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 10px 15px;
+            border-radius: 50%;
+            z-index: 10;
+            transition: background 0.3s;
+        }
+        .carousel-control:hover {
+            background: rgba(0,0,0,0.8);
+        }
+        .prev {
+            left: 10px;
+        }
+        .next {
+            right: 10px;
+        }
+        .carousel-dots {
             text-align: center;
-            padding: 3rem;
-            color: #777;
+            margin-top: 20px;
+        }
+        .dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #bbb;
+            margin: 0 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .dot.active {
+            background-color: #e67e22;
+        }
+        @media (max-width: 768px) {
+            .carousel-card {
+                flex: 0 0 100%;
+            }
+            .carousel-control {
+                font-size: 1.5rem;
+                padding: 5px 10px;
+            }
         }
 
-        /* Modal Styles */
+        /* Modal Styles (unchanged) */
         .modal {
             display: none;
             position: fixed;
@@ -576,12 +632,15 @@
 
     <section class="section">
         <h2 class="section-title">Featured Destinations</h2>
-        <div id="destinationsGrid" class="destinations-grid">
-            <div class="loader">Loading amazing destinations...</div>
+        <div class="carousel-container">
+            <div id="carouselSlide" class="carousel-slide"></div>
+            <button class="carousel-control prev" onclick="prevSlide()">❮</button>
+            <button class="carousel-control next" onclick="nextSlide()">❯</button>
         </div>
+        <div id="carouselDots" class="carousel-dots"></div>
     </section>
 
-    <!-- Modal Structure -->
+    <!-- Modal Structure (unchanged) -->
     <div id="detailModal" class="modal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal()">&times;</span>
@@ -635,7 +694,7 @@
     </footer>
 
     <script>
-        // Set min date to today (prevents past dates)
+        // Set min date to today
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('searchDate').setAttribute('min', today);
         
@@ -647,12 +706,15 @@
         });
         
         let destinationsData = [];
+        let currentSlide = 0;
+        let slideInterval;
+        const itemsPerSlide = 3; // number of cards per slide
 
         function toggleMenu() {
             document.getElementById('navLinks').classList.toggle('show');
         }
 
-        // Backend search function
+        // Backend search function (unchanged)
         async function searchDestinations() {
             const location = document.getElementById('searchLocation').value.trim();
             const guests = document.getElementById('searchGuests').value;
@@ -663,51 +725,140 @@
             if (maxPrice) url += `maxPrice=${maxPrice}&`;
             if (guests) url += `guests=${guests}&`;
             
-            const grid = document.getElementById('destinationsGrid');
-            grid.innerHTML = '<div class="loader">Searching...</div>';
+            const carouselContainer = document.getElementById('carouselSlide');
+            const dotsContainer = document.getElementById('carouselDots');
+            carouselContainer.innerHTML = '<div class="loader">Searching...</div>';
+            dotsContainer.innerHTML = '';
+            stopAutoSlide();
             try {
                 const response = await fetch(url);
                 const result = await response.json();
                 if (result.success && result.data.length > 0) {
                     destinationsData = result.data;
-                    renderDestinations(destinationsData);
+                    buildCarousel();
+                    startAutoSlide();
                 } else {
-                    grid.innerHTML = '<p style="text-align:center; grid-column:1/-1;">No destinations match your search.</p>';
+                    carouselContainer.innerHTML = '<p style="text-align:center; grid-column:1/-1;">No destinations match your search.</p>';
                 }
             } catch (error) {
                 console.error(error);
-                grid.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:red;">Search failed. Please try again.</p>';
+                carouselContainer.innerHTML = '<p style="text-align:center; color:red;">Search failed. Please try again.</p>';
             }
         }
 
-        function renderDestinations(destinations) {
-            const grid = document.getElementById('destinationsGrid');
-            grid.innerHTML = '';
-            destinations.forEach(dest => {
-                const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=600';
-                const imageUrl = dest.image_url || defaultImage;
-                const plainDesc = dest.description ? dest.description.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : `Discover the beauty of ${dest.title} with EscoConcepts Travels.`;
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.innerHTML = `
-                    <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
-                    <div class="card-content">
-                        <h3 class="card-title">${escapeHtml(dest.title)}</h3>
-                        <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
-                        <div class="card-description">${escapeHtml(plainDesc)}</div>
-                        <div class="card-footer">
-                            <span class="card-price">KES ${Number(dest.base_price).toLocaleString()}</span>
-                            <div class="card-buttons">
-                                <button class="btn-view" onclick="openModalById(${dest.service_id})">View Details</button>
-                                <a href="checkout.html?package=${dest.service_id}" class="btn-book">Book Now</a>
+        function buildCarousel() {
+            const slideContainer = document.getElementById('carouselSlide');
+            const dotsContainer = document.getElementById('carouselDots');
+            slideContainer.innerHTML = '';
+            dotsContainer.innerHTML = '';
+            
+            if (destinationsData.length === 0) {
+                slideContainer.innerHTML = '<p style="text-align:center;">No destinations available.</p>';
+                return;
+            }
+            
+            const totalSlides = Math.ceil(destinationsData.length / itemsPerSlide);
+            for (let i = 0; i < totalSlides; i++) {
+                const slideDiv = document.createElement('div');
+                slideDiv.className = 'carousel-slide-item';
+                slideDiv.style.display = 'flex';
+                slideDiv.style.flex = '0 0 100%';
+                slideDiv.style.minWidth = '100%';
+                
+                const start = i * itemsPerSlide;
+                const end = start + itemsPerSlide;
+                const slideDestinations = destinationsData.slice(start, end);
+                
+                slideDestinations.forEach(dest => {
+                    const defaultImage = 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=600';
+                    const imageUrl = dest.image_url || defaultImage;
+                    const plainDesc = dest.description ? dest.description.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : `Discover the beauty of ${dest.title}.`;
+                    const card = document.createElement('div');
+                    card.className = 'carousel-card';
+                    card.innerHTML = `
+                        <div class="card">
+                            <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
+                            <div class="card-content">
+                                <h3 class="card-title">${escapeHtml(dest.title)}</h3>
+                                <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
+                                <div class="card-description">${escapeHtml(plainDesc)}</div>
+                                <div class="card-footer">
+                                    <span class="card-price">KES ${Number(dest.base_price).toLocaleString()}</span>
+                                    <div class="card-buttons">
+                                        <button class="btn-view" onclick="openModalById(${dest.service_id})">View Details</button>
+                                        <a href="checkout.html?package=${dest.service_id}" class="btn-book">Book Now</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                grid.appendChild(card);
+                    `;
+                    slideDiv.appendChild(card);
+                });
+                // If fewer than itemsPerSlide, add empty placeholders? Not needed.
+                slideContainer.appendChild(slideDiv);
+            }
+            
+            // Create dots
+            for (let i = 0; i < totalSlides; i++) {
+                const dot = document.createElement('span');
+                dot.className = 'dot';
+                if (i === currentSlide) dot.classList.add('active');
+                dot.addEventListener('click', () => goToSlide(i));
+                dotsContainer.appendChild(dot);
+            }
+            
+            // Set initial slide position
+            goToSlide(0);
+        }
+        
+        function goToSlide(index) {
+            const slideContainer = document.getElementById('carouselSlide');
+            const totalSlides = Math.ceil(destinationsData.length / itemsPerSlide);
+            if (index < 0) index = totalSlides - 1;
+            if (index >= totalSlides) index = 0;
+            currentSlide = index;
+            slideContainer.style.transform = `translateX(-${currentSlide * 100}%)`;
+            
+            // Update active dot
+            const dots = document.querySelectorAll('.dot');
+            dots.forEach((dot, i) => {
+                if (i === currentSlide) dot.classList.add('active');
+                else dot.classList.remove('active');
             });
         }
-
+        
+        function nextSlide() {
+            const totalSlides = Math.ceil(destinationsData.length / itemsPerSlide);
+            goToSlide(currentSlide + 1);
+            resetAutoSlideTimer();
+        }
+        
+        function prevSlide() {
+            const totalSlides = Math.ceil(destinationsData.length / itemsPerSlide);
+            goToSlide(currentSlide - 1);
+            resetAutoSlideTimer();
+        }
+        
+        function startAutoSlide() {
+            if (slideInterval) clearInterval(slideInterval);
+            slideInterval = setInterval(() => {
+                nextSlide();
+            }, 10000); // 10 seconds
+        }
+        
+        function stopAutoSlide() {
+            if (slideInterval) {
+                clearInterval(slideInterval);
+                slideInterval = null;
+            }
+        }
+        
+        function resetAutoSlideTimer() {
+            stopAutoSlide();
+            startAutoSlide();
+        }
+        
+        // Modal functions (unchanged)
         function openModal(destination) {
             document.getElementById('modalTitle').innerText = destination.title;
             document.getElementById('modalLocation').innerHTML = `📍 ${destination.destination}`;
@@ -783,13 +934,14 @@
                 const result = await response.json();
                 if (result.success && result.data.length > 0) {
                     destinationsData = result.data;
-                    renderDestinations(destinationsData);
+                    buildCarousel();
+                    startAutoSlide();
                 } else {
-                    document.getElementById('destinationsGrid').innerHTML = '<p style="text-align:center;">No destinations available.</p>';
+                    document.getElementById('carouselSlide').innerHTML = '<p style="text-align:center;">No destinations available.</p>';
                 }
             } catch (error) {
                 console.error(error);
-                document.getElementById('destinationsGrid').innerHTML = '<p style="text-align:center; color:red;">Unable to load destinations. Make sure server is running.</p>';
+                document.getElementById('carouselSlide').innerHTML = '<p style="text-align:center; color:red;">Unable to load destinations. Make sure server is running.</p>';
             }
         }
 
