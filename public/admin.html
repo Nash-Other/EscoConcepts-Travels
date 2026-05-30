@@ -65,9 +65,13 @@
         .page-numbers { display: flex; gap: 5px; flex-wrap: wrap; }
         .page-numbers button { background-color: #ecf0f1; color: #2c3e50; }
         .page-numbers button.active { background-color: #e67e22; color: white; }
-        .search-box { margin-bottom: 1rem; display: flex; gap: 10px; align-items: center; }
-        .search-box input { flex: 1; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+        .search-box { margin-bottom: 1rem; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .search-box input, .search-box select { flex: 1; min-width: 120px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
         .search-box button { background-color: #3498db; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+        .filter-row { display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; align-items: flex-end; }
+        .filter-group { display: flex; flex-direction: column; }
+        .filter-group label { font-size: 0.8rem; font-weight: bold; margin-bottom: 0.2rem; color: #555; }
+        .filter-group input, .filter-group select { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -129,11 +133,14 @@
             location.reload();
         }
 
-        // ---------- Dashboard HTML ----------
+        // ---------- Dashboard HTML (injected after login) ----------
         async function showDashboard() {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'block';
             document.getElementById('btnLogout').style.display = 'block';
+
+            // Populate authors dropdown for blogs
+            await populateAuthorsDropdown();
 
             const dashboardHtml = `
                 <div class="dashboard-container">
@@ -147,125 +154,176 @@
                             <input type="text" id="bookingsSearch" placeholder="Search by reference, customer, email, or package...">
                             <button onclick="fetchBookings(1)">Search</button>
                         </div>
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Status</label>
+                                <select id="bookingsStatus">
+                                    <option value="">All</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Confirmed">Confirmed</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Travel Date From</label>
+                                <input type="date" id="bookingsDateFrom">
+                            </div>
+                            <div class="filter-group">
+                                <label>Travel Date To</label>
+                                <input type="date" id="bookingsDateTo">
+                            </div>
+                            <button onclick="fetchBookings(1)">Apply Filters</button>
+                        </div>
                         <table>
                             <thead><tr><th>Ref</th><th>Customer</th><th>Contact</th><th>Package</th><th>Travel Date</th><th>Guests</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
-                            <tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...</td></tr></tbody>
-                        </table>
-                        <div id="bookingsPagination" class="pagination"></div>
-                    </div>
+                            <tbody id="bookingsTableBody"><tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="bookingsPagination" class="pagination"><\/div>
+                    <\/div>
 
                     <!-- DESTINATIONS SECTION -->
                     <div class="dashboard-header">
-                        <h1>Manage Destinations</h1>
-                        <button class="btn-refresh" onclick="fetchDestinations(1)">Refresh</button>
-                    </div>
+                        <h1>Manage Destinations<\/h1>
+                        <button class="btn-refresh" onclick="fetchDestinations(1)">Refresh<\/button>
+                    <\/div>
                     <div class="content-wrapper">
                         <div class="inline-form">
                             <input type="text" id="newDestTitle" placeholder="Title" style="flex:2">
                             <input type="text" id="newDestLocation" placeholder="Destination" style="flex:1">
                             <input type="number" id="newDestPrice" placeholder="Price (KES)" style="flex:1">
                             <input type="text" id="newDestImage" placeholder="Main Image URL" style="flex:2">
-                            <label><input type="checkbox" id="newDestActive" checked> Active</label>
-                            <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination</button>
-                        </div>
+                            <label><input type="checkbox" id="newDestActive" checked> Active<\/label>
+                            <button class="action-btn btn-add" onclick="openAddDestModal()">Add Destination<\/button>
+                        <\/div>
                         <div class="search-box">
                             <input type="text" id="destinationsSearch" placeholder="Search by title, destination, or description...">
-                            <button onclick="fetchDestinations(1)">Search</button>
-                        </div>
-                        <table>
-                            <thead><tr><th>ID</th><th>Title</th><th>Destination</th><th>Price</th><th>Image</th><th>Active</th><th>Actions</th></tr></thead>
-                            <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...</td></tr></tbody>
+                            <button onclick="fetchDestinations(1)">Search<\/button>
+                        <\/div>
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Active Status<\/label>
+                                <select id="destinationsActiveFilter">
+                                    <option value="">All</option>
+                                    <option value="true">Active</option>
+                                    <option value="false">Inactive</option>
+                                <\/select>
+                            <\/div>
+                            <button onclick="fetchDestinations(1)">Apply Filters<\/button>
+                        <\/div>
                         </table>
-                        <div id="destinationsPagination" class="pagination"></div>
-                    </div>
+                            <thead><tr><th>ID<\/th><th>Title<\/th><th>Destination<\/th><th>Price<\/th><th>Image<\/th><th>Active<\/th><th>Actions<\/th><\/tr><\/thead>
+                            <tbody id="destinationsTableBody"><tr><td colspan="7" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="destinationsPagination" class="pagination"><\/div>
+                    <\/div>
 
                     <!-- CONTACT MESSAGES SECTION -->
                     <div class="dashboard-header">
-                        <h1>Customer Inquiries</h1>
-                        <button class="btn-refresh" onclick="fetchContactMessages(1)">Refresh</button>
-                    </div>
+                        <h1>Customer Inquiries<\/h1>
+                        <button class="btn-refresh" onclick="fetchContactMessages(1)">Refresh<\/button>
+                    <\/div>
                     <div class="content-wrapper">
                         <div class="search-box">
                             <input type="text" id="messagesSearch" placeholder="Search by name, email, subject, or message...">
-                            <button onclick="fetchContactMessages(1)">Search</button>
-                        </div>
-                        <table>
-                            <thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead>
-                            <tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
-                        </table>
-                        <div id="messagesPagination" class="pagination"></div>
-                    </div>
+                            <button onclick="fetchContactMessages(1)">Search<\/button>
+                        <\/div>
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Date From<\/label>
+                                <input type="date" id="messagesDateFrom">
+                            <\/div>
+                            <div class="filter-group">
+                                <label>Date To<\/label>
+                                <input type="date" id="messagesDateTo">
+                            <\/div>
+                            <button onclick="fetchContactMessages(1)">Apply Filters<\/button>
+                        <\/div>
+                        <tr>
+                            <thead><tr><th>Date<\/th><th>Name<\/th><th>Email<\/th><th>Subject<\/th><th>Message<\/th><\/tr><\/thead>
+                            <tbody id="contactTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="messagesPagination" class="pagination"><\/div>
+                    <\/div>
 
                     <!-- MANAGE BLOGS TABLE SECTION -->
                     <div class="dashboard-header">
-                        <h1>Manage Blogs</h1>
-                        <button class="btn-refresh" onclick="fetchAdminBlogs(1)">Refresh</button>
-                    </div>
+                        <h1>Manage Blogs<\/h1>
+                        <button class="btn-refresh" onclick="fetchAdminBlogs(1)">Refresh<\/button>
+                    <\/div>
                     <div class="content-wrapper">
                         <div class="search-box">
                             <input type="text" id="blogsSearch" placeholder="Search by title or author...">
-                            <button onclick="fetchAdminBlogs(1)">Search</button>
-                        </div>
+                            <button onclick="fetchAdminBlogs(1)">Search<\/button>
+                        <\/div>
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>Author<\/label>
+                                <select id="blogsAuthorFilter">
+                                    <option value="all">All Authors</option>
+                                <\/select>
+                            <\/div>
+                            <button onclick="fetchAdminBlogs(1)">Apply Filters<\/button>
+                        <\/div>
                         <table>
-                            <thead><tr><th>ID</th><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead>
-                            <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
-                        </table>
-                        <div id="blogsPagination" class="pagination"></div>
-                    </div>
+                            <thead><tr><th>ID<\/th><th>Title<\/th><th>Author<\/th><th>Date<\/th><th>Actions<\/th><\/tr><\/thead>
+                            <tbody id="manageBlogsTableBody"><tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr><\/tbody>
+                        20<
+                        <div id="blogsPagination" class="pagination"><\/div>
+                    <\/div>
 
-                    <!-- PUBLISH NEW BLOG FORM -->
-                    <div class="dashboard-header"><h1>Publish New Blog</h1></div>
+                    <!-- PUBLISH NEW BLOG FORM (unchanged) -->
+                    <div class="dashboard-header"><h1>Publish New Blog<\/h1><\/div>
                     <div class="content-wrapper">
                         <form id="createBlogForm" class="blog-form" onsubmit="submitBlogPost(event)">
-                            <div id="formFeedback" class="form-feedback"></div>
-                            <div class="form-group"><label>Title *</label><input type="text" id="blogTitle" required></div>
-                            <div class="form-group"><label>Author</label><input type="text" id="blogAuthor" value="EscoConcepts Team"></div>
-                            <div class="form-group full-width"><label>Featured Image</label><input type="file" id="blogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB</small></div>
-                            <div class="form-group full-width"><label>Content</label><div class="quill-editor-wrapper"><div id="editor-container"></div></div></div>
-                            <button type="submit" class="btn-submit">Publish</button>
-                        </form>
-                    </div>
-                </div>
+                            <div id="formFeedback" class="form-feedback"><\/div>
+                            <div class="form-group"><label>Title *<\/label><input type="text" id="blogTitle" required><\/div>
+                            <div class="form-group"><label>Author<\/label><input type="text" id="blogAuthor" value="EscoConcepts Team"><\/div>
+                            <div class="form-group full-width"><label>Featured Image<\/label><input type="file" id="blogImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp"><img id="featuredImagePreview" class="image-preview"><small>Max 5MB<\/small><\/div>
+                            <div class="form-group full-width"><label>Content<\/label><div class="quill-editor-wrapper"><div id="editor-container"><\/div><\/div><\/div>
+                            <button type="submit" class="btn-submit">Publish<\/button>
+                        <\/form>
+                    <\/div>
+                <\/div>
 
                 <!-- MODALS (destination and edit blog) -->
                 <div id="destModal" class="modal">
-                    <div class="modal-content"><span class="close-modal" onclick="closeDestModal()">&times;</span>
-                        <h2 id="destModalTitle">Add Destination</h2><input type="hidden" id="editDestId">
-                        <div class="form-group"><label>Title *</label><input type="text" id="destTitle" required></div>
-                        <div class="form-group"><label>Destination (location) *</label><input type="text" id="destLocation" required></div>
-                        <div class="form-group"><label>Base Price (KES) *</label><input type="number" id="destPrice" required></div>
+                    <div class="modal-content"><span class="close-modal" onclick="closeDestModal()">&times;<\/span>
+                        <h2 id="destModalTitle">Add Destination<\/h2><input type="hidden" id="editDestId">
+                        <div class="form-group"><label>Title *<\/label><input type="text" id="destTitle" required><\/div>
+                        <div class="form-group"><label>Destination (location) *<\/label><input type="text" id="destLocation" required><\/div>
+                        <div class="form-group"><label>Base Price (KES) *<\/label><input type="number" id="destPrice" required><\/div>
                         <div class="form-group">
-                            <label>Main Image (Upload or provide URL)</label>
-                            <div style="display: flex; gap: 10px;"><input type="file" id="destImageFile" accept="image/jpeg,image/png,image/gif,image/webp" style="flex:2"><button type="button" id="uploadDestImageBtn" class="action-btn btn-update">Upload</button><div class="upload-spinner" id="destUploadSpinner"></div></div>
+                            <label>Main Image (Upload or provide URL)<\/label>
+                            <div style="display: flex; gap: 10px;"><input type="file" id="destImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp" style="flex:2"><button type="button" id="uploadDestImageBtn" class="action-btn btn-update">Upload<\/button><div class="upload-spinner" id="destUploadSpinner"><\/div><\/div>
                             <input type="text" id="destImage" placeholder="Or paste image URL here" style="margin-top:10px;"><img id="destImagePreview" class="image-preview">
-                            <div id="destUploadError" style="color:#e74c3c; display:none;"></div>
-                        </div>
-                        <div class="form-group"><label>Description (HTML allowed)</label><textarea id="destDescription" rows="4"></textarea></div>
-                        <div class="form-group"><label>Itinerary (HTML allowed)</label><textarea id="destItinerary" rows="6"></textarea></div>
-                        <div class="form-group"><label>Gallery Image URLs (comma separated)</label><input type="text" id="destGallery" placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"></div>
-                        <div class="form-group"><label><input type="checkbox" id="destActive"> Active</label></div>
-                        <button class="action-btn btn-update" onclick="saveDestination()">Save Destination</button>
-                    </div>
-                </div>
+                            <div id="destUploadError" style="color:#e74c3c; display:none;"><\/div>
+                        <\/div>
+                        <div class="form-group"><label>Description (HTML allowed)<\/label><textarea id="destDescription" rows="4"><\/textarea><\/div>
+                        <div class="form-group"><label>Itinerary (HTML allowed)<\/label><textarea id="destItinerary" rows="6"><\/textarea><\/div>
+                        <div class="form-group"><label>Gallery Image URLs (comma separated)<\/label><input type="text" id="destGallery" placeholder="https:\/\/example.com\/img1.jpg, https:\/\/example.com\/img2.jpg"><\/div>
+                        <div class="form-group"><label><input type="checkbox" id="destActive"> Active<\/label><\/div>
+                        <button class="action-btn btn-update" onclick="saveDestination()">Save Destination<\/button>
+                    <\/div>
+                <\/div>
 
                 <div id="editModal" class="modal">
-                    <div class="modal-content"><span class="close-modal" onclick="closeModal()">&times;</span>
-                        <h2>Edit Blog Post</h2>
+                    <div class="modal-content"><span class="close-modal" onclick="closeModal()">&times;<\/span>
+                        <h2>Edit Blog Post<\/h2>
                         <form id="editBlogForm" onsubmit="submitEditBlog(event)">
                             <input type="hidden" id="editBlogId">
-                            <div id="editFormFeedback" class="form-feedback"></div>
-                            <div class="form-group"><label>Title *</label><input type="text" id="editBlogTitle" required></div>
-                            <div class="form-group"><label>Author</label><input type="text" id="editBlogAuthor"></div>
-                            <div class="form-group"><label>Featured Image (Upload new to replace)</label><div style="display:flex; gap:10px;"><input type="file" id="editBlogImageFile" accept="image/jpeg,image/png,image/gif,image/webp"><div class="upload-spinner" id="editUploadSpinner"></div></div><img id="editFeaturedImagePreview" class="image-preview"><div id="editUploadError" style="color:#e74c3c; display:none;"></div></div>
-                            <div class="form-group"><label>Content</label><div class="quill-editor-wrapper"><div id="edit-editor-container" style="height:300px;"></div></div></div>
-                            <button type="submit" id="editSaveBtn" class="btn-submit">Save Changes</button>
-                        </form>
-                    </div>
-                </div>
+                            <div id="editFormFeedback" class="form-feedback"><\/div>
+                            <div class="form-group"><label>Title *<\/label><input type="text" id="editBlogTitle" required><\/div>
+                            <div class="form-group"><label>Author<\/label><input type="text" id="editBlogAuthor"><\/div>
+                            <div class="form-group"><label>Featured Image (Upload new to replace)<\/label><div style="display:flex; gap:10px;"><input type="file" id="editBlogImageFile" accept="image\/jpeg,image\/png,image\/gif,image\/webp"><div class="upload-spinner" id="editUploadSpinner"><\/div><\/div><img id="editFeaturedImagePreview" class="image-preview"><div id="editUploadError" style="color:#e74c3c; display:none;"><\/div><\/div>
+                            <div class="form-group"><label>Content<\/label><div class="quill-editor-wrapper"><div id="edit-editor-container" style="height:300px;"><\/div><\/div><\/div>
+                            <button type="submit" id="editSaveBtn" class="btn-submit">Save Changes<\/button>
+                        <\/form>
+                    <\/div>
+                <\/div>
             `;
             document.getElementById('dashboardContainer').innerHTML = dashboardHtml;
 
-            // Initialize Quill and event listeners
+            // Re-attach event listeners and modals
             initQuillEditors();
             setupImagePreview(document.getElementById('blogImageFile'), document.getElementById('featuredImagePreview'));
             setupImagePreview(document.getElementById('editBlogImageFile'), document.getElementById('editFeaturedImagePreview'));
@@ -281,131 +339,170 @@
             fetchAdminBlogs(1);
         }
 
-        // ---------- Paginated data fetching ----------
+        // Populate author dropdown for blogs
+        async function populateAuthorsDropdown() {
+            try {
+                const res = await fetch('/api/blogs/authors', { headers: getAuthHeaders() });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.authors) {
+                    const select = document.getElementById('blogsAuthorFilter');
+                    if (select) {
+                        select.innerHTML = '<option value="all">All Authors</option>';
+                        data.authors.forEach(author => {
+                            const option = document.createElement('option');
+                            option.value = author;
+                            option.textContent = author;
+                            select.appendChild(option);
+                        });
+                    }
+                }
+            } catch (err) { console.error('Failed to load authors:', err); }
+        }
+
+        // ---------- Data fetching with filters ----------
         async function fetchBookings(page) {
             const search = document.getElementById('bookingsSearch')?.value || '';
+            const status = document.getElementById('bookingsStatus')?.value || '';
+            const dateFrom = document.getElementById('bookingsDateFrom')?.value || '';
+            const dateTo = document.getElementById('bookingsDateTo')?.value || '';
             const tbody = document.getElementById('bookingsTableBody');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="9" class="loading-state">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="loading-state">Loading...<\/td><\/tr>';
             try {
-                const res = await fetch(`/api/bookings?page=${page}&limit=5&search=${encodeURIComponent(search)}`, { headers: getAuthHeaders() });
+                let url = `/api/bookings?page=${page}&limit=5&search=${encodeURIComponent(search)}`;
+                if (status) url += `&status=${encodeURIComponent(status)}`;
+                if (dateFrom) url += `&dateFrom=${dateFrom}`;
+                if (dateTo) url += `&dateTo=${dateTo}`;
+                const res = await fetch(url, { headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings found.</td></tr>'; document.getElementById('bookingsPagination').innerHTML = ''; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="9">No bookings found.<\/td><\/tr>'; document.getElementById('bookingsPagination').innerHTML = ''; return; }
                 data.data.forEach(b => {
                     const statusClass = b.status === 'Pending' ? 'status-pending' : (b.status === 'Confirmed' ? 'status-confirmed' : 'status-cancelled');
                     tbody.innerHTML += `
                         <tr id="booking-row-${b.booking_id}">
-                            <td><strong>${b.booking_reference}</strong></td>
-                            <td>${b.customer_name}</td>
-                            <td>${b.email}<br>${b.phone}</td>
-                            <td>${b.package_booked}</td>
-                            <td>${new Date(b.travel_date).toLocaleDateString()}</td>
-                            <td>${b.total_guests}</td>
-                            <td>${Number(b.total_amount).toLocaleString()}</td>
-                            <td><span class="status-badge ${statusClass}">${b.status}</span></td>
+                            <td><strong>${b.booking_reference}<\/strong><\/td>
+                            <td>${b.customer_name}<\/td>
+                            <td>${b.email}<br>${b.phone}<\/td>
+                            <td>${b.package_booked}<\/td>
+                            <td>${new Date(b.travel_date).toLocaleDateString()}<\/td>
+                            <td>${b.total_guests}<\/td>
+                            <td>${Number(b.total_amount).toLocaleString()}<\/td>
+                            <td><span class="status-badge ${statusClass}">${b.status}<\/span><\/td>
                             <td>
                                 <select id="status-select-${b.booking_id}" class="status-select">
-                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
-                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                                </select>
-                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update</button>
-                            </td>
-                        </tr>
+                                    <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending<\/option>
+                                    <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed<\/option>
+                                    <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled<\/option>
+                                <\/select>
+                                <button class="action-btn btn-update" onclick="updateBookingStatus(${b.booking_id})">Update<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
                 renderPagination('bookingsPagination', data.pagination, fetchBookings);
-            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="9">Error loading bookings.</td></tr>'; }
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="9">Error loading bookings.<\/td><\/tr>'; }
         }
 
         async function fetchDestinations(page) {
             const search = document.getElementById('destinationsSearch')?.value || '';
+            const activeFilter = document.getElementById('destinationsActiveFilter')?.value || '';
             const tbody = document.getElementById('destinationsTableBody');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="7" class="loading-state">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="loading-state">Loading...<\/td><\/tr>';
             try {
-                const res = await fetch(`/api/admin/services?page=${page}&limit=5&search=${encodeURIComponent(search)}`, { headers: getAuthHeaders() });
+                let url = `/api/admin/services?page=${page}&limit=5&search=${encodeURIComponent(search)}`;
+                if (activeFilter) url += `&is_active=${activeFilter}`;
+                const res = await fetch(url, { headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations found.</td></tr>'; document.getElementById('destinationsPagination').innerHTML = ''; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="7">No destinations found.<\/td><\/tr>'; document.getElementById('destinationsPagination').innerHTML = ''; return; }
                 data.data.forEach(s => {
-                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active</span>' : '<span class="inactive-badge status-badge">Inactive</span>';
+                    const activeBadge = s.is_active ? '<span class="active-badge status-badge">Active<\/span>' : '<span class="inactive-badge status-badge">Inactive<\/span>';
                     tbody.innerHTML += `
                         <tr>
-                            <td>${s.service_id}</td>
-                            <td>${s.title}</td>
-                            <td>${s.destination}</td>
-                            <td>${Number(s.base_price).toLocaleString()}</td>
-                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View</a>' : 'None'}</td>
-                            <td>${activeBadge}</td>
+                            <td>${s.service_id}<\/td>
+                            <td>${s.title}<\/td>
+                            <td>${s.destination}<\/td>
+                            <td>${Number(s.base_price).toLocaleString()}<\/td>
+                            <td>${s.image_url ? '<a href="'+s.image_url+'" target="_blank">View<\/a>' : 'None'}<\/td>
+                            <td>${activeBadge}<\/td>
                             <td>
-                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit</button>
-                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete</button>
-                            </td>
-                        </tr>
+                                <button class="action-btn btn-edit" onclick="openEditDestModal(${s.service_id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteDestination(${s.service_id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
                 renderPagination('destinationsPagination', data.pagination, fetchDestinations);
-            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="7">Error loading destinations.</td></tr>'; }
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="7">Error loading destinations.<\/td><\/tr>'; }
         }
 
         async function fetchContactMessages(page) {
             const search = document.getElementById('messagesSearch')?.value || '';
+            const dateFrom = document.getElementById('messagesDateFrom')?.value || '';
+            const dateTo = document.getElementById('messagesDateTo')?.value || '';
             const tbody = document.getElementById('contactTableBody');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...<\/td><\/tr>';
             try {
-                const res = await fetch(`/api/contact?page=${page}&limit=5&search=${encodeURIComponent(search)}`, { headers: getAuthHeaders() });
+                let url = `/api/contact?page=${page}&limit=5&search=${encodeURIComponent(search)}`;
+                if (dateFrom) url += `&dateFrom=${dateFrom}`;
+                if (dateTo) url += `&dateTo=${dateTo}`;
+                const res = await fetch(url, { headers: getAuthHeaders() });
                 if (handleApiError(res)) return;
                 const data = await res.json();
                 tbody.innerHTML = '';
-                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages found.</td></tr>'; document.getElementById('messagesPagination').innerHTML = ''; return; }
+                if (!data.data.length) { tbody.innerHTML = '<tr><td colspan="5">No messages found.<\/td><\/tr>'; document.getElementById('messagesPagination').innerHTML = ''; return; }
                 data.data.forEach(m => {
                     tbody.innerHTML += `
                         <tr>
-                            <td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}</td>
-                            <td>${m.name}</td>
-                            <td><a href="mailto:${m.email}">${m.email}</a></td>
-                            <td>${m.subject || ''}</td>
-                            <td>${m.message}</td>
+                            <td style="white-space:nowrap;">${new Date(m.created_at).toLocaleDateString()}<\/td>
+                            <td>${m.name}<\/td>
+                            <td><a href="mailto:${m.email}">${m.email}<\/a><\/td>
+                            <td>${m.subject || ''}<\/td>
+                            <td>${m.message}<\/td>
                         </tr>
                     `;
                 });
                 renderPagination('messagesPagination', data.pagination, fetchContactMessages);
-            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="5">Error loading messages.</td></tr>'; }
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="5">Error loading messages.<\/td><\/tr>'; }
         }
 
         async function fetchAdminBlogs(page) {
             const search = document.getElementById('blogsSearch')?.value || '';
+            const author = document.getElementById('blogsAuthorFilter')?.value === 'all' ? '' : (document.getElementById('blogsAuthorFilter')?.value || '');
             const tbody = document.getElementById('manageBlogsTableBody');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...</td></tr>';
+            tbody.innerHTML = '<td><td colspan="5" class="loading-state">Loading...<\/td><\/tr>';
             try {
-                const res = await fetch(`/api/blogs?page=${page}&limit=5&search=${encodeURIComponent(search)}`);
+                let url = `/api/blogs?page=${page}&limit=5&search=${encodeURIComponent(search)}`;
+                if (author) url += `&author=${encodeURIComponent(author)}`;
+                const res = await fetch(url);
                 const data = await res.json();
                 const blogs = data.blogs || [];
                 tbody.innerHTML = '';
-                if (!blogs.length) { tbody.innerHTML = '<tr><td colspan="5">No blogs found.</td></tr>'; document.getElementById('blogsPagination').innerHTML = ''; return; }
+                if (!blogs.length) { tbody.innerHTML = '<tr><td colspan="5">No blogs found.<\/td><\/tr>'; document.getElementById('blogsPagination').innerHTML = ''; return; }
                 blogs.forEach(blog => {
                     tbody.innerHTML += `
                         <tr>
-                            <td>#${blog.id}</td>
-                            <td><strong>${escapeHtml(blog.title)}</strong></td>
-                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}</td>
-                            <td>${new Date(blog.created_at).toLocaleDateString()}</td>
+                            <td>#${blog.id}<\/td>
+                            <td><strong>${escapeHtml(blog.title)}<\/strong><\/td>
+                            <td>${escapeHtml(blog.author || 'EscoConcepts Team')}<\/td>
+                            <td>${new Date(blog.created_at).toLocaleDateString()}<\/td>
                             <td>
-                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit</button>
-                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete</button>
-                            </td>
-                        </tr>
+                                <button class="action-btn btn-edit" onclick="openEditModal(${blog.id})">Edit<\/button>
+                                <button class="action-btn btn-delete" onclick="deleteBlog(${blog.id})">Delete<\/button>
+                            <\/td>
+                        <\/tr>
                     `;
                 });
                 const pagination = data.pagination || { currentPage: page, totalPages: Math.ceil(blogs.length / 5), totalItems: blogs.length, limit: 5 };
                 renderPagination('blogsPagination', pagination, fetchAdminBlogs);
-            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="5">Error loading blogs.</td></tr>'; }
+            } catch(err) { console.error(err); tbody.innerHTML = '<tr><td colspan="5">Error loading blogs.<\/td><\/tr>'; }
         }
 
         function renderPagination(containerId, pagination, fetchFunction) {
@@ -424,7 +521,7 @@
             container.innerHTML = html;
         }
 
-        // ---------- Existing functions (unchanged) ----------
+        // ---------- All remaining functions (from your working admin.html) ----------
         async function updateBookingStatus(bookingId) {
             const select = document.getElementById(`status-select-${bookingId}`);
             const newStatus = select.value;
