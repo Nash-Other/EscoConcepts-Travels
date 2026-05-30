@@ -382,7 +382,7 @@
             }
         }
 
-        /* ----- MODERN MODAL (inspired by reference image) ----- */
+        /* ----- TWO-COLUMN MODAL (image left, details right) ----- */
         .modal {
             display: none;
             position: fixed;
@@ -400,7 +400,7 @@
             background-color: #fff;
             border-radius: 24px;
             width: 90%;
-            max-width: 850px;
+            max-width: 1000px;
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
@@ -411,10 +411,10 @@
             position: absolute;
             top: 20px;
             right: 25px;
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: bold;
             color: #fff;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.6);
             width: 36px;
             height: 36px;
             border-radius: 50%;
@@ -426,18 +426,50 @@
             z-index: 20;
         }
         .close-modal:hover {
-            background: rgba(0,0,0,0.8);
-            color: white;
+            background: rgba(0,0,0,0.9);
         }
-        .modal-hero {
-            width: 100%;
-            height: 280px;
-            object-fit: cover;
+        .modal-grid {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .modal-left {
+            flex: 1.2;
+            min-width: 250px;
+            background: #f8fafc;
             border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
+            border-bottom-left-radius: 24px;
+            padding: 1.5rem;
         }
-        .modal-body {
-            padding: 2rem;
+        .modal-right {
+            flex: 1.8;
+            min-width: 300px;
+            padding: 1.5rem 2rem;
+        }
+        .modal-main-img {
+            width: 100%;
+            height: auto;
+            max-height: 320px;
+            object-fit: cover;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .modal-gallery {
+            display: flex;
+            gap: 8px;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .modal-gallery img {
+            width: 70px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+        .modal-gallery img:hover {
+            transform: scale(1.05);
         }
         .modal-title {
             font-size: 1.8rem;
@@ -480,7 +512,7 @@
             margin-bottom: 0.3rem;
         }
         .modal-price {
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: 800;
             color: #e67e22;
             margin: 1rem 0;
@@ -490,9 +522,8 @@
             border-radius: 40px;
         }
         .modal-price small {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: normal;
-            color: #718096;
         }
         .modal-book-btn {
             display: inline-block;
@@ -514,33 +545,17 @@
         .modal-book-btn:hover {
             background-color: #d35400;
         }
-        /* Gallery (optional – placed after button but less prominent) */
-        .modal-gallery {
-            margin-top: 1.5rem;
-            border-top: 1px solid #edf2f7;
-            padding-top: 1rem;
-        }
-        .modal-gallery h4 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #718096;
-            margin-bottom: 0.5rem;
-        }
-        .gallery-preview {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .gallery-preview img {
-            width: 80px;
-            height: 60px;
-            object-fit: cover;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .gallery-preview img:hover {
-            transform: scale(1.05);
+        @media (max-width: 768px) {
+            .modal-grid {
+                flex-direction: column;
+            }
+            .modal-left {
+                border-radius: 24px 24px 0 0;
+                padding: 1rem;
+            }
+            .modal-right {
+                padding: 1.5rem;
+            }
         }
 
         /* Footer */
@@ -603,15 +618,6 @@
             }
             .nav-links.show {
                 display: flex;
-            }
-            .modal-title {
-                font-size: 1.5rem;
-            }
-            .modal-hero {
-                height: 200px;
-            }
-            .modal-body {
-                padding: 1.2rem;
             }
         }
     </style>
@@ -687,25 +693,25 @@
         <div id="carouselDots" class="carousel-dots"></div>
     </section>
 
-    <!-- Modal (modern design) -->
+    <!-- Two-Column Modal -->
     <div id="detailModal" class="modal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal()">✕</span>
-            <img id="modalImage" class="modal-hero" src="" alt="">
-            <div class="modal-body">
-                <h2 id="modalTitle" class="modal-title"></h2>
-                <div id="modalLocation" class="modal-location"></div>
-                <div id="modalDescription" class="modal-description"></div>
-                <div id="requirementsSection" class="modal-requirements" style="display: none;">
-                    <h4>Requirements</h4>
-                    <ul id="modalRequirementsList"></ul>
+            <div class="modal-grid">
+                <div class="modal-left">
+                    <img id="modalImage" class="modal-main-img" src="" alt="">
+                    <div id="modalGalleryContainer" class="modal-gallery"></div>
                 </div>
-                <div id="modalPrice" class="modal-price"></div>
-                <a id="modalBookLink" href="#" class="modal-book-btn">BOOK / ENQUIRE NOW</a>
-                <!-- Optional gallery (collapsed) -->
-                <div id="gallerySection" class="modal-gallery" style="display: none;">
-                    <h4>Gallery</h4>
-                    <div id="modalGallery" class="gallery-preview"></div>
+                <div class="modal-right">
+                    <h2 id="modalTitle" class="modal-title"></h2>
+                    <div id="modalLocation" class="modal-location"></div>
+                    <div id="modalDescription" class="modal-description"></div>
+                    <div id="requirementsSection" class="modal-requirements" style="display: none;">
+                        <h4>Requirements</h4>
+                        <ul id="modalRequirementsList"></ul>
+                    </div>
+                    <div id="modalPrice" class="modal-price"></div>
+                    <a id="modalBookLink" href="#" class="modal-book-btn">BOOK / ENQUIRE NOW</a>
                 </div>
             </div>
         </div>
@@ -888,7 +894,7 @@
             carouselContainer.addEventListener('mouseleave', () => startAutoSlide());
         }
         
-        // Modal functions (reformatted)
+        // Modal functions with two‑column layout
         function openModal(destination) {
             document.getElementById('modalTitle').innerText = destination.title;
             document.getElementById('modalLocation').innerHTML = `📍 ${destination.destination}`;
@@ -902,24 +908,18 @@
             const descHtml = destination.description ? destination.description : `<p>Experience the beauty of ${destination.title}. Contact us for more details.</p>`;
             document.getElementById('modalDescription').innerHTML = descHtml;
             
-            // Requirements (use itinerary if present, else fallback)
+            // Requirements (itinerary)
             const requirementsDiv = document.getElementById('requirementsSection');
             const reqList = document.getElementById('modalRequirementsList');
             if (destination.itinerary && destination.itinerary.trim() !== '') {
-                // Convert itinerary HTML to list items (simple: split by <p> or <br> or treat as HTML)
-                // For simplicity, we'll display the raw HTML inside a div with bullets? Better to create list items.
-                // We'll assume itinerary contains <li> or plain text with line breaks.
                 let reqText = destination.itinerary;
-                // Remove surrounding HTML tags and split by newlines
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = reqText;
                 const items = [];
-                // If there are <li> elements, use them
                 const lis = tempDiv.querySelectorAll('li');
                 if (lis.length) {
                     lis.forEach(li => items.push(li.innerText));
                 } else {
-                    // Split by <br> or paragraphs
                     const lines = tempDiv.innerText.split(/\r?\n/).filter(l => l.trim());
                     items.push(...lines);
                 }
@@ -929,9 +929,8 @@
                 requirementsDiv.style.display = 'none';
             }
             
-            // Gallery
-            const galleryDiv = document.getElementById('gallerySection');
-            const galleryContainer = document.getElementById('modalGallery');
+            // Gallery (thumbnails on left column)
+            const galleryContainer = document.getElementById('modalGalleryContainer');
             if (destination.gallery && destination.gallery.length > 0) {
                 galleryContainer.innerHTML = '';
                 destination.gallery.forEach(url => {
@@ -942,9 +941,8 @@
                     img.onclick = () => window.open(url, '_blank');
                     galleryContainer.appendChild(img);
                 });
-                galleryDiv.style.display = 'block';
             } else {
-                galleryDiv.style.display = 'none';
+                galleryContainer.innerHTML = '';
             }
             
             const bookLink = document.getElementById('modalBookLink');
