@@ -52,6 +52,56 @@
         .review-form button { background: #3498db; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
         .review-error { color: #e74c3c; font-size: 0.9rem; margin-top: 0.5rem; }
         .review-success { color: #2ecc71; }
+
+        /* Pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 3rem;
+            flex-wrap: wrap;
+        }
+        .pagination button {
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .pagination button:hover:not(:disabled) {
+            background-color: #e67e22;
+        }
+        .pagination button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .page-numbers {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .page-number {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            border: none;
+            padding: 0.5rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .page-number.active {
+            background-color: #e67e22;
+            color: white;
+        }
+        .loader {
+            text-align: center;
+            padding: 3rem;
+            color: #777;
+        }
         
         footer { background-color: #2c3e50; color: #ecf0f1; padding: 3rem 5% 1rem; margin-top: 2rem; }
         .footer-container { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; }
@@ -92,8 +142,9 @@
             <p>Discover detailed itineraries, galleries, and book your dream adventure.</p>
         </div>
         <div id="destinationsContainer" class="destinations-grid">
-            <div style="text-align:center; padding:2rem;">Loading destinations...</div>
+            <div class="loader">Loading destinations...</div>
         </div>
+        <div id="paginationContainer" class="pagination"></div>
     </main>
 
     <footer>
@@ -126,17 +177,32 @@
     <script>
         function toggleMenu() { document.getElementById('navLinks').classList.toggle('show'); }
 
-        async function loadDestinations() {
+        let currentPage = 1;
+        let totalPages = 1;
+
+        // Load destinations for a given page
+        async function loadDestinations(page = 1) {
             const container = document.getElementById('destinationsContainer');
+            const paginationContainer = document.getElementById('paginationContainer');
+            container.innerHTML = '<div class="loader">Loading destinations...</div>';
+            paginationContainer.innerHTML = '';
+
             try {
-                const response = await fetch('/api/services');
+                const response = await fetch(`/api/services/paginated?page=${page}&limit=6`);
                 const result = await response.json();
                 if (!result.success) throw new Error(result.message);
+
                 const destinations = result.data;
+                const pagination = result.pagination;
+                currentPage = pagination.currentPage;
+                totalPages = pagination.totalPages;
+
                 if (destinations.length === 0) {
                     container.innerHTML = '<p style="text-align:center;">No destinations available.</p>';
+                    paginationContainer.innerHTML = '';
                     return;
                 }
+
                 container.innerHTML = '';
                 for (const dest of destinations) {
                     let galleryHtml = '';
@@ -145,8 +211,7 @@
                     }
                     const descHtml = dest.description ? `<div class="dest-description">${dest.description}</div>` : '';
                     const itineraryHtml = dest.itinerary ? `<div class="dest-itinerary"><h3>📅 Suggested Itinerary</h3>${dest.itinerary}</div>` : '';
-                    
-                    // Build initial card without reviews (reviews will be loaded on demand)
+
                     const cardDiv = document.createElement('div');
                     cardDiv.className = 'destination-card';
                     cardDiv.setAttribute('data-id', dest.service_id);
@@ -167,20 +232,43 @@
                                 </div>
                                 <div id="reviews-list-${dest.service_id}" class="reviews-list"></div>
                                 <div id="review-form-${dest.service_id}" class="review-form" style="display:none;"></div>
-                                <button class="btn-view" onclick="toggleReviews(${dest.service_id})" style="margin-top:0.5rem; background-color:#3498db; color:white;">Show Reviews</button>
+                                <button class="btn-view" onclick="toggleReviews(${dest.service_id})" style="margin-top:0.5rem; background-color:#3498db; color:white; border:none; padding:0.3rem 0.8rem; border-radius:4px; cursor:pointer;">Show Reviews</button>
                             </div>
                         </div>
                     `;
                     container.appendChild(cardDiv);
                 }
-                // After building, we will load reviews when user clicks "Show Reviews"
+
+                // Render pagination controls
+                renderPagination(pagination);
             } catch (error) {
                 console.error(error);
                 container.innerHTML = '<p style="text-align:center; color:red;">Failed to load destinations. Please try again later.</p>';
+                paginationContainer.innerHTML = '';
             }
         }
 
-        let reviewCache = {}; // store loaded reviews per service_id
+        function renderPagination(pagination) {
+            const container = document.getElementById('paginationContainer');
+            if (!container) return;
+            if (pagination.totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            let html = `<div class="pagination">
+                <button onclick="loadDestinations(${pagination.currentPage - 1})" ${pagination.currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                <div class="page-numbers">`;
+            for (let i = 1; i <= pagination.totalPages; i++) {
+                html += `<button class="page-number ${i === pagination.currentPage ? 'active' : ''}" onclick="loadDestinations(${i})">${i}</button>`;
+            }
+            html += `</div>
+                <button onclick="loadDestinations(${pagination.currentPage + 1})" ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}>Next</button>
+            </div>`;
+            container.innerHTML = html;
+        }
+
+        // ---------- Review functions (unchanged) ----------
+        let reviewCache = {};
 
         async function toggleReviews(serviceId) {
             const reviewsDiv = document.getElementById(`reviews-list-${serviceId}`);
@@ -238,19 +326,14 @@
                 });
                 reviewsDiv.innerHTML = reviewsHtml;
                 
-                // Check if user is logged in and hasn't reviewed this destination yet
                 const token = localStorage.getItem('customerToken');
-                let userReviewed = false;
                 if (token) {
-                    // Simple check: if any review has the same user? We don't have user_id in response.
-                    // We'll make a separate call to /api/reviews/user/:service_id to check.
                     try {
                         const checkRes = await fetch(`/api/reviews/check/${serviceId}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
                         const checkData = await checkRes.json();
                         if (checkData.success && !checkData.reviewed) {
-                            // Show review form
                             formDiv.innerHTML = `
                                 <h4>Write a Review</h4>
                                 <select id="rating-${serviceId}">
@@ -308,7 +391,6 @@
                     msgDiv.innerText = 'Review submitted! Refreshing...';
                     msgDiv.classList.add('review-success');
                     setTimeout(() => {
-                        // Reload reviews for this destination
                         loadReviews(serviceId);
                     }, 1500);
                 } else {
@@ -329,7 +411,10 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', loadDestinations);
+        // Initial load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDestinations(1);
+        });
     </script>
 </body>
 </html>
