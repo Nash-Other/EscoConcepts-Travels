@@ -592,9 +592,9 @@ app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
-  const status = req.query.status; // 'Pending', 'Confirmed', 'Cancelled', or undefined
-  const dateFrom = req.query.dateFrom; // YYYY-MM-DD
-  const dateTo = req.query.dateTo;     // YYYY-MM-DD
+  const status = req.query.status;
+  const dateFrom = req.query.dateFrom;
+  const dateTo = req.query.dateTo;
 
   let baseQuery = `
     SELECT b.booking_id, b.booking_reference,
@@ -718,7 +718,7 @@ app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = (page - 1) * limit;
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
-  const isActive = req.query.is_active; // 'true', 'false', or undefined
+  const isActive = req.query.is_active;
 
   let baseQuery = 'SELECT * FROM services';
   let countQuery = 'SELECT COUNT(*) FROM services';
@@ -873,7 +873,7 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// BLOG AUTHORS LIST (for dropdown)
+// BLOG AUTHORS LIST
 // ==========================================
 app.get('/api/blogs/authors', authenticateAdmin, async (req, res) => {
   try {
@@ -994,7 +994,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// REVIEWS ENDPOINTS (unchanged)
+// REVIEWS ENDPOINTS
 // ==========================================
 app.post('/api/reviews', authenticateCustomer, async (req, res) => {
   const { service_id, rating, comment } = req.body;
@@ -1125,7 +1125,7 @@ app.post('/api/checkout', async (req, res) => {
 });
 
 // ==========================================
-// PUBLIC SERVICES (no filters)
+// PUBLIC SERVICES (for homepage) – unchanged
 // ==========================================
 app.get('/api/services', async (req, res) => {
   try {
@@ -1134,6 +1134,40 @@ app.get('/api/services', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch services.' });
+  }
+});
+
+// ==========================================
+// NEW PAGINATED PUBLIC SERVICES (for destinations page)
+// ==========================================
+app.get('/api/services/paginated', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 6;
+  const offset = (page - 1) * limit;
+
+  try {
+    const countResult = await pool.query('SELECT COUNT(*) FROM services WHERE is_active = TRUE');
+    const totalDestinations = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(totalDestinations / limit);
+
+    const result = await pool.query(
+      'SELECT service_id, title, destination, base_price, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: totalDestinations,
+        limit: limit
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch destinations.' });
   }
 });
 
