@@ -73,7 +73,7 @@
             color: #2c3e50;
         }
 
-        /* Hero Section */
+        /* Hero Section (unchanged) */
         .hero {
             background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1920');
             background-size: cover;
@@ -222,7 +222,7 @@
             margin-bottom: 0.5rem;
         }
 
-        /* Carousel Styles (9 items per slide as 3x3 grid) */
+        /* ----- MODERN DESTINATION CARDS (updated) ----- */
         .carousel-container {
             position: relative;
             max-width: 1200px;
@@ -245,49 +245,54 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
         }
-        .carousel-card {
-            height: 100%;
-        }
-        .carousel-card .card {
+        .modern-card {
             background: #fff;
-            border-radius: 12px;
+            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.02);
+            transition: all 0.3s ease;
             height: 100%;
             display: flex;
             flex-direction: column;
         }
-        .carousel-card .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        .modern-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 30px -12px rgba(0,0,0,0.15);
         }
         .card-img {
             width: 100%;
-            height: 180px;
+            height: 200px;
             object-fit: cover;
+            transition: transform 0.5s;
+        }
+        .modern-card:hover .card-img {
+            transform: scale(1.03);
         }
         .card-content {
-            padding: 1rem;
+            padding: 1.2rem;
             flex: 1;
             display: flex;
             flex-direction: column;
         }
         .card-title {
-            font-size: 1.1rem;
-            color: #2c3e50;
-            margin-bottom: 0.3rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e2a3a;
+            margin-bottom: 0.25rem;
         }
         .card-location {
-            color: #7f8c8d;
-            font-size: 0.8rem;
-            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: #e67e22;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 0.75rem;
         }
         .card-description {
-            color: #666;
             font-size: 0.85rem;
-            margin: 0.5rem 0;
+            color: #4a5568;
             line-height: 1.4;
+            margin-bottom: 1rem;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
@@ -298,42 +303,34 @@
             justify-content: space-between;
             align-items: center;
             margin-top: auto;
-            padding-top: 0.5rem;
-            border-top: 1px solid #eee;
+            padding-top: 0.75rem;
+            border-top: 1px solid #edf2f7;
         }
         .card-price {
-            font-weight: bold;
+            font-weight: 800;
+            font-size: 1.2rem;
             color: #e67e22;
-            font-size: 1rem;
         }
-        .card-buttons {
-            display: flex;
-            gap: 5px;
-        }
-        .btn-view, .btn-book {
-            padding: 0.3rem 0.6rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
+        .card-price small {
             font-size: 0.7rem;
-            transition: all 0.3s;
+            font-weight: normal;
+            color: #718096;
+        }
+        .btn-book-now {
+            background: #e67e22;
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background 0.2s;
             text-decoration: none;
             display: inline-block;
         }
-        .btn-view {
-            background-color: #3498db;
-            color: white;
-        }
-        .btn-view:hover {
-            background-color: #2980b9;
-        }
-        .btn-book {
-            background-color: #e67e22;
-            color: white;
-        }
-        .btn-book:hover {
-            background-color: #d35400;
+        .btn-book-now:hover {
+            background: #d35400;
         }
         /* Carousel Controls */
         .carousel-control {
@@ -786,27 +783,21 @@
                     const imageUrl = dest.image_url || defaultImage;
                     const plainDesc = dest.description ? dest.description.replace(/<[^>]*>/g, '').substring(0, 80) + '...' : `Discover the beauty of ${dest.title}.`;
                     const card = document.createElement('div');
-                    card.className = 'carousel-card';
+                    card.className = 'modern-card';
                     card.innerHTML = `
-                        <div class="card">
-                            <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
-                            <div class="card-content">
-                                <h3 class="card-title">${escapeHtml(dest.title)}</h3>
-                                <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
-                                <div class="card-description">${escapeHtml(plainDesc)}</div>
-                                <div class="card-footer">
-                                    <span class="card-price">KES ${Number(dest.base_price).toLocaleString()}</span>
-                                    <div class="card-buttons">
-                                        <button class="btn-view" onclick="openModalById(${dest.service_id})">View</button>
-                                        <a href="checkout.html?package=${dest.service_id}" class="btn-book">Book</a>
-                                    </div>
-                                </div>
+                        <img src="${imageUrl}" alt="${dest.title}" class="card-img" onerror="this.src='${defaultImage}'">
+                        <div class="card-content">
+                            <h3 class="card-title">${escapeHtml(dest.title)}</h3>
+                            <div class="card-location">📍 ${escapeHtml(dest.destination)}</div>
+                            <div class="card-description">${escapeHtml(plainDesc)}</div>
+                            <div class="card-footer">
+                                <div class="card-price">KES ${Number(dest.base_price).toLocaleString()}</div>
+                                <button class="btn-book-now" onclick="openModalById(${dest.service_id})">Book Now →</button>
                             </div>
                         </div>
                     `;
                     gridDiv.appendChild(card);
                 }
-                // If fewer than itemsPerSlide, fill empty? Not necessary.
                 slideDiv.appendChild(gridDiv);
                 slideContainer.appendChild(slideDiv);
             }
@@ -820,7 +811,6 @@
                 dotsContainer.appendChild(dot);
             }
             
-            // Set initial slide position
             goToSlide(0);
         }
         
@@ -832,7 +822,6 @@
             currentSlide = index;
             slideContainer.style.transform = `translateX(-${currentSlide * 100}%)`;
             
-            // Update active dots
             const dots = document.querySelectorAll('.dot');
             dots.forEach((dot, i) => {
                 if (i === currentSlide) dot.classList.add('active');
@@ -872,12 +861,8 @@
         // Pause on hover
         const carouselContainer = document.getElementById('carouselContainer');
         if (carouselContainer) {
-            carouselContainer.addEventListener('mouseenter', () => {
-                stopAutoSlide();
-            });
-            carouselContainer.addEventListener('mouseleave', () => {
-                startAutoSlide();
-            });
+            carouselContainer.addEventListener('mouseenter', () => stopAutoSlide());
+            carouselContainer.addEventListener('mouseleave', () => startAutoSlide());
         }
         
         // Modal functions
