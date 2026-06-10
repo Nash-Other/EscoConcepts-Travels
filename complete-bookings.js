@@ -1,12 +1,13 @@
 // complete-bookings.js
-require('dotenv').config();  // Load variables from .env file
+require('dotenv').config();
 
 const { Pool } = require('pg');
 
 // Use the same connection settings as in server.js
+// Remove custom ssl option to use default (which validates certificates)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { require: true, rejectUnauthorized: false }   // Required for Supabase
+  // ssl: { rejectUnauthorized: false }   // REMOVED – now uses valid certificate validation
 });
 
 (async () => {
@@ -27,6 +28,6 @@ const pool = new Pool({
     console.error('❌ Error updating bookings:', err);
     process.exit(1);
   } finally {
-    await pool.end(); // Close the connection pool
+    await pool.end();
   }
 })();

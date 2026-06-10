@@ -90,6 +90,10 @@
           <div class="form-field"><label>Email</label><input type="email" name="email" required class="input"></div>
           <div class="form-field"><label>Phone</label><input name="phone" class="input"></div>
           <div class="form-field"><label>Password (min 8)</label><input type="password" name="password" minlength="8" required class="input"></div>
+          <!-- 2.2 – Password hint -->
+          <div class="form-field" style="margin-top:-0.5rem; margin-bottom:0.5rem">
+            <small style="color:var(--ink-soft); font-size:0.75rem;">Must be at least 8 characters, contain one letter and one number.</small>
+          </div>
           <div id="signup-msg"></div>
           <button class="btn btn-gold btn-block">Create account</button>
         </form>
@@ -165,9 +169,6 @@
   function setToken(token) { setCustomerToken(token); }
   function clearToken() { clearCustomerToken(); }
   function isLoggedIn() { return isCustomerLoggedIn(); }
-
-  // Override request to use global apiRequest (already works)
-  // but we need to ensure the token is sent – apiRequest already does that.
 
   const authView = document.getElementById("auth-view");
   const accountView = document.getElementById("account-view");

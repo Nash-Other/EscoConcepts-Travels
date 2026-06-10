@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');          // 3.3
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -15,6 +16,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+app.use(helmet());                        // 3.3 – adds many security headers
 
 const configuredOrigins = (process.env.CORS_ORIGIN || process.env.APP_URL || '')
   .split(',')
@@ -30,15 +32,22 @@ app.use(cors({
   }
 }));
 
+// Additional security headers (helmet already does X-Content-Type-Options, but we keep custom ones for compatibility)
 app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
 
 app.use(express.json({ limit: '1mb' }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve uploads with security headers (2.4)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, filePath) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Disposition', 'attachment');
+  }
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
@@ -208,6 +217,13 @@ async function initializeDatabase() {
     await client.query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`);
     await client.query(`ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('Pending', 'Confirmed', 'Cancelled', 'Completed'))`);
 
+    // 4.3 – Add constraint for return_date (must be >= travel_date)
+    await client.query(`
+      ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_return_date_check;
+      ALTER TABLE bookings ADD CONSTRAINT bookings_return_date_check 
+      CHECK (return_date IS NULL OR return_date >= travel_date);
+    `);
+
     await client.query(`CREATE TABLE IF NOT EXISTS payments (
       payment_id SERIAL PRIMARY KEY,
       booking_id INTEGER REFERENCES bookings(booking_id) ON DELETE CASCADE,
@@ -375,6 +391,11 @@ function authenticateCustomer(req, res, next) {
   });
 }
 
+// 3.1 – Async error handling wrapper
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 // ==========================================
 // MULTER SETUP
 // ==========================================
@@ -402,71 +423,65 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// CREATE RATE LIMITER INSTANCES (synchronous)
+// CREATE RATE LIMITER INSTANCES
 // ==========================================
 const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
+// 2.3 – Admin login stricter limit (10 per 15 min)
+const adminRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 const contactRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
+// 3.4 – Upload rate limit (10 per hour)
+const uploadRateLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
 
 // ==========================================
-// DEFINE ALL ROUTES
+// DEFINE ALL ROUTES (using asyncHandler)
 // ==========================================
 
 // Password reset
-app.post('/api/auth/forgot-password', authRateLimit, async (req, res) => {
+app.post('/api/auth/forgot-password', authRateLimit, asyncHandler(async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
-  try {
-    const user = await pool.query('SELECT user_id, first_name FROM users WHERE email = $1', [email]);
-    if (user.rows.length === 0) {
-      return res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
-    }
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 1);
-    await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
-    const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
-    const html = `
-      <h2>Password Reset Request</h2>
-      <p>Hello ${escapeHtml(user.rows[0].first_name || 'there')},</p>
-      <p>Click the link below to set a new password (expires in 1 hour).</p>
-      <p><a href="${resetLink}">${resetLink}</a></p>
-      <p>If you did not request this, ignore this email.</p>
-      <p>— EscoConcepts Travels</p>
-    `;
-    await sendEmail(email, 'Reset Your Password', html);
-    res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+  const user = await pool.query('SELECT user_id, first_name FROM users WHERE email = $1', [email]);
+  if (user.rows.length === 0) {
+    return res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
   }
-});
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const expiry = new Date();
+  expiry.setHours(expiry.getHours() + 1);
+  await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
+  const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
+  const html = `
+    <h2>Password Reset Request</h2>
+    <p>Hello ${escapeHtml(user.rows[0].first_name || 'there')},</p>
+    <p>Click the link below to set a new password (expires in 1 hour).</p>
+    <p><a href="${resetLink}">${resetLink}</a></p>
+    <p>If you did not request this, ignore this email.</p>
+    <p>— EscoConcepts Travels</p>
+  `;
+  await sendEmail(email, 'Reset Your Password', html);
+  res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
+}));
 
-app.post('/api/auth/reset-password', authRateLimit, async (req, res) => {
+app.post('/api/auth/reset-password', authRateLimit, asyncHandler(async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword) {
     return res.status(400).json({ success: false, message: 'Token and new password required.' });
   }
-  try {
-    const user = await pool.query('SELECT user_id, reset_token_expiry FROM users WHERE reset_token = $1', [token]);
-    if (user.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired token.' });
-    }
-    const expiry = new Date(user.rows[0].reset_token_expiry);
-    if (expiry < new Date()) {
-      return res.status(400).json({ success: false, message: 'Token expired. Request a new reset link.' });
-    }
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-    await pool.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2', [hashedPassword, user.rows[0].user_id]);
-    res.json({ success: true, message: 'Password reset successful. You can now log in.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+  const user = await pool.query('SELECT user_id, reset_token_expiry FROM users WHERE reset_token = $1', [token]);
+  if (user.rows.length === 0) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired token.' });
   }
-});
+  const expiry = new Date(user.rows[0].reset_token_expiry);
+  if (expiry < new Date()) {
+    return res.status(400).json({ success: false, message: 'Token expired. Request a new reset link.' });
+  }
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  await pool.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2', [hashedPassword, user.rows[0].user_id]);
+  res.json({ success: true, message: 'Password reset successful. You can now log in.' });
+}));
 
 // Customer auth
-app.post('/api/auth/signup', authRateLimit, async (req, res) => {
+app.post('/api/auth/signup', authRateLimit, asyncHandler(async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
   if (!firstName || !lastName || !email || !password) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -477,73 +492,58 @@ app.post('/api/auth/signup', authRateLimit, async (req, res) => {
   if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
     return res.status(400).json({ success: false, message: 'Password must contain at least one letter and one number.' });
   }
-  try {
-    const existing = await pool.query('SELECT user_id, is_guest FROM users WHERE email = $1', [email]);
-    if (existing.rows.length > 0) {
-      const user = existing.rows[0];
-      if (user.is_guest) {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-        await pool.query(
-          `UPDATE users SET password_hash = $1, is_guest = FALSE, first_name = $2, last_name = $3, phone = $4 WHERE user_id = $5`,
-          [hashedPassword, firstName, lastName, phone || null, user.user_id]
-        );
-        const token = jwt.sign({ userId: user.user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
-        return res.status(200).json({ success: true, message: 'Account claimed successfully!', token });
-      } else {
-        return res.status(400).json({ success: false, message: 'Email already registered. Please log in or reset password.' });
-      }
+  const existing = await pool.query('SELECT user_id, is_guest FROM users WHERE email = $1', [email]);
+  if (existing.rows.length > 0) {
+    const user = existing.rows[0];
+    if (user.is_guest) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      await pool.query(
+        `UPDATE users SET password_hash = $1, is_guest = FALSE, first_name = $2, last_name = $3, phone = $4 WHERE user_id = $5`,
+        [hashedPassword, firstName, lastName, phone || null, user.user_id]
+      );
+      const token = jwt.sign({ userId: user.user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
+      return res.status(200).json({ success: true, message: 'Account claimed successfully!', token });
+    } else {
+      return res.status(400).json({ success: false, message: 'Email already registered. Please log in or reset password.' });
     }
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    const result = await pool.query(
-      `INSERT INTO users (first_name, last_name, email, phone, password_hash, role, is_guest)
-       VALUES ($1, $2, $3, $4, $5, 'customer', FALSE) RETURNING user_id`,
-      [firstName, lastName, email, phone || null, hashedPassword]
-    );
-    const token = jwt.sign({ userId: result.rows[0].user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ success: true, message: 'Signup successful', token });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
   }
-});
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+  const result = await pool.query(
+    `INSERT INTO users (first_name, last_name, email, phone, password_hash, role, is_guest)
+     VALUES ($1, $2, $3, $4, $5, 'customer', FALSE) RETURNING user_id`,
+    [firstName, lastName, email, phone || null, hashedPassword]
+  );
+  const token = jwt.sign({ userId: result.rows[0].user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
+  res.status(201).json({ success: true, message: 'Signup successful', token });
+}));
 
-app.post('/api/auth/login', authRateLimit, async (req, res) => {
+app.post('/api/auth/login', authRateLimit, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ success: false, message: 'Email and password required.' });
   }
-  try {
-    const result = await pool.query('SELECT user_id, first_name, last_name, email, password_hash, role FROM users WHERE email = $1', [email]);
-    if (result.rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    }
-    const user = result.rows[0];
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    }
-    const token = jwt.sign({ userId: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ success: true, message: 'Login successful', token, role: user.role });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+  const result = await pool.query('SELECT user_id, first_name, last_name, email, password_hash, role FROM users WHERE email = $1', [email]);
+  if (result.rows.length === 0) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials.' });
   }
-});
-
-app.get('/api/auth/me', authenticateCustomer, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT user_id, first_name, last_name, email, phone, role FROM users WHERE user_id = $1', [req.user.userId]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
-    res.json({ success: true, user: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+  const user = result.rows[0];
+  const match = await bcrypt.compare(password, user.password_hash);
+  if (!match) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials.' });
   }
-});
+  const token = jwt.sign({ userId: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ success: true, message: 'Login successful', token, role: user.role });
+}));
 
-app.put('/api/auth/profile', authenticateCustomer, async (req, res) => {
+app.get('/api/auth/me', authenticateCustomer, asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT user_id, first_name, last_name, email, phone, role FROM users WHERE user_id = $1', [req.user.userId]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'User not found.' });
+  res.json({ success: true, user: result.rows[0] });
+}));
+
+app.put('/api/auth/profile', authenticateCustomer, asyncHandler(async (req, res) => {
   const { firstName, lastName, phone, email } = req.body;
   const userId = req.user.userId;
   if (!firstName || !lastName || !email) {
@@ -570,32 +570,27 @@ app.put('/api/auth/profile', authenticateCustomer, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Profile update error:', err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 // My bookings
-app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT b.booking_id, b.booking_reference, s.title AS package_name, s.service_id,
-             b.travel_date, b.return_date, b.pax, b.total_amount, b.status, b.booking_date,
-             b.special_requests, b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone
-      FROM bookings b
-      JOIN services s ON b.service_id = s.service_id
-      WHERE b.user_id = $1
-      ORDER BY b.booking_date DESC
-    `, [req.user.userId]);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch bookings.' });
-  }
-});
+app.get('/api/bookings/my-bookings', authenticateCustomer, asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT b.booking_id, b.booking_reference, s.title AS package_name, s.service_id,
+           b.travel_date, b.return_date, b.pax, b.total_amount, b.status, b.booking_date,
+           b.special_requests, b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone
+    FROM bookings b
+    JOIN services s ON b.service_id = s.service_id
+    WHERE b.user_id = $1
+    ORDER BY b.booking_date DESC
+  `, [req.user.userId]);
+  res.json({ success: true, data: result.rows });
+}));
 
-app.put('/api/bookings/cancel/:id', authenticateCustomer, async (req, res) => {
+app.put('/api/bookings/cancel/:id', authenticateCustomer, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
   try {
@@ -628,64 +623,58 @@ app.put('/api/bookings/cancel/:id', authenticateCustomer, async (req, res) => {
     res.json({ success: true, message: 'Booking cancelled.' });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to cancel.' });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
-app.post('/api/bookings/receipt/:id', authenticateCustomer, async (req, res) => {
+app.post('/api/bookings/receipt/:id', authenticateCustomer, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  try {
-    const result = await pool.query(`
-      SELECT b.booking_reference, b.travel_date, b.return_date, b.pax, b.total_amount, b.status, b.booking_date,
-             b.special_requests, b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone,
-             s.title as package_title, s.destination,
-             u.first_name as owner_first_name, u.last_name as owner_last_name, u.email as owner_email
-      FROM bookings b
-      JOIN services s ON b.service_id = s.service_id
-      JOIN users u ON b.user_id = u.user_id
-      WHERE b.booking_id = $1 AND b.user_id = $2
-    `, [id, req.user.userId]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
-    const booking = result.rows[0];
-    const guestName = `${booking.guest_first_name || ''} ${booking.guest_last_name || ''}`.trim() || 'Not provided';
-    const guestEmail = booking.guest_email || 'Not provided';
-    const guestPhone = booking.guest_phone || 'Not provided';
-    const specialRequests = booking.special_requests || 'None';
-    const ownerName = `${booking.owner_first_name} ${booking.owner_last_name}`;
-    const html = `
-      <h2>Your Booking Receipt</h2>
-      <p><strong>Booking Reference:</strong> ${escapeHtml(booking.booking_reference)}</p>
-      <p><strong>Package:</strong> ${escapeHtml(booking.package_title)}</p>
-      <p><strong>Destination:</strong> ${escapeHtml(booking.destination)}</p>
-      <p><strong>Travel Date:</strong> ${new Date(booking.travel_date).toLocaleDateString()}</p>
-      <p><strong>Return Date:</strong> ${booking.return_date ? new Date(booking.return_date).toLocaleDateString() : '—'}</p>
-      <p><strong>Guests:</strong> ${booking.pax}</p>
-      <p><strong>Total:</strong> KES ${Number(booking.total_amount).toLocaleString()}</p>
-      <p><strong>Status:</strong> ${booking.status}</p>
-      <p><strong>Booked On:</strong> ${new Date(booking.booking_date).toLocaleString()}</p>
-      <hr>
-      <h3>Traveler Details</h3>
-      <p><strong>Name:</strong> ${escapeHtml(guestName)}</p>
-      <p><strong>Email:</strong> ${escapeHtml(guestEmail)}</p>
-      <p><strong>Phone:</strong> ${escapeHtml(guestPhone)}</p>
-      <p><strong>Special Requests:</strong> ${escapeHtml(specialRequests)}</p>
-      <hr>
-      <p><strong>Booked by:</strong> ${escapeHtml(ownerName)} (${escapeHtml(booking.owner_email)})</p>
-      <p>Thank you for choosing EscoConcepts Travels.</p>
-    `;
-    await sendEmail(booking.owner_email, `Your Booking Receipt – ${booking.booking_reference}`, html);
-    res.json({ success: true, message: 'Receipt sent to your email.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to send receipt.' });
-  }
-});
+  const result = await pool.query(`
+    SELECT b.booking_reference, b.travel_date, b.return_date, b.pax, b.total_amount, b.status, b.booking_date,
+           b.special_requests, b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone,
+           s.title as package_title, s.destination,
+           u.first_name as owner_first_name, u.last_name as owner_last_name, u.email as owner_email
+    FROM bookings b
+    JOIN services s ON b.service_id = s.service_id
+    JOIN users u ON b.user_id = u.user_id
+    WHERE b.booking_id = $1 AND b.user_id = $2
+  `, [id, req.user.userId]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
+  const booking = result.rows[0];
+  const guestName = `${booking.guest_first_name || ''} ${booking.guest_last_name || ''}`.trim() || 'Not provided';
+  const guestEmail = booking.guest_email || 'Not provided';
+  const guestPhone = booking.guest_phone || 'Not provided';
+  const specialRequests = booking.special_requests || 'None';
+  const ownerName = `${booking.owner_first_name} ${booking.owner_last_name}`;
+  const html = `
+    <h2>Your Booking Receipt</h2>
+    <p><strong>Booking Reference:</strong> ${escapeHtml(booking.booking_reference)}</p>
+    <p><strong>Package:</strong> ${escapeHtml(booking.package_title)}</p>
+    <p><strong>Destination:</strong> ${escapeHtml(booking.destination)}</p>
+    <p><strong>Travel Date:</strong> ${new Date(booking.travel_date).toLocaleDateString()}</p>
+    <p><strong>Return Date:</strong> ${booking.return_date ? new Date(booking.return_date).toLocaleDateString() : '—'}</p>
+    <p><strong>Guests:</strong> ${booking.pax}</p>
+    <p><strong>Total:</strong> KES ${Number(booking.total_amount).toLocaleString()}</p>
+    <p><strong>Status:</strong> ${booking.status}</p>
+    <p><strong>Booked On:</strong> ${new Date(booking.booking_date).toLocaleString()}</p>
+    <hr>
+    <h3>Traveler Details</h3>
+    <p><strong>Name:</strong> ${escapeHtml(guestName)}</p>
+    <p><strong>Email:</strong> ${escapeHtml(guestEmail)}</p>
+    <p><strong>Phone:</strong> ${escapeHtml(guestPhone)}</p>
+    <p><strong>Special Requests:</strong> ${escapeHtml(specialRequests)}</p>
+    <hr>
+    <p><strong>Booked by:</strong> ${escapeHtml(ownerName)} (${escapeHtml(booking.owner_email)})</p>
+    <p>Thank you for choosing EscoConcepts Travels.</p>
+  `;
+  await sendEmail(booking.owner_email, `Your Booking Receipt – ${booking.booking_reference}`, html);
+  res.json({ success: true, message: 'Receipt sent to your email.' });
+}));
 
 // Search services
-app.get('/api/services/search', async (req, res) => {
+app.get('/api/services/search', asyncHandler(async (req, res) => {
   const { location, minPrice, maxPrice, guests } = req.query;
   let query = 'SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE';
   const params = [];
@@ -711,43 +700,36 @@ app.get('/api/services/search', async (req, res) => {
     paramIndex++;
   }
   query += ' ORDER BY base_price ASC';
-  try {
-    const result = await pool.query(query, params);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Search failed.' });
-  }
-});
+  const result = await pool.query(query, params);
+  res.json({ success: true, data: result.rows });
+}));
 
-// Admin login
-app.post('/api/admin/login', authRateLimit, async (req, res) => {
+// Admin login (with stricter rate limit)
+app.post('/api/admin/login', adminRateLimit, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  try {
-    const result = await pool.query('SELECT user_id, password_hash, role FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
-    if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    const user = result.rows[0];
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    const token = jwt.sign({ userId: user.user_id, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
-    res.json({ success: true, token });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
+  const result = await pool.query('SELECT user_id, password_hash, role FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
+  if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+  const user = result.rows[0];
+  const match = await bcrypt.compare(password, user.password_hash);
+  if (!match) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+  const token = jwt.sign({ userId: user.user_id, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
+  res.json({ success: true, token });
+}));
 
-app.post('/api/upload', authenticateAdmin, (req, res) => {
+// Upload (with rate limit and HTTPS enforcement)
+app.post('/api/upload', authenticateAdmin, uploadRateLimit, (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, message: 'No file.' });
-    const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    // 2.5 – Force HTTPS in production
+    const protocol = isProduction ? 'https' : (req.protocol === 'https' ? 'https' : 'http');
+    const url = `${protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     res.json({ success: true, url });
   });
 });
 
 // Bookings (admin)
-app.get('/api/bookings', authenticateAdmin, async (req, res) => {
+app.get('/api/bookings', authenticateAdmin, asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
   const status = req.query.status;
@@ -805,30 +787,25 @@ app.get('/api/bookings', authenticateAdmin, async (req, res) => {
     paramIndex++;
   }
 
-  try {
-    const countRes = await pool.query(countQuery + whereClause, params);
-    const total = parseInt(countRes.rows[0].count);
-    const dataRes = await pool.query(
-      baseQuery + whereClause + ` ORDER BY b.booking_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
-    );
-    res.json({
-      success: true,
-      data: dataRes.rows,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        totalItems: total,
-        limit: limit
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch bookings.' });
-  }
-});
+  const countRes = await pool.query(countQuery + whereClause, params);
+  const total = parseInt(countRes.rows[0].count);
+  const dataRes = await pool.query(
+    baseQuery + whereClause + ` ORDER BY b.booking_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+    [...params, limit, offset]
+  );
+  res.json({
+    success: true,
+    data: dataRes.rows,
+    pagination: {
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalItems: total,
+      limit: limit
+    }
+  });
+}));
 
-app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
+app.put('/api/bookings/:id', authenticateAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const allowedStatuses = ['Pending', 'Confirmed', 'Cancelled', 'Completed'];
@@ -872,15 +849,14 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
     res.json({ success: true, message: `Booking status updated to ${status}${oldStatus !== status ? ' and email sent' : ''}.` });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Update failed.' });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 // Admin services
-app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
+app.get('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
   const isActive = req.query.is_active;
@@ -906,95 +882,70 @@ app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
     paramIndex++;
   }
 
-  try {
-    const countRes = await pool.query(countQuery + whereClause, params);
-    const total = parseInt(countRes.rows[0].count);
-    const dataRes = await pool.query(
-      baseQuery + whereClause + ` ORDER BY service_id ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
-    );
-    res.json({
-      success: true,
-      data: dataRes.rows,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        totalItems: total,
-        limit: limit
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch services.' });
-  }
-});
-
-app.get('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await pool.query('SELECT * FROM services WHERE service_id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Destination not found.' });
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch destination.' });
-  }
-});
-
-app.post('/api/admin/services', authenticateAdmin, async (req, res) => {
-  const { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
-  if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
-  const paxLimit = parsePositiveInteger(max_pax, 1);
-  try {
-    const result = await pool.query(
-      `INSERT INTO services (title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [title, destination, base_price, paxLimit, image_url || null, is_active !== undefined ? is_active : true, description || null, itinerary || null, gallery || []]
-    );
-    res.status(201).json({ success: true, message: 'Destination added!', data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to add destination.' });
-  }
-});
-
-app.put('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params;
-  const { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
-  if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
-  const paxLimit = parsePositiveInteger(max_pax, 1);
-  try {
-    const result = await pool.query(
-      `UPDATE services SET title=$1, destination=$2, base_price=$3, max_pax=$4, image_url=$5, is_active=$6,
-       description=$7, itinerary=$8, gallery=$9 WHERE service_id=$10 RETURNING *`,
-      [title, destination, base_price, paxLimit, image_url || null, is_active, description || null, itinerary || null, gallery || [], id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
-    res.json({ success: true, message: 'Updated!', data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Update failed.' });
-  }
-});
-
-app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const check = await pool.query('SELECT COUNT(*) FROM bookings WHERE service_id = $1', [id]);
-    if (parseInt(check.rows[0].count) > 0) {
-      return res.status(400).json({ success: false, message: 'Cannot delete: has bookings. Deactivate instead.' });
+  const countRes = await pool.query(countQuery + whereClause, params);
+  const total = parseInt(countRes.rows[0].count);
+  const dataRes = await pool.query(
+    baseQuery + whereClause + ` ORDER BY service_id ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+    [...params, limit, offset]
+  );
+  res.json({
+    success: true,
+    data: dataRes.rows,
+    pagination: {
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalItems: total,
+      limit: limit
     }
-    const result = await pool.query('DELETE FROM services WHERE service_id = $1 RETURNING *', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
-    res.json({ success: true, message: 'Deleted!' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Delete failed.' });
+  });
+}));
+
+app.get('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const result = await pool.query('SELECT * FROM services WHERE service_id = $1', [id]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Destination not found.' });
+  res.json({ success: true, data: result.rows[0] });
+}));
+
+app.post('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
+  if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
+  const paxLimit = parsePositiveInteger(max_pax, 1);
+  const result = await pool.query(
+    `INSERT INTO services (title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [title, destination, base_price, paxLimit, image_url || null, is_active !== undefined ? is_active : true, description || null, itinerary || null, gallery || []]
+  );
+  res.status(201).json({ success: true, message: 'Destination added!', data: result.rows[0] });
+}));
+
+app.put('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
+  if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
+  const paxLimit = parsePositiveInteger(max_pax, 1);
+  const result = await pool.query(
+    `UPDATE services SET title=$1, destination=$2, base_price=$3, max_pax=$4, image_url=$5, is_active=$6,
+     description=$7, itinerary=$8, gallery=$9 WHERE service_id=$10 RETURNING *`,
+    [title, destination, base_price, paxLimit, image_url || null, is_active, description || null, itinerary || null, gallery || [], id]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+  res.json({ success: true, message: 'Updated!', data: result.rows[0] });
+}));
+
+app.delete('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const check = await pool.query('SELECT COUNT(*) FROM bookings WHERE service_id = $1', [id]);
+  if (parseInt(check.rows[0].count) > 0) {
+    return res.status(400).json({ success: false, message: 'Cannot delete: has bookings. Deactivate instead.' });
   }
-});
+  const result = await pool.query('DELETE FROM services WHERE service_id = $1 RETURNING *', [id]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+  res.json({ success: true, message: 'Deleted!' });
+}));
 
 // Contact messages
-app.post('/api/contact', contactRateLimit, async (req, res) => {
+app.post('/api/contact', contactRateLimit, asyncHandler(async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
   const subject = String(req.body.subject || '').trim();
@@ -1010,19 +961,14 @@ app.post('/api/contact', contactRateLimit, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Message details are too long.' });
   }
 
-  try {
-    await pool.query('INSERT INTO contactmessages (name, email, subject, message) VALUES ($1, $2, $3, $4)', [name, email, subject || null, message]);
-    if (process.env.CONTACT_NOTIFICATION_EMAIL) {
-      await sendEmail(process.env.CONTACT_NOTIFICATION_EMAIL, `New contact message${subject ? `: ${subject}` : ''}`, `<h2>New Contact Message</h2><p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Subject:</strong> ${escapeHtml(subject || 'No subject')}</p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`);
-    }
-    res.status(201).json({ success: true, message: 'Message received.' });
-  } catch (err) {
-    console.error('Contact submit error:', err);
-    res.status(500).json({ success: false, message: 'Failed to submit message.' });
+  await pool.query('INSERT INTO contactmessages (name, email, subject, message) VALUES ($1, $2, $3, $4)', [name, email, subject || null, message]);
+  if (process.env.CONTACT_NOTIFICATION_EMAIL) {
+    await sendEmail(process.env.CONTACT_NOTIFICATION_EMAIL, `New contact message${subject ? `: ${subject}` : ''}`, `<h2>New Contact Message</h2><p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Subject:</strong> ${escapeHtml(subject || 'No subject')}</p><p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`);
   }
-});
+  res.status(201).json({ success: true, message: 'Message received.' });
+}));
 
-app.get('/api/contact', authenticateAdmin, async (req, res) => {
+app.get('/api/contact', authenticateAdmin, asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
   const dateFrom = req.query.dateFrom;
@@ -1053,29 +999,19 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
     paramIndex++;
   }
 
-  try {
-    const countRes = await pool.query(countQuery + whereClause, params);
-    const total = parseInt(countRes.rows[0].count);
-    const dataRes = await pool.query(baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`, [...params, limit, offset]);
-    res.json({ success: true, data: dataRes.rows, pagination: { currentPage: page, totalPages: Math.ceil(total / limit), totalItems: total, limit: limit } });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch messages.' });
-  }
-});
+  const countRes = await pool.query(countQuery + whereClause, params);
+  const total = parseInt(countRes.rows[0].count);
+  const dataRes = await pool.query(baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`, [...params, limit, offset]);
+  res.json({ success: true, data: dataRes.rows, pagination: { currentPage: page, totalPages: Math.ceil(total / limit), totalItems: total, limit: limit } });
+}));
 
 // Blogs
-app.get('/api/blogs/authors', authenticateAdmin, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT DISTINCT author FROM blogs WHERE author IS NOT NULL ORDER BY author');
-    res.json({ success: true, authors: result.rows.map(r => r.author) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch authors.' });
-  }
-});
+app.get('/api/blogs/authors', authenticateAdmin, asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT DISTINCT author FROM blogs WHERE author IS NOT NULL ORDER BY author');
+  res.json({ success: true, authors: result.rows.map(r => r.author) });
+}));
 
-app.get('/api/blogs', async (req, res) => {
+app.get('/api/blogs', asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 6, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
   const author = req.query.author;
@@ -1100,260 +1036,194 @@ app.get('/api/blogs', async (req, res) => {
     paramIndex++;
   }
 
-  try {
-    const countRes = await pool.query(countQuery + whereClause, params);
-    const totalBlogs = parseInt(countRes.rows[0].count);
-    const result = await pool.query(baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`, [...params, limit, offset]);
-    res.json({ blogs: result.rows, pagination: { currentPage: page, totalPages: Math.ceil(totalBlogs / limit), totalBlogs: totalBlogs, limit: limit } });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch blogs.' });
-  }
-});
+  const countRes = await pool.query(countQuery + whereClause, params);
+  const totalBlogs = parseInt(countRes.rows[0].count);
+  const result = await pool.query(baseQuery + whereClause + ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`, [...params, limit, offset]);
+  res.json({ blogs: result.rows, pagination: { currentPage: page, totalPages: Math.ceil(totalBlogs / limit), totalBlogs: totalBlogs, limit: limit } });
+}));
 
-app.get('/api/blogs/slug/:slug', async (req, res) => {
+app.get('/api/blogs/slug/:slug', asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  try {
-    const result = await pool.query(
-      'SELECT id, title, slug, author, content, image_url, created_at, updated_at FROM blogs WHERE slug = $1',
-      [slug]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
+  const result = await pool.query(
+    'SELECT id, title, slug, author, content, image_url, created_at, updated_at FROM blogs WHERE slug = $1',
+    [slug]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+  res.json({ success: true, data: result.rows[0] });
+}));
 
-app.get('/api/blogs/:id', async (req, res) => {
+app.get('/api/blogs/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  try {
-    const result = await pool.query('SELECT id, title, slug, author, content, image_url, created_at, updated_at FROM blogs WHERE id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
+  const result = await pool.query('SELECT id, title, slug, author, content, image_url, created_at, updated_at FROM blogs WHERE id = $1', [id]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+  res.json({ success: true, data: result.rows[0] });
+}));
 
-app.post('/api/blogs', authenticateAdmin, async (req, res) => {
+app.post('/api/blogs', authenticateAdmin, asyncHandler(async (req, res) => {
   const { title, author, content, image_url } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required.' });
-  try {
-    const slug = await generateUniqueSlug(title);
-    const result = await pool.query(`INSERT INTO blogs (title, slug, author, content, image_url) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [title, slug, author, content, image_url]);
-    res.status(201).json({ success: true, message: 'Published!', data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to publish.' });
-  }
-});
+  const slug = await generateUniqueSlug(title);
+  const result = await pool.query(`INSERT INTO blogs (title, slug, author, content, image_url) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [title, slug, author, content, image_url]);
+  res.status(201).json({ success: true, message: 'Published!', data: result.rows[0] });
+}));
 
-app.put('/api/blogs/:id', authenticateAdmin, async (req, res) => {
+app.put('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, author, content, image_url } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required.' });
-  try {
-    const slug = await generateUniqueSlug(title, id);
-    const result = await pool.query(`UPDATE blogs SET title=$1, slug=$2, author=$3, content=$4, image_url=$5, updated_at=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *`, [title, slug, author, content, image_url, id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
-    res.json({ success: true, message: 'Updated!', data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Update failed.' });
-  }
-});
+  const slug = await generateUniqueSlug(title, id);
+  const result = await pool.query(`UPDATE blogs SET title=$1, slug=$2, author=$3, content=$4, image_url=$5, updated_at=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *`, [title, slug, author, content, image_url, id]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+  res.json({ success: true, message: 'Updated!', data: result.rows[0] });
+}));
 
-app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
+app.delete('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  try {
-    const result = await pool.query('DELETE FROM blogs WHERE id=$1 RETURNING *', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
-    res.json({ success: true, message: 'Deleted!' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Delete failed.' });
-  }
-});
+  const result = await pool.query('DELETE FROM blogs WHERE id=$1 RETURNING *', [id]);
+  if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+  res.json({ success: true, message: 'Deleted!' });
+}));
 
 // ==========================================
 // REVIEW ROUTES (order matters: featured before :service_id)
 // ==========================================
 
-// Featured review (must come before /:service_id)
-app.get('/api/reviews/featured', async (req, res) => {
-  try {
-    const reviewResult = await pool.query(`
-      SELECT r.review_id, r.rating, r.comment, r.created_at,
-             r.service_id, r.user_id,
-             u.first_name, u.last_name
-      FROM reviews r
-      JOIN users u ON r.user_id = u.user_id
-      ORDER BY RANDOM()
-      LIMIT 1
-    `);
-    if (reviewResult.rows.length === 0) {
-      return res.json({ success: true, review: null });
-    }
-    const review = reviewResult.rows[0];
-
-    const bookingCheck = await pool.query(
-      `SELECT booking_id FROM bookings 
-       WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
-      [review.user_id, review.service_id]
-    );
-    const verified = bookingCheck.rows.length > 0;
-
-    const destResult = await pool.query(
-      `SELECT title FROM services WHERE service_id = $1`,
-      [review.service_id]
-    );
-    const destination = destResult.rows[0]?.title || 'Safari Package';
-
-    res.json({
-      success: true,
-      review: {
-        id: review.review_id,
-        rating: review.rating,
-        comment: review.comment,
-        created_at: review.created_at,
-        first_name: review.first_name,
-        last_name: review.last_name,
-        verified: verified,
-        destination: destination
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch featured review.' });
+app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
+  const reviewResult = await pool.query(`
+    SELECT r.review_id, r.rating, r.comment, r.created_at,
+           r.service_id, r.user_id,
+           u.first_name, u.last_name
+    FROM reviews r
+    JOIN users u ON r.user_id = u.user_id
+    ORDER BY RANDOM()
+    LIMIT 1
+  `);
+  if (reviewResult.rows.length === 0) {
+    return res.json({ success: true, review: null });
   }
-});
+  const review = reviewResult.rows[0];
 
-app.post('/api/reviews', authenticateCustomer, async (req, res) => {
+  const bookingCheck = await pool.query(
+    `SELECT booking_id FROM bookings 
+     WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
+    [review.user_id, review.service_id]
+  );
+  const verified = bookingCheck.rows.length > 0;
+
+  const destResult = await pool.query(
+    `SELECT title FROM services WHERE service_id = $1`,
+    [review.service_id]
+  );
+  const destination = destResult.rows[0]?.title || 'Safari Package';
+
+  res.json({
+    success: true,
+    review: {
+      id: review.review_id,
+      rating: review.rating,
+      comment: review.comment,
+      created_at: review.created_at,
+      first_name: review.first_name,
+      last_name: review.last_name,
+      verified: verified,
+      destination: destination
+    }
+  });
+}));
+
+app.post('/api/reviews', authenticateCustomer, asyncHandler(async (req, res) => {
   const { service_id, rating, comment } = req.body;
   if (!service_id || !rating || rating < 1 || rating > 5) {
     return res.status(400).json({ success: false, message: 'Service ID and rating (1-5) required.' });
   }
-  try {
+  const bookingCheck = await pool.query(
+    `SELECT booking_id FROM bookings 
+     WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
+    [req.user.userId, service_id]
+  );
+  if (bookingCheck.rows.length === 0) {
+    return res.status(403).json({ success: false, message: 'You can only review services after your trip has ended.' });
+  }
+
+  const existing = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
+  if (existing.rows.length > 0) {
+    return res.status(400).json({ success: false, message: 'You have already reviewed this destination.' });
+  }
+
+  await pool.query('INSERT INTO reviews (service_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)', [service_id, req.user.userId, rating, comment || null]);
+  res.status(201).json({ success: true, message: 'Review submitted.' });
+}));
+
+app.get('/api/reviews/:service_id', asyncHandler(async (req, res) => {
+  const { service_id } = req.params;
+  const reviews = await pool.query(`
+    SELECT r.review_id, r.rating, r.comment, r.created_at, u.first_name, u.last_name, u.user_id
+    FROM reviews r
+    JOIN users u ON r.user_id = u.user_id
+    WHERE r.service_id = $1
+    ORDER BY r.created_at DESC
+  `, [service_id]);
+
+  const reviewsWithVerified = await Promise.all(reviews.rows.map(async (review) => {
     const bookingCheck = await pool.query(
       `SELECT booking_id FROM bookings 
        WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
-      [req.user.userId, service_id]
+      [review.user_id, service_id]
     );
-    if (bookingCheck.rows.length === 0) {
-      return res.status(403).json({ success: false, message: 'You can only review services after your trip has ended.' });
-    }
+    return {
+      ...review,
+      verified: bookingCheck.rows.length > 0
+    };
+  }));
 
-    const existing = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ success: false, message: 'You have already reviewed this destination.' });
-    }
+  const avgResult = await pool.query('SELECT AVG(rating) as average FROM reviews WHERE service_id = $1', [service_id]);
+  const average = avgResult.rows[0].average ? parseFloat(avgResult.rows[0].average).toFixed(1) : null;
+  res.json({ success: true, reviews: reviewsWithVerified, average: average });
+}));
 
-    await pool.query('INSERT INTO reviews (service_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)', [service_id, req.user.userId, rating, comment || null]);
-    res.status(201).json({ success: true, message: 'Review submitted.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to submit review.' });
-  }
-});
-
-app.get('/api/reviews/:service_id', async (req, res) => {
+app.get('/api/reviews/check/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
   const { service_id } = req.params;
-  try {
-    const reviews = await pool.query(`
-      SELECT r.review_id, r.rating, r.comment, r.created_at, u.first_name, u.last_name, u.user_id
-      FROM reviews r
-      JOIN users u ON r.user_id = u.user_id
-      WHERE r.service_id = $1
-      ORDER BY r.created_at DESC
-    `, [service_id]);
+  const result = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
+  res.json({ success: true, reviewed: result.rows.length > 0 });
+}));
 
-    const reviewsWithVerified = await Promise.all(reviews.rows.map(async (review) => {
-      const bookingCheck = await pool.query(
-        `SELECT booking_id FROM bookings 
-         WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
-        [review.user_id, service_id]
-      );
-      return {
-        ...review,
-        verified: bookingCheck.rows.length > 0
-      };
-    }));
-
-    const avgResult = await pool.query('SELECT AVG(rating) as average FROM reviews WHERE service_id = $1', [service_id]);
-    const average = avgResult.rows[0].average ? parseFloat(avgResult.rows[0].average).toFixed(1) : null;
-    res.json({ success: true, reviews: reviewsWithVerified, average: average });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
-  }
-});
-
-app.get('/api/reviews/check/:service_id', authenticateCustomer, async (req, res) => {
+app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
   const { service_id } = req.params;
-  try {
-    const result = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
-    res.json({ success: true, reviewed: result.rows.length > 0 });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Error checking review status.' });
+  const bookingCheck = await pool.query(
+    `SELECT booking_id FROM bookings 
+     WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
+    [req.user.userId, service_id]
+  );
+  const hasCompleted = bookingCheck.rows.length > 0;
+  if (!hasCompleted) {
+    return res.json({ success: true, canReview: false, reason: 'No completed booking' });
   }
-});
+  const reviewCheck = await pool.query(
+    'SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2',
+    [service_id, req.user.userId]
+  );
+  const alreadyReviewed = reviewCheck.rows.length > 0;
+  res.json({ success: true, canReview: !alreadyReviewed, alreadyReviewed });
+}));
 
-app.get('/api/reviews/can-review/:service_id', authenticateCustomer, async (req, res) => {
-  const { service_id } = req.params;
-  try {
-    const bookingCheck = await pool.query(
-      `SELECT booking_id FROM bookings 
-       WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
-      [req.user.userId, service_id]
-    );
-    const hasCompleted = bookingCheck.rows.length > 0;
-    if (!hasCompleted) {
-      return res.json({ success: true, canReview: false, reason: 'No completed booking' });
-    }
-    const reviewCheck = await pool.query(
-      'SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2',
-      [service_id, req.user.userId]
-    );
-    const alreadyReviewed = reviewCheck.rows.length > 0;
-    res.json({ success: true, canReview: !alreadyReviewed, alreadyReviewed });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-app.delete('/api/reviews/:review_id', authenticateAdmin, async (req, res) => {
+app.delete('/api/reviews/:review_id', authenticateAdmin, asyncHandler(async (req, res) => {
   const { review_id } = req.params;
-  try {
-    await pool.query('DELETE FROM reviews WHERE review_id = $1', [review_id]);
-    res.json({ success: true, message: 'Review deleted.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Delete failed.' });
-  }
-});
+  await pool.query('DELETE FROM reviews WHERE review_id = $1', [review_id]);
+  res.json({ success: true, message: 'Review deleted.' });
+}));
 
-app.get('/api/admin/reviews', authenticateAdmin, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT r.review_id, r.rating, r.comment, r.created_at,
-             s.title AS destination_title,
-             u.first_name || ' ' || u.last_name AS user_name
-      FROM reviews r
-      JOIN services s ON r.service_id = s.service_id
-      JOIN users u ON r.user_id = u.user_id
-      ORDER BY r.created_at DESC
-    `);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
-  }
-});
+app.get('/api/admin/reviews', authenticateAdmin, asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT r.review_id, r.rating, r.comment, r.created_at,
+           s.title AS destination_title,
+           u.first_name || ' ' || u.last_name AS user_name
+    FROM reviews r
+    JOIN services s ON r.service_id = s.service_id
+    JOIN users u ON r.user_id = u.user_id
+    ORDER BY r.created_at DESC
+  `);
+  res.json({ success: true, data: result.rows });
+}));
 
 // Checkout
 async function generateBookingReference(client) {
@@ -1365,7 +1235,7 @@ async function generateBookingReference(client) {
   throw new Error('Could not generate a unique booking reference');
 }
 
-app.post('/api/checkout', async (req, res) => {
+app.post('/api/checkout', asyncHandler(async (req, res) => {
   const { firstName, lastName, email, phone, travelDate, returnDate, pax, paymentMethod, service_id, specialRequests } = req.body;
   const cleanFirstName = String(firstName || '').trim();
   const cleanLastName = String(lastName || '').trim();
@@ -1378,7 +1248,15 @@ app.post('/api/checkout', async (req, res) => {
   const cleanTravelDate = travelDate ? String(travelDate).trim() : null;
   const cleanReturnDate = returnDate ? String(returnDate).trim() : null;
 
-  if (!cleanFirstName || !cleanLastName || !cleanEmail || !cleanPhone || !cleanTravelDate || !paxCount || !cleanPaymentMethod || !serviceId) {
+  // 4.4 – Validate parsePositiveInteger results
+  if (paxCount === null) {
+    return res.status(400).json({ success: false, message: 'Invalid number of guests.' });
+  }
+  if (serviceId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid package selection.' });
+  }
+
+  if (!cleanFirstName || !cleanLastName || !cleanEmail || !cleanPhone || !cleanTravelDate || !cleanPaymentMethod) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
   }
   if (!isValidEmail(cleanEmail)) {
@@ -1458,54 +1336,38 @@ app.post('/api/checkout', async (req, res) => {
     res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Checkout error:', err);
-    res.status(500).json({ success: false, message: 'Failed to process booking.' });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 // Public services
-app.get('/api/services', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch services.' });
-  }
-});
+app.get('/api/services', asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
+  res.json({ success: true, data: result.rows });
+}));
 
-app.get('/api/services/summary', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT service_id, title, destination, base_price, max_pax, image_url
-      FROM services
-      WHERE is_active = TRUE
-      ORDER BY service_id
-    `);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch services.' });
-  }
-});
+app.get('/api/services/summary', asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT service_id, title, destination, base_price, max_pax, image_url
+    FROM services
+    WHERE is_active = TRUE
+    ORDER BY service_id
+  `);
+  res.json({ success: true, data: result.rows });
+}));
 
-app.get('/api/services/paginated', async (req, res) => {
+app.get('/api/services/paginated', asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 6, 50);
-  try {
-    const countResult = await pool.query('SELECT COUNT(*) FROM services WHERE is_active = TRUE');
-    const totalDestinations = parseInt(countResult.rows[0].count);
-    const totalPages = Math.ceil(totalDestinations / limit);
-    const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id LIMIT $1 OFFSET $2', [limit, offset]);
-    res.json({ success: true, data: result.rows, pagination: { currentPage: page, totalPages: totalPages, totalItems: totalDestinations, limit: limit } });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch destinations.' });
-  }
-});
+  const countResult = await pool.query('SELECT COUNT(*) FROM services WHERE is_active = TRUE');
+  const totalDestinations = parseInt(countResult.rows[0].count);
+  const totalPages = Math.ceil(totalDestinations / limit);
+  const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id LIMIT $1 OFFSET $2', [limit, offset]);
+  res.json({ success: true, data: result.rows, pagination: { currentPage: page, totalPages: totalPages, totalItems: totalDestinations, limit: limit } });
+}));
 
-// Cron endpoint
+// Cron endpoint – 4.2: return less data
 app.get('/api/cron/complete-bookings', (req, res) => {
   const secret = req.query.secret;
   const expectedSecret = process.env.CRON_SECRET;
@@ -1522,7 +1384,8 @@ app.get('/api/cron/complete-bookings', (req, res) => {
         RETURNING booking_id, booking_reference
       `);
       console.log(`✅ Cron: Marked ${result.rowCount} booking(s) as Completed.`);
-      res.json({ success: true, message: `Completed ${result.rowCount} bookings.`, updated: result.rowCount });
+      // 4.2 – Only return success, not the number of updated bookings
+      res.json({ success: true, message: 'Cron completed successfully.' });
     } catch (err) {
       console.error('Cron error:', err);
       res.status(500).json({ success: false, message: err.message });
