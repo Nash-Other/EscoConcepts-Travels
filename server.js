@@ -64,10 +64,19 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 
 // ==========================================
-// DATABASE BACKED RATE LIMITER
+// DATABASE POOL
 // ==========================================
-async function createRateLimiter({ windowMs, max }) {
-  return async (req, res, next) => {
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { require: true, rejectUnauthorized: false }
+});
+
+// ==========================================
+// RATE LIMITER (database backed) - SYNCHRONOUS CREATION
+// ==========================================
+function createRateLimiter({ windowMs, max }) {
+  // Returns an async middleware function directly
+  return async function rateLimiterMiddleware(req, res, next) {
     const key = `${req.ip}:${req.path}`;
     const now = new Date();
     const windowEnd = new Date(now.getTime() + windowMs);
@@ -76,14 +85,12 @@ async function createRateLimiter({ windowMs, max }) {
     try {
       await client.query('BEGIN');
 
-      // Lock the row for update to avoid race conditions
       const existing = await client.query(
         `SELECT count, window_start, window_end FROM rate_limits WHERE key = $1 FOR UPDATE`,
         [key]
       );
 
       if (existing.rows.length === 0) {
-        // First request in this window
         await client.query(
           `INSERT INTO rate_limits (key, count, window_start, window_end)
            VALUES ($1, $2, $3, $4)`,
@@ -94,7 +101,6 @@ async function createRateLimiter({ windowMs, max }) {
       }
 
       const row = existing.rows[0];
-      const windowStart = new Date(row.window_start);
       const windowEndDB = new Date(row.window_end);
 
       // If the current time is past the stored window_end, reset the window
@@ -128,7 +134,7 @@ async function createRateLimiter({ windowMs, max }) {
     } catch (err) {
       await client.query('ROLLBACK');
       console.error('Rate limiter error:', err);
-      // On DB error, fail open (allow request) to avoid blocking users
+      // Fail open – allow request to avoid blocking users
       next();
     } finally {
       client.release();
@@ -137,17 +143,11 @@ async function createRateLimiter({ windowMs, max }) {
 }
 
 // ==========================================
-// DATABASE CONNECTION & INIT
+// DATABASE INITIALIZATION
 // ==========================================
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { require: true, rejectUnauthorized: false }
-});
-
 async function initializeDatabase() {
   const client = await pool.connect();
   try {
-    // Create rate_limits table first (used by rate limiter)
     await client.query(`
       CREATE TABLE IF NOT EXISTS rate_limits (
         id SERIAL PRIMARY KEY,
@@ -276,28 +276,11 @@ async function initializeDatabase() {
     console.log('✅ Database ready.');
   } catch (err) {
     console.error('DB init error:', err);
+    throw err; // Crash if database fails to initialize
   } finally {
     client.release();
   }
 }
-initializeDatabase();
-
-// ==========================================
-// RATE LIMITER INSTANCES (use with routes)
-// ==========================================
-const authRateLimit = await createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
-const contactRateLimit = await createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
-
-// Clean up old rate limit records every hour
-setInterval(async () => {
-  try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    await pool.query('DELETE FROM rate_limits WHERE window_end < $1', [cutoff]);
-    console.log('🗑️ Rate limit old entries cleaned');
-  } catch (err) {
-    console.error('Rate limit cleanup error:', err);
-  }
-}, 60 * 60 * 1000);
 
 // ==========================================
 // HELPER FUNCTIONS
@@ -423,8 +406,16 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
-// PASSWORD RESET
+// CREATE RATE LIMITER INSTANCES (synchronous)
 // ==========================================
+const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
+const contactRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
+
+// ==========================================
+// DEFINE ALL ROUTES
+// ==========================================
+
+// Password reset
 app.post('/api/auth/forgot-password', authRateLimit, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
@@ -478,9 +469,7 @@ app.post('/api/auth/reset-password', authRateLimit, async (req, res) => {
   }
 });
 
-// ==========================================
-// CUSTOMER AUTH
-// ==========================================
+// Customer auth
 app.post('/api/auth/signup', authRateLimit, async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
   if (!firstName || !lastName || !email || !password) {
@@ -591,9 +580,7 @@ app.put('/api/auth/profile', authenticateCustomer, async (req, res) => {
   }
 });
 
-// ==========================================
-// MY BOOKINGS
-// ==========================================
+// My bookings
 app.get('/api/bookings/my-bookings', authenticateCustomer, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -701,9 +688,7 @@ app.post('/api/bookings/receipt/:id', authenticateCustomer, async (req, res) => 
   }
 });
 
-// ==========================================
-// SEARCH SERVICES
-// ==========================================
+// Search services
 app.get('/api/services/search', async (req, res) => {
   const { location, minPrice, maxPrice, guests } = req.query;
   let query = 'SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE';
@@ -739,9 +724,7 @@ app.get('/api/services/search', async (req, res) => {
   }
 });
 
-// ==========================================
-// ADMIN LOGIN
-// ==========================================
+// Admin login
 app.post('/api/admin/login', authRateLimit, async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -767,9 +750,7 @@ app.post('/api/upload', authenticateAdmin, (req, res) => {
   });
 });
 
-// ==========================================
-// BOOKINGS (admin)
-// ==========================================
+// Bookings (admin)
 app.get('/api/bookings', authenticateAdmin, async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
@@ -902,9 +883,7 @@ app.put('/api/bookings/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// ADMIN SERVICES
-// ==========================================
+// Admin services
 app.get('/api/admin/services', authenticateAdmin, async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
@@ -1018,9 +997,7 @@ app.delete('/api/admin/services/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// CONTACT MESSAGES
-// ==========================================
+// Contact messages
 app.post('/api/contact', contactRateLimit, async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
@@ -1091,9 +1068,7 @@ app.get('/api/contact', authenticateAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// BLOGS
-// ==========================================
+// Blogs
 app.get('/api/blogs/authors', authenticateAdmin, async (req, res) => {
   try {
     const result = await pool.query('SELECT DISTINCT author FROM blogs WHERE author IS NOT NULL ORDER BY author');
@@ -1207,9 +1182,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// REVIEWS
-// ==========================================
+// Reviews
 app.post('/api/reviews', authenticateCustomer, async (req, res) => {
   const { service_id, rating, comment } = req.body;
   if (!service_id || !rating || rating < 1 || rating > 5) {
@@ -1334,9 +1307,7 @@ app.get('/api/admin/reviews', authenticateAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// CHECKOUT
-// ==========================================
+// Checkout
 async function generateBookingReference(client) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = `ECT-${crypto.randomInt(100000, 1000000)}`;
@@ -1446,9 +1417,7 @@ app.post('/api/checkout', async (req, res) => {
   }
 });
 
-// ==========================================
-// PUBLIC SERVICES
-// ==========================================
+// Public services
 app.get('/api/services', async (req, res) => {
   try {
     const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
@@ -1488,9 +1457,7 @@ app.get('/api/services/paginated', async (req, res) => {
   }
 });
 
-// ==========================================
-// CRON ENDPOINT
-// ==========================================
+// Cron endpoint
 app.get('/api/cron/complete-bookings', (req, res) => {
   const secret = req.query.secret;
   const expectedSecret = process.env.CRON_SECRET;
@@ -1515,24 +1482,35 @@ app.get('/api/cron/complete-bookings', (req, res) => {
   })();
 });
 
-// ==========================================
-// ADMIN PANEL ROUTE
-// ==========================================
+// Admin panel route
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // ==========================================
-// ERROR HANDLING MIDDLEWARE
+// START SERVER AFTER DATABASE INIT
 // ==========================================
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ success: false, message: 'Internal server error' });
-});
+async function startServer() {
+  try {
+    await initializeDatabase();
+    // Optional: clean up old rate limit records every hour
+    setInterval(async () => {
+      try {
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        await pool.query('DELETE FROM rate_limits WHERE window_end < $1', [cutoff]);
+        console.log('🗑️ Rate limit old entries cleaned');
+      } catch (err) {
+        console.error('Rate limit cleanup error:', err);
+      }
+    }, 60 * 60 * 1000);
+    
+    app.listen(port, () => {
+      console.log(`✅ Server running at http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
 
-// ==========================================
-// START SERVER
-// ==========================================
-app.listen(port, () => {
-  console.log(`✅ Server running at http://localhost:${port}`);
-});
+startServer();
