@@ -4,3 +4,8 @@ uploads/
 .DS_Store
 *.log
 .tmp.driveupload/
+# Local helper files
+push.bat
+*.lnk
+*.vbs
+test.html
