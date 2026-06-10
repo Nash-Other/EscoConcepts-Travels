@@ -5,7 +5,7 @@ uploads/
 *.log
 .tmp.driveupload/
 # Local helper files
-push.bat
+push to GitHub.bat
 *.lnk
 *.vbs
 test.html
