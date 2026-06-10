@@ -51,6 +51,38 @@
   .custom-toast.success { background: #1d7a3f; }
   .custom-toast.error { background: #b00020; }
   .custom-toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Invoice preview modal */
+  .invoice-preview {
+    max-width: 600px;
+    background: white;
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin: 2rem auto;
+    box-shadow: var(--shadow-lg);
+  }
+  .invoice-preview h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .invoice-preview .invoice-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .invoice-preview .total {
+    font-weight: 700;
+    font-size: 1.2rem;
+    margin-top: 1rem;
+  }
+  .invoice-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+  }
 </style>
 </head>
 <body>
@@ -90,7 +122,6 @@
           <div class="form-field"><label>Email</label><input type="email" name="email" required class="input"></div>
           <div class="form-field"><label>Phone</label><input name="phone" class="input"></div>
           <div class="form-field"><label>Password (min 8)</label><input type="password" name="password" minlength="8" required class="input"></div>
-          <!-- 2.2 – Password hint -->
           <div class="form-field" style="margin-top:-0.5rem; margin-bottom:0.5rem">
             <small style="color:var(--ink-soft); font-size:0.75rem;">Must be at least 8 characters, contain one letter and one number.</small>
           </div>
@@ -151,6 +182,23 @@
         <button class="btn btn-outline" id="cancelReviewBtn">Cancel</button>
         <button class="btn btn-primary" id="submitReviewBtn">Submit Review</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for invoice preview -->
+<div id="invoiceModal" class="modal-overlay" style="display: none;">
+  <div class="modal-container" style="max-width: 700px;">
+    <div class="modal-header">
+      <span class="modal-title">Invoice Preview</span>
+      <button class="modal-close" id="closeInvoiceModalBtn">&times;</button>
+    </div>
+    <div class="modal-body" id="invoicePreviewBody">
+      <div class="invoice-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="cancelInvoiceBtn">Close</button>
+      <button class="btn btn-primary" id="downloadInvoiceBtn">Download PDF</button>
     </div>
   </div>
 </div>
@@ -280,6 +328,78 @@
     }
   };
 
+  // Invoice preview & PDF generation
+  let currentInvoiceData = null;
+  const invoiceModal = document.getElementById("invoiceModal");
+  const invoicePreviewBody = document.getElementById("invoicePreviewBody");
+  const closeInvoiceBtn = document.getElementById("closeInvoiceModalBtn");
+  const cancelInvoiceBtn = document.getElementById("cancelInvoiceBtn");
+  const downloadInvoiceBtn = document.getElementById("downloadInvoiceBtn");
+
+  function generateInvoiceHTML(data) {
+    return `
+      <div class="invoice-preview">
+        <h2>EscoConcepts Travels</h2>
+        <p>Tailor-made Kenya Safaris</p>
+        <hr>
+        <div class="invoice-row"><strong>Reference:</strong> <span>${escapeHtml(data.ref)}</span></div>
+        <div class="invoice-row"><strong>Guest Name:</strong> <span>${escapeHtml(data.guestName)}</span></div>
+        <div class="invoice-row"><strong>Package:</strong> <span>${escapeHtml(data.packageName)}</span></div>
+        <div class="invoice-row"><strong>Travel Date:</strong> <span>${fmtDate(data.travelDate)}</span></div>
+        <div class="invoice-row"><strong>Return Date:</strong> <span>${data.returnDate ? fmtDate(data.returnDate) : '—'}</span></div>
+        <div class="invoice-row"><strong>Guests:</strong> <span>${data.pax}</span></div>
+        <div class="invoice-row"><strong>Total Amount:</strong> <span>${fmtPrice(data.total)}</span></div>
+        <div class="total">Thank you for choosing us!</div>
+      </div>
+    `;
+  }
+
+  function showInvoicePreview(bookingData) {
+    currentInvoiceData = bookingData;
+    const html = generateInvoiceHTML(bookingData);
+    invoicePreviewBody.querySelector('.invoice-preview').innerHTML = html;
+    invoiceModal.style.display = "flex";
+    invoiceModal.style.opacity = "1";
+    invoiceModal.style.visibility = "visible";
+    invoiceModal.style.pointerEvents = "auto";
+  }
+
+  function closeInvoiceModal() {
+    invoiceModal.style.display = "none";
+  }
+
+  function downloadInvoicePDF() {
+    if (!currentInvoiceData) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("EscoConcepts Travels — Invoice", 14, 20);
+    doc.setFontSize(11);
+    let y = 35;
+    const rows = [
+      ["Reference", currentInvoiceData.ref],
+      ["Guest", currentInvoiceData.guestName],
+      ["Package", currentInvoiceData.packageName],
+      ["Travel date", fmtDate(currentInvoiceData.travelDate)],
+      ["Return date", currentInvoiceData.returnDate ? fmtDate(currentInvoiceData.returnDate) : "—"],
+      ["Guests", String(currentInvoiceData.pax)],
+      ["Total", fmtPrice(currentInvoiceData.total)]
+    ];
+    rows.forEach(([k, v]) => {
+      doc.text(`${k}: ${v}`, 14, y);
+      y += 8;
+    });
+    doc.save(`invoice-${currentInvoiceData.ref}.pdf`);
+    showToast("Invoice downloaded", "success");
+  }
+
+  if (closeInvoiceBtn) closeInvoiceBtn.onclick = closeInvoiceModal;
+  if (cancelInvoiceBtn) cancelInvoiceBtn.onclick = closeInvoiceModal;
+  if (downloadInvoiceBtn) downloadInvoiceBtn.onclick = downloadInvoicePDF;
+  if (invoiceModal) {
+    invoiceModal.addEventListener("click", (e) => { if (e.target === invoiceModal) closeInvoiceModal(); });
+  }
+
   async function loadAccount() {
     try {
       const me = await apiRequest("/auth/me");
@@ -315,14 +435,14 @@
         const alreadyReviewed = reviewedStatus[b.service_id] || false;
         const showReviewButton = (status === "completed") && !alreadyReviewed && b.service_id;
         return `
-          <div class="booking-item" data-id="${b.booking_id}" data-ref="${escapeHtml(String(ref))}" data-name="${escapeHtml(guestName)}" data-pkg="${escapeHtml(b.package_name||"")}" data-date="${escapeHtml(b.travel_date||"")}" data-total="${total}" data-service-id="${b.service_id}">
+          <div class="booking-item" data-id="${b.booking_id}" data-ref="${escapeHtml(String(ref))}" data-name="${escapeHtml(guestName)}" data-pkg="${escapeHtml(b.package_name||"")}" data-date="${escapeHtml(b.travel_date||"")}" data-return="${escapeHtml(b.return_date||"")}" data-pax="${escapeHtml(String(b.pax||1))}" data-total="${total}" data-service-id="${b.service_id}">
             <div class="row"><div><span class="booking-ref">${escapeHtml(String(ref))}</span></div><span class="status ${status}">${escapeHtml(status)}</span></div>
             <h4 style="margin:.5rem 0 .25rem">${escapeHtml(b.package_name||"Safari Package")}</h4>
             <div style="font-size:.9rem;color:var(--ink-soft)">Travel: ${fmtDate(b.travel_date)} • Return: ${b.return_date ? fmtDate(b.return_date) : '—'} • Guests: ${escapeHtml(String(b.pax||1))} • Total: ${fmtPrice(total)}</div>
             ${b.special_requests ? `<p style="margin-top:.5rem;font-size:.85rem;font-style:italic">"${escapeHtml(b.special_requests)}"</p>` : ""}
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
               ${status==="pending" ? `<button class="btn btn-sm cancel-btn">Cancel Booking</button>` : ""}
-              <button class="btn btn-sm btn-ghost pdf-btn">Download Invoice (PDF)</button>
+              <button class="btn btn-sm btn-ghost pdf-btn">Preview & Download Invoice</button>
               <button class="btn btn-sm btn-ghost email-btn">Email Receipt</button>
               ${showReviewButton ? `<button class="btn btn-sm btn-primary review-btn">Write a Review</button>` : (status==="completed" && alreadyReviewed ? `<span class="badge badge-outline">Reviewed</span>` : "")}
             </div>
@@ -336,24 +456,29 @@
           if(!confirm("Cancel this booking?")) return;
           try { await apiRequest(`/bookings/cancel/${id}`, { method: "PUT" }); loadAccount(); } catch(e) { showToast(e.message, "error"); }
         };
-        el.querySelector(".pdf-btn").onclick = () => {
-          const { jsPDF } = window.jspdf; const doc = new jsPDF();
-          doc.setFontSize(18); doc.text("EscoConcepts Travels — Invoice", 14, 20);
-          doc.setFontSize(11);
-          let y = 35;
-          const rows = [
-            ["Reference", el.dataset.ref],
-            ["Guest", el.dataset.name.trim() || "—"],
-            ["Package", el.dataset.pkg],
-            ["Travel date", fmtDate(el.dataset.date)],
-            ["Total", el.dataset.total ? fmtPrice(el.dataset.total) : "—"],
-          ];
-          rows.forEach(([k,v]) => { doc.text(`${k}: ${v}`, 14, y); y += 8; });
-          doc.save(`invoice-${el.dataset.ref}.pdf`);
-        };
-        el.querySelector(".email-btn").onclick = async () => {
-          try { await apiRequest(`/bookings/receipt/${id}`, { method: "POST" }); showToast("Receipt sent to your email.", "success"); } catch(e) { showToast(e.message, "error"); }
-        };
+        // PDF preview button
+        const pdfBtn = el.querySelector(".pdf-btn");
+        if(pdfBtn) {
+          pdfBtn.onclick = () => {
+            const bookingData = {
+              ref: el.dataset.ref,
+              guestName: el.dataset.name.trim() || "—",
+              packageName: el.dataset.pkg,
+              travelDate: el.dataset.date,
+              returnDate: el.dataset.return,
+              pax: el.dataset.pax,
+              total: el.dataset.total
+            };
+            showInvoicePreview(bookingData);
+          };
+        }
+        // Email receipt button
+        const emailBtn = el.querySelector(".email-btn");
+        if(emailBtn) {
+          emailBtn.onclick = async () => {
+            try { await apiRequest(`/bookings/receipt/${id}`, { method: "POST" }); showToast("Receipt sent to your email.", "success"); } catch(e) { showToast(e.message, "error"); }
+          };
+        }
         const reviewBtn = el.querySelector(".review-btn");
         if(reviewBtn) {
           reviewBtn.onclick = () => {
