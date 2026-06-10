@@ -17,7 +17,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// Helmet with relaxed CSP to allow external images (Unsplash, etc.)
+// Helmet with relaxed CSP to allow external images
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -45,7 +45,6 @@ app.use(cors({
   }
 }));
 
-// Additional security headers (helmet already does X-Content-Type-Options)
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -54,11 +53,10 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '1mb' }));
 
-// Serve uploads WITHOUT forcing attachment (so images display inline)
+// Serve uploads without forcing attachment
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, filePath) => {
     res.set('X-Content-Type-Options', 'nosniff');
-    // Remove Content-Disposition: attachment to allow inline display
   }
 }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -94,7 +92,7 @@ const pool = new Pool({
 });
 
 // ==========================================
-// RATE LIMITER (database backed) - SYNCHRONOUS CREATION
+// RATE LIMITER (database backed)
 // ==========================================
 function createRateLimiter({ windowMs, max }) {
   return async function rateLimiterMiddleware(req, res, next) {
@@ -230,7 +228,6 @@ async function initializeDatabase() {
     await client.query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`);
     await client.query(`ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('Pending', 'Confirmed', 'Cancelled', 'Completed'))`);
 
-    // Constraint for return_date (must be >= travel_date)
     await client.query(`
       ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_return_date_check;
       ALTER TABLE bookings ADD CONSTRAINT bookings_return_date_check 
@@ -244,7 +241,8 @@ async function initializeDatabase() {
       amount NUMERIC(10,2) NOT NULL,
       transaction_reference VARCHAR(100) UNIQUE,
       payment_status VARCHAR(20) DEFAULT 'Pending',
-      payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      payment_phone VARCHAR(20)
     )`);
 
     await client.query(`CREATE TABLE IF NOT EXISTS blogs (
@@ -1246,7 +1244,7 @@ async function generateBookingReference(client) {
 }
 
 app.post('/api/checkout', asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, phone, travelDate, returnDate, pax, paymentMethod, service_id, specialRequests } = req.body;
+  const { firstName, lastName, email, phone, travelDate, returnDate, pax, paymentMethod, service_id, specialRequests, mpesaPhone } = req.body;
   const cleanFirstName = String(firstName || '').trim();
   const cleanLastName = String(lastName || '').trim();
   const cleanEmail = String(email || '').trim().toLowerCase();
@@ -1257,6 +1255,7 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   const cleanSpecialRequests = String(specialRequests || '').trim() || null;
   const cleanTravelDate = travelDate ? String(travelDate).trim() : null;
   const cleanReturnDate = returnDate ? String(returnDate).trim() : null;
+  const cleanMpesaPhone = mpesaPhone ? String(mpesaPhone).trim() : null;
 
   if (paxCount === null) {
     return res.status(400).json({ success: false, message: 'Invalid number of guests.' });
@@ -1286,6 +1285,9 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   }
   if (paxCount > 10) {
     return res.status(400).json({ success: false, message: 'Please contact us for bookings above 10 guests.' });
+  }
+  if (cleanPaymentMethod === 'mpesa' && !cleanMpesaPhone) {
+    return res.status(400).json({ success: false, message: 'M-Pesa phone number is required.' });
   }
 
   const client = await pool.connect();
@@ -1340,7 +1342,12 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
       [bookingRef, finalUserId, serviceId, cleanTravelDate, cleanReturnDate || null, paxCount, totalAmount, cleanSpecialRequests, cleanFirstName, cleanLastName, cleanEmail, cleanPhone]
     );
     const bookingId = insertBooking.rows[0].booking_id;
-    await client.query(`INSERT INTO payments (booking_id, payment_method, amount, payment_status) VALUES ($1, $2, $3, 'Pending')`, [bookingId, cleanPaymentMethod, totalAmount]);
+    // Store payment phone for M-Pesa
+    await client.query(
+      `INSERT INTO payments (booking_id, payment_method, amount, payment_status, payment_phone) 
+       VALUES ($1, $2, $3, 'Pending', $4)`,
+      [bookingId, cleanPaymentMethod, totalAmount, cleanMpesaPhone]
+    );
     await client.query('COMMIT');
     res.status(201).json({ success: true, message: `Booking successful! Reference: ${bookingRef}`, bookingReference: bookingRef });
   } catch (err) {
