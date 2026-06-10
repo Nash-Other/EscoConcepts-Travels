@@ -9,6 +9,6 @@ git add .
 echo Committing...
 git commit -m "Auto update %date% %time%"
 echo Pushing to GitHub...
-git push -u origin main
+git push -f origin main
 echo Done!
 pause
