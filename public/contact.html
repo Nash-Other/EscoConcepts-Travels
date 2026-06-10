@@ -72,9 +72,6 @@
 
 <script src="ui.js"></script>
 <script>
-  function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
-  function isValidEmail(email) { return /^\S+@\S+\.\S+$/.test(email); }
-
   const form = document.getElementById("contact-form");
   const msgDiv = document.getElementById("msg");
   form.addEventListener("submit", async (e) => {

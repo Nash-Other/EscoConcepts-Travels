@@ -75,14 +75,15 @@
 
 <script src="ui.js"></script>
 <script>
-  // Helper functions (page‑specific – not in ui.js because they depend on safeUrl etc.)
-  function safeUrl(url, fallback = "") {
-    if (!url) return fallback;
-    try { const u = new URL(url, window.location.origin); if (["http:", "https:"].includes(u.protocol)) return u.href; } catch(e) {}
-    return fallback;
-  }
-  function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
-  function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
+  // Page‑specific logic uses global helpers: escapeHtml, safeUrl, fmtPrice, showAlert, isValidEmail, etc.
+
+  const pkgId = new URLSearchParams(window.location.search).get("package");
+  const summary = document.getElementById("pkg-summary");
+  const paxSel = document.getElementById("pax");
+  const form = document.getElementById("checkout-form");
+  const msg = document.getElementById("form-msg");
+  let pkg = null;
+
   function openModal(html) {
     const b = document.getElementById("checkoutModal") || (() => {
       const d = document.createElement("div");
@@ -101,13 +102,6 @@
   }
   function closeModal() { const b = document.getElementById("checkoutModal"); if (b) { b.classList.remove("open"); document.body.style.overflow = ""; } }
 
-  const pkgId = new URLSearchParams(window.location.search).get("package");
-  const summary = document.getElementById("pkg-summary");
-  const paxSel = document.getElementById("pax");
-  const form = document.getElementById("checkout-form");
-  const msg = document.getElementById("form-msg");
-  let pkg = null;
-
   async function loadPkg() {
     if (!pkgId) { summary.innerHTML = `<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display = "none"; return; }
     try {
@@ -122,7 +116,6 @@
       paxSel.innerHTML = Array.from({ length: max }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join("");
       const travelDateInput = document.getElementById("travelDate");
       const returnDateInput = document.getElementById("returnDate");
-      // Set min to today
       const today = new Date().toISOString().slice(0,10);
       travelDateInput.min = today;
       travelDateInput.addEventListener('change', () => {
@@ -142,7 +135,7 @@
     const payload = Object.fromEntries(fd.entries());
     payload.pax = Number(payload.pax);
     payload.service_id = pkg.service_id;
-    if (!/^\S+@\S+\.\S+$/.test(payload.email)) return showAlert(msg, "Please enter a valid email.");
+    if (!isValidEmail(payload.email)) return showAlert(msg, "Please enter a valid email.");
     if (payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `Max ${pkg.max_pax} guests for this package.`);
     if (payload.travelDate && payload.returnDate && payload.returnDate < payload.travelDate) {
       return showAlert(msg, "Return date cannot be before travel date.");

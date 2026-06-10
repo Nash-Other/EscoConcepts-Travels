@@ -109,46 +109,7 @@
 
 <script src="ui.js"></script>
 <script>
-  // Shared helpers
-  function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
-  function sanitizeHtml(html){const tpl=document.createElement("template");tpl.innerHTML=String(html);const allowedTags=new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);const allowedAttrs={A:["href","title","target","rel"],IMG:["src","alt","title"]};const walk=(node)=>{[...node.childNodes].forEach(child=>{if(child.nodeType===1){if(!allowedTags.has(child.tagName)){child.replaceWith(...child.childNodes);return;}const allowed=allowedAttrs[child.tagName]||[];[...child.attributes].forEach(a=>{if(!allowed.includes(a.name))child.removeAttribute(a.name);if(a.name==="href"||a.name==="src"){const v=safeUrl(a.value);if(!v)child.removeAttribute(a.name);else child.setAttribute(a.name,v);}});if(child.tagName==="A"){child.setAttribute("rel","noopener noreferrer");child.setAttribute("target","_blank");}walk(child);}else if(child.nodeType===8)child.remove();});};walk(tpl.content);return tpl.innerHTML;}
-  function fmtPrice(v){if(v==null||isNaN(Number(v)))return"—";return"KSh "+Number(v).toLocaleString();}
-  function fmtDate(d){if(!d)return"—";try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;}}
-  function renderStars(rating){const full=Math.floor(rating);const empty=5-full;return'<span class="stars">'+'★'.repeat(full)+'☆'.repeat(empty)+'</span>';}
-  function showToast(message, type = 'info') {
-    const existing = document.querySelector('.custom-toast');
-    if (existing) existing.remove();
-    const toast = document.createElement('div');
-    toast.className = `custom-toast ${type}`;
-    toast.innerText = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.classList.add('show'), 10);
-    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
-  }
-
-  // Token management for customer
-  const TOKEN_KEY = "customerToken";
-  function getToken(){ return localStorage.getItem(TOKEN_KEY) || ""; }
-  function setToken(token){ if(token) localStorage.setItem(TOKEN_KEY, token); }
-  function clearToken(){ localStorage.removeItem(TOKEN_KEY); }
-  function isLoggedIn(){ return !!getToken(); }
-
-  async function apiRequest(path, options={}) {
-    const headers = { "Content-Type": "application/json" };
-    const token = getToken();
-    if(token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`/api${path}`, { ...options, headers });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.message || "Request failed");
-    return data;
-  }
-
-  async function fetchAverageRating(serviceId) {
-    try {
-      const data = await apiRequest(`/reviews/${serviceId}`);
-      return data.average ? parseFloat(data.average) : null;
-    } catch(e) { return null; }
-  }
+  // Page‑specific logic uses global helpers: safeUrl, sanitizeHtml, fmtPrice, truncate, fmtDate, renderStars, escapeHtml, showToast, apiRequest, isCustomerLoggedIn, getCustomerToken, setCustomerToken
 
   async function fetchFullService(serviceId) {
     const res = await fetch(`/api/services`);
@@ -157,18 +118,18 @@
     return services.find(s => s.service_id == serviceId);
   }
 
-  async function openServiceModal(serviceId){
-    const backdrop=document.getElementById("serviceModal");
-    const contentDiv=backdrop.querySelector(".modal-content");
+  async function openServiceModal(serviceId) {
+    const backdrop = document.getElementById("serviceModal");
+    const contentDiv = backdrop.querySelector(".modal-content");
     const service = await fetchFullService(serviceId);
     if (!service) {
       showToast("Could not load package details", "error");
       return;
     }
-    const img=safeUrl(service.image_url)||"https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
-    const gallery=(service.gallery||[]).map(safeUrl).filter(Boolean);
-    const galleryHtml=gallery.length?`<div class="modal-gallery">${gallery.map(u=>`<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>`:"";
-    const itinerary=service.itinerary?`<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>`:"";
+    const img = safeUrl(service.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
+    const gallery = (service.gallery || []).map(safeUrl).filter(Boolean);
+    const galleryHtml = gallery.length ? `<div class="modal-gallery">${gallery.map(u => `<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>` : "";
+    const itinerary = service.itinerary ? `<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>` : "";
     const serviceIdNum = service.service_id;
 
     const reviewsData = await apiRequest(`/reviews/${serviceIdNum}`);
@@ -177,7 +138,7 @@
 
     let canReview = false;
     let alreadyReviewed = false;
-    if (isLoggedIn()) {
+    if (isCustomerLoggedIn()) {
       try {
         const check = await apiRequest(`/reviews/can-review/${serviceIdNum}`);
         canReview = check.canReview === true;
@@ -186,23 +147,23 @@
     }
 
     let reviewsHtml = `<div class="reviews-section"><h4>Customer Reviews</h4>`;
-    if(average) reviewsHtml+=`<div class="average-rating">Average: ${renderStars(parseFloat(average))} (${average})</div>`;
-    else reviewsHtml+=`<div class="average-rating">No reviews yet.</div>`;
+    if (average) reviewsHtml += `<div class="average-rating">Average: ${renderStars(parseFloat(average))} (${average})</div>`;
+    else reviewsHtml += `<div class="average-rating">No reviews yet.</div>`;
 
-    if(reviews.length){
-      reviewsHtml+=`<div class="reviews-list" style="max-height:200px; overflow-y:auto;">`;
-      reviews.forEach(r=>{
+    if (reviews.length) {
+      reviewsHtml += `<div class="reviews-list" style="max-height:200px; overflow-y:auto;">`;
+      reviews.forEach(r => {
         const verifiedBadge = r.verified ? '<span class="verified-badge">✓ Verified Purchase</span>' : '';
-        reviewsHtml+=`<div class="review-item" style="border-bottom:1px solid var(--border); padding:0.5rem 0;">
+        reviewsHtml += `<div class="review-item" style="border-bottom:1px solid var(--border); padding:0.5rem 0;">
           <strong>${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</strong> ${verifiedBadge}
           <span class="stars">${renderStars(r.rating)}</span>
-          <p style="margin:0.25rem 0 0;">${escapeHtml(r.comment||'')}</p>
+          <p style="margin:0.25rem 0 0;">${escapeHtml(r.comment || '')}</p>
           <small>${fmtDate(r.created_at)}</small>
         </div>`;
       });
-      reviewsHtml+=`</div>`;
+      reviewsHtml += `</div>`;
     } else {
-      reviewsHtml+=`<div class="reviews-list"><p>No reviews yet.</p></div>`;
+      reviewsHtml += `<div class="reviews-list"><p>No reviews yet.</p></div>`;
     }
 
     let reviewFormHtml = '';
@@ -228,7 +189,7 @@
           <button id="submitModalReviewBtn" class="btn btn-sm btn-gold">Submit Review</button>
         </div>
       `;
-    } else if (isLoggedIn() && !alreadyReviewed) {
+    } else if (isCustomerLoggedIn() && !alreadyReviewed) {
       reviewFormHtml = `<p class="empty" style="margin-top:1rem;">You can only review this destination after completing your trip.</p>`;
     } else if (alreadyReviewed) {
       reviewFormHtml = `<p class="empty" style="margin-top:1rem;">You have already reviewed this destination.</p>`;
@@ -241,11 +202,11 @@
     contentDiv.innerHTML = `
       <img class="modal-img" src="${img}" alt="${escapeHtml(service.title)}">
       <div class="modal-body">
-        <span class="eyebrow">${escapeHtml(service.destination||"Kenya")}</span>
+        <span class="eyebrow">${escapeHtml(service.destination || "Kenya")}</span>
         <h2>${escapeHtml(service.title)}</h2>
-        <div class="meta">Up to ${escapeHtml(String(service.max_pax||"—"))} guests</div>
+        <div class="meta">Up to ${escapeHtml(String(service.max_pax || "—"))} guests</div>
         <div class="price">${fmtPrice(service.base_price)}</div>
-        <div>${sanitizeHtml(service.description||"")}</div>
+        <div>${sanitizeHtml(service.description || "")}</div>
         ${itinerary}
         ${galleryHtml}
         <a class="btn btn-gold" href="checkout.html?package=${encodeURIComponent(serviceIdNum)}">Book This Safari</a>
@@ -277,50 +238,93 @@
     backdrop.classList.add("open");
     document.body.style.overflow = "hidden";
   }
-  function closeServiceModal(){const b=document.getElementById("serviceModal");b.classList.remove("open");document.body.style.overflow="";}
-  document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("serviceModal");if(b){b.addEventListener("click",e=>{if(e.target===b||e.target.classList.contains("modal-close"))closeServiceModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeServiceModal();});}});
 
-  // Card using lightweight summary data (no description)
+  function closeServiceModal() {
+    const backdrop = document.getElementById("serviceModal");
+    backdrop.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const backdrop = document.getElementById("serviceModal");
+    if (backdrop) {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop || e.target.classList.contains("modal-close")) closeServiceModal();
+      });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeServiceModal(); });
+    }
+  });
+
+  async function fetchAverageRating(serviceId) {
+    try {
+      const data = await apiRequest(`/reviews/${serviceId}`);
+      return data.average ? parseFloat(data.average) : null;
+    } catch(e) { return null; }
+  }
+
   async function card(s) {
     let avgRatingHtml = '';
     const avg = await fetchAverageRating(s.service_id);
     if (avg) {
       avgRatingHtml = `<div class="avg-rating" style="margin-top:0.5rem;">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>`;
     }
-    const img = safeUrl(s.image_url)||"https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80";
-    return `<article class="card" data-id="${s.service_id}"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}"><div class="card-body"><h3>${escapeHtml(s.title)}</h3><div class="card-meta">${escapeHtml(s.destination||"Kenya")}</div><div class="card-price">${fmtPrice(s.base_price)}</div>${avgRatingHtml}<button class="btn btn-sm view-btn">View Details</button></div></article>`;
+    const img = safeUrl(s.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80";
+    return `<article class="card" data-id="${s.service_id}"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}"><div class="card-body"><h3>${escapeHtml(s.title)}</h3><div class="card-meta">${escapeHtml(s.destination || "Kenya")}</div><div class="card-price">${fmtPrice(s.base_price)}</div>${avgRatingHtml}<button class="btn btn-sm view-btn">View Details</button></div></article>`;
   }
 
-  async function render(items){
-    const grid=document.getElementById("grid");
+  async function render(items) {
+    const grid = document.getElementById("grid");
     const cardsHtml = await Promise.all(items.map(s => card(s)));
-    grid.innerHTML=cardsHtml.length?cardsHtml.join(""):`<div class="empty">No packages found.</div>`;
-    grid.querySelectorAll(".view-btn").forEach(btn=>{btn.addEventListener("click",(e)=>{e.stopPropagation();const id=parseInt(btn.closest(".card").dataset.id);openServiceModal(id);});});
+    grid.innerHTML = cardsHtml.length ? cardsHtml.join("") : `<div class="empty">No packages found.</div>`;
+    grid.querySelectorAll(".view-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.closest(".card").dataset.id);
+        openServiceModal(id);
+      });
+    });
   }
 
-  let page=1,limit=9,allCache=null;
-  const grid=document.getElementById("grid"),prev=document.getElementById("prev"),next=document.getElementById("next"),info=document.getElementById("info"),search=document.getElementById("search");
+  let page = 1, limit = 9, allCache = null;
+  const grid = document.getElementById("grid"), prev = document.getElementById("prev"), next = document.getElementById("next"), info = document.getElementById("info"), search = document.getElementById("search");
 
-  async function load(){
-    grid.innerHTML=`<div class="loading">Loading…</div>`;
-    try{
-      const res=await fetch(`/api/services/paginated?page=${page}&limit=${limit}`);
-      const data=await res.json();
-      const items=data.data||[];
-      const pagination=data.pagination||{totalPages:1,currentPage:page};
+  async function load() {
+    grid.innerHTML = `<div class="loading">Loading…</div>`;
+    try {
+      const res = await fetch(`/api/services/paginated?page=${page}&limit=${limit}`);
+      const data = await res.json();
+      const items = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: page };
       await render(items);
-      info.textContent=`Page ${pagination.currentPage} of ${pagination.totalPages}`;
-      prev.disabled=page<=1; next.disabled=page>=pagination.totalPages;
-    }catch(e){grid.innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`;}
+      info.textContent = `Page ${pagination.currentPage} of ${pagination.totalPages}`;
+      prev.disabled = page <= 1;
+      next.disabled = page >= pagination.totalPages;
+    } catch(e) { grid.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
-  prev.onclick=()=>{if(page>1){page--;load();}};
-  next.onclick=()=>{page++;load();};
-  
-  // Search using lightweight summary endpoint
-  search.addEventListener("input",async(e)=>{const q=e.target.value.trim().toLowerCase();if(!q)return load();if(!allCache){try{const d=await fetch("/api/services/summary");const d2=await d.json();allCache=d2.data||d2.services||d2;}catch{allCache=[];}}const filtered=allCache.filter(s=>(s.title||"").toLowerCase().includes(q)||(s.destination||"").toLowerCase().includes(q));await render(filtered);info.textContent=`${filtered.length} result(s)`;prev.disabled=true;next.disabled=true;});
+
+  prev.onclick = () => { if (page > 1) { page--; load(); } };
+  next.onclick = () => { page++; load(); };
+
+  search.addEventListener("input", async (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) return load();
+    if (!allCache) {
+      try {
+        const d = await fetch("/api/services/summary");
+        const d2 = await d.json();
+        allCache = d2.data || d2.services || d2;
+      } catch { allCache = []; }
+    }
+    const filtered = allCache.filter(s => (s.title || "").toLowerCase().includes(q) || (s.destination || "").toLowerCase().includes(q));
+    await render(filtered);
+    info.textContent = `${filtered.length} result(s)`;
+    prev.disabled = true;
+    next.disabled = true;
+  });
+
   load();
 
-  document.getElementById("y").textContent=new Date().getFullYear();
+  document.getElementById("y").textContent = new Date().getFullYear();
 </script>
 </body>
 </html>

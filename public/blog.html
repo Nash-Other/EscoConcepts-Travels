@@ -84,12 +84,7 @@
 
 <script src="ui.js"></script>
 <script>
-  // No need to redeclare escapeHtml, initHeader, etc. – they are in ui.js
-
-  function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
-  function fmtDate(d){if(!d)return"—";try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;}}
-  function truncate(str,n=120){const s=String(str).replace(/<[^>]*>/g,"");return s.length>n?s.slice(0,n).trim()+"…":s;}
-
+  // Page‑specific logic (uses global helpers safeUrl, fmtDate, truncate, escapeHtml)
   let page = 1, limit = 6;
   const grid = document.getElementById("grid"), prev = document.getElementById("prev"), next = document.getElementById("next"), info = document.getElementById("info");
 

@@ -1,6 +1,6 @@
-// ui.js - Initialises and controls UI components + shared helpers
+// ui.js - Centralised helper functions and UI components
 
-// ========== Shared Helper Functions (added for all pages) ==========
+// ========== SHARED HELPERS ==========
 function escapeHtml(str) {
   if (!str) return "";
   return String(str).replace(/[&<>"']/g, function(c) {
@@ -12,6 +12,130 @@ function escapeHtml(str) {
   });
 }
 
+function safeUrl(url, fallback = "") {
+  if (!url) return fallback;
+  try {
+    const u = new URL(url, window.location.origin);
+    if (["http:", "https:"].includes(u.protocol)) return u.href;
+  } catch(e) {}
+  return fallback;
+}
+
+function sanitizeHtml(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = String(html);
+  const allowedTags = new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);
+  const allowedAttrs = { A: ["href","title","target","rel"], IMG: ["src","alt","title"] };
+  const walk = (node) => {
+    [...node.childNodes].forEach(child => {
+      if (child.nodeType === 1) {
+        if (!allowedTags.has(child.tagName)) {
+          child.replaceWith(...child.childNodes);
+          return;
+        }
+        const allowed = allowedAttrs[child.tagName] || [];
+        [...child.attributes].forEach(a => {
+          if (!allowed.includes(a.name)) child.removeAttribute(a.name);
+          if (a.name === "href" || a.name === "src") {
+            const v = safeUrl(a.value);
+            if (!v) child.removeAttribute(a.name);
+            else child.setAttribute(a.name, v);
+          }
+        });
+        if (child.tagName === "A") {
+          child.setAttribute("rel","noopener noreferrer");
+          child.setAttribute("target","_blank");
+        }
+        walk(child);
+      } else if (child.nodeType === 8) child.remove();
+    });
+  };
+  walk(tpl.content);
+  return tpl.innerHTML;
+}
+
+function fmtPrice(v) {
+  if (v == null || isNaN(Number(v))) return "—";
+  return "KSh " + Number(v).toLocaleString();
+}
+
+function fmtDate(d) {
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch(e) { return d; }
+}
+
+function truncate(str, n = 120) {
+  const s = String(str).replace(/<[^>]*>/g, "");
+  return s.length > n ? s.slice(0, n).trim() + "…" : s;
+}
+
+function renderStars(rating) {
+  const full = Math.floor(rating);
+  const empty = 5 - full;
+  return '<span class="stars">' + '★'.repeat(full) + '☆'.repeat(empty) + '</span>';
+}
+
+function isValidEmail(email) {
+  return /^\S+@\S+\.\S+$/.test(String(email || "").trim());
+}
+
+function showAlert(element, msg, kind = "error") {
+  if (!element) return;
+  element.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`;
+  if (kind === "success") setTimeout(() => { element.innerHTML = ""; }, 6000);
+}
+
+// Toast notification (uses .custom-toast CSS – define it in your global styles)
+function showToast(message, type = "info") {
+  const existing = document.querySelector('.custom-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = `custom-toast ${type}`;
+  toast.innerText = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// ========== CUSTOMER AUTH HELPERS ==========
+const CUSTOMER_TOKEN_KEY = "customerToken";
+
+function getCustomerToken() { return localStorage.getItem(CUSTOMER_TOKEN_KEY) || ""; }
+function setCustomerToken(token) { if (token) localStorage.setItem(CUSTOMER_TOKEN_KEY, token); }
+function clearCustomerToken() { localStorage.removeItem(CUSTOMER_TOKEN_KEY); }
+function isCustomerLoggedIn() { return !!getCustomerToken(); }
+
+async function apiRequest(path, options = {}) {
+  const headers = { "Content-Type": "application/json" };
+  const token = getCustomerToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`/api${path}`, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Request failed");
+  return data;
+}
+
+// ========== MODAL HELPERS (generic) ==========
+function openModal(modalElement) {
+  if (modalElement) {
+    modalElement.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+}
+
+function closeModal(modalElement) {
+  if (modalElement) {
+    modalElement.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+}
+
+// ========== UI INITIALISATION ==========
 function initHeader() {
   const header = document.querySelector(".site-header");
   if (!header) return;
@@ -31,18 +155,9 @@ function initHeader() {
   }
 }
 
-// ========== Original UI code (unchanged) ==========
+// ========== ORIGINAL UI COMPONENTS (accordion, tabs, etc.) ==========
 (function() {
-  // Helper: data-state toggling (not used elsewhere, kept for reference)
-  function toggleAttribute(element, attr, value) {
-    if (element.hasAttribute(attr)) {
-      element.removeAttribute(attr);
-    } else {
-      element.setAttribute(attr, value);
-    }
-  }
-
-  // --- Tabs ---
+  // Tabs
   document.querySelectorAll('[data-ui="tabs"]').forEach(tabsContainer => {
     const triggers = tabsContainer.querySelectorAll('[data-ui="tabs-trigger"]');
     const panels = tabsContainer.querySelectorAll('[data-ui="tabs-panel"]');
@@ -60,18 +175,16 @@ function initHeader() {
     triggers.forEach((trigger, idx) => {
       trigger.addEventListener('click', () => activate(idx));
     });
-    // activate first by default
     activate(0);
   });
 
-  // --- Accordion ---
+  // Accordion
   document.querySelectorAll('[data-ui="accordion"]').forEach(accordion => {
     accordion.querySelectorAll('[data-ui="accordion-item"]').forEach(item => {
       const trigger = item.querySelector('[data-ui="accordion-trigger"]');
       if (!trigger) return;
       trigger.addEventListener('click', () => {
         const open = item.classList.contains('open');
-        // close all siblings if not multi?
         const multi = accordion.getAttribute('data-multi') === 'true';
         if (!multi) {
           accordion.querySelectorAll('[data-ui="accordion-item"]').forEach(i => {
@@ -84,7 +197,7 @@ function initHeader() {
     });
   });
 
-  // --- Dropdowns ---
+  // Dropdowns
   document.querySelectorAll('[data-ui="dropdown"]').forEach(dropdown => {
     const trigger = dropdown.querySelector('[data-ui="dropdown-trigger"]');
     const menu = dropdown.querySelector('[data-ui="dropdown-menu"]');
@@ -92,91 +205,25 @@ function initHeader() {
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = menu.classList.contains('open');
-      // close all other dropdowns
       document.querySelectorAll('[data-ui="dropdown-menu"]').forEach(m => m.classList.remove('open'));
       if (!isOpen) menu.classList.add('open');
     });
-    // close when clicking outside
     document.addEventListener('click', (e) => {
-      if (!dropdown.contains(e.target)) {
-        menu.classList.remove('open');
-      }
+      if (!dropdown.contains(e.target)) menu.classList.remove('open');
     });
   });
 
-  // --- Modal / Dialog ---
-  const modalStack = [];
-  window.openModal = (modalId) => {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    modalStack.push(modal);
-  };
-  window.closeModal = (modalId) => {
-    const modal = modalId ? document.getElementById(modalId) : modalStack.pop();
-    if (modal) {
-      modal.classList.remove('open');
-      document.body.style.overflow = '';
-    }
-  };
-  // close on overlay click and escape key
-  document.addEventListener('click', (e) => {
-    if (e.target.classList && e.target.classList.contains('modal-overlay')) {
-      closeModal(e.target.id);
-    }
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modalStack.length) {
-      closeModal();
-    }
-  });
-
-  // --- Alert Dialog ---
-  window.alertDialog = (options) => {
-    const { title, description, confirmText = 'OK', cancelText = 'Cancel', onConfirm, onCancel } = options;
-    const id = 'dynamic-alert-dialog';
-    let existing = document.getElementById(id);
-    if (existing) existing.remove();
-    const dialogHtml = `
-      <div id="${id}" class="modal-overlay" style="display:flex;">
-        <div class="modal-container" style="max-width: 400px;">
-          <div class="modal-header">
-            <span class="modal-title">${escapeHtml(title)}</span>
-            <button class="modal-close" onclick="closeModal('${id}')">&times;</button>
-          </div>
-          <div class="modal-body">
-            ${escapeHtml(description)}
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-outline" onclick="closeModal('${id}'); if(${onCancel}) onCancel();">${cancelText}</button>
-            <button class="btn btn-primary" onclick="closeModal('${id}'); if(${onConfirm}) onConfirm();">${confirmText}</button>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', dialogHtml);
-    openModal(id);
-  };
-
-  // --- Toasts ---
+  // Toasts container (global)
   let toastContainer = document.querySelector('.toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.className = 'toast-container';
     document.body.appendChild(toastContainer);
   }
-  window.showToast = (message, type = 'info', duration = 3000) => {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerText = message;
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.remove();
-    }, duration);
-  };
+  // Override showToast to use the container (if you prefer the earlier version, comment this out)
+  window.showToast = showToast;
 
-  // --- Tooltips (auto) ---
+  // Tooltips
   document.querySelectorAll('[data-tooltip]').forEach(el => {
     const tooltipText = el.getAttribute('data-tooltip');
     if (!el.querySelector('.tooltip-text')) {
@@ -188,22 +235,14 @@ function initHeader() {
     }
   });
 
-  // --- Switch toggle value retrieval (optional) ---
-  document.querySelectorAll('.switch input').forEach(switchInput => {
-    switchInput.addEventListener('change', (e) => {
-      const hiddenInput = switchInput.closest('.switch')?.querySelector('input[type="hidden"]');
-      if (hiddenInput) hiddenInput.value = e.target.checked ? 'on' : 'off';
-    });
-  });
-
-  // --- Progress bar updates ---
+  // Progress bar
   window.updateProgress = (element, percent) => {
     const bar = element.querySelector('.progress-bar');
     if (bar) bar.style.width = Math.min(100, Math.max(0, percent)) + '%';
   };
 })();
 
-// ========== Auto‑initialise header on all pages ==========
+// Auto‑init header
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initHeader);
 } else {

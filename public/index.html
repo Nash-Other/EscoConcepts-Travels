@@ -43,6 +43,8 @@
   .card .view-btn { background: var(--gold); color: var(--ink); border: none; }
   .card .view-btn:hover { background: var(--gold-dark); }
   .avg-rating { margin-top: 0.5rem; }
+  .featured-grid-fade-out { opacity: 0; transition: opacity 0.6s ease; }
+  .featured-grid-transition { transition: opacity 0.6s ease; }
 </style>
 </head>
 <body>
@@ -137,7 +139,7 @@
   </div>
 </section>
 
-<!-- Service Modal (reviews only – no submission form) -->
+<!-- Service Modal -->
 <div id="serviceModal" class="modal-backdrop">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" aria-label="Close">&times;</button>
@@ -156,55 +158,15 @@
 
 <script src="ui.js"></script>
 <script>
-  // All shared helpers are now in ui.js – no duplicate definitions here.
-
-  function safeUrl(url, fallback = "") {
-    if (!url) return fallback;
-    try { const u = new URL(url, window.location.origin); if (["http:","https:"].includes(u.protocol)) return u.href; } catch (_) { return fallback; }
-  }
-  function sanitizeHtml(html) {
-    const tpl = document.createElement("template");
-    tpl.innerHTML = String(html);
-    const allowedTags = new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);
-    const allowedAttrs = { A: ["href","title","target","rel"], IMG: ["src","alt","title"] };
-    const walk = (node) => {
-      [...node.childNodes].forEach(child => {
-        if (child.nodeType === 1) {
-          if (!allowedTags.has(child.tagName)) { child.replaceWith(...child.childNodes); return; }
-          const allowed = allowedAttrs[child.tagName] || [];
-          [...child.attributes].forEach(a => {
-            if (!allowed.includes(a.name)) child.removeAttribute(a.name);
-            if (a.name === "href" || a.name === "src") {
-              const v = safeUrl(a.value);
-              if (!v) child.removeAttribute(a.name);
-              else child.setAttribute(a.name, v);
-            }
-          });
-          if (child.tagName === "A") { child.setAttribute("rel","noopener noreferrer"); child.setAttribute("target","_blank"); }
-          walk(child);
-        } else if (child.nodeType === 8) child.remove();
-      });
-    };
-    walk(tpl.content);
-    return tpl.innerHTML;
-  }
-  function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
-  function truncate(str, n = 120) { const s = String(str).replace(/<[^>]*>/g, ""); return s.length > n ? s.slice(0, n).trim() + "…" : s; }
-  function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch { return d; } }
-  function renderStars(rating) { const full = Math.floor(rating); const empty = 5 - full; return '<span class="stars">' + '★'.repeat(full) + '☆'.repeat(empty) + '</span>'; }
+  // Page‑specific logic uses global helpers: safeUrl, sanitizeHtml, fmtPrice, truncate, fmtDate, renderStars, escapeHtml, showToast, apiRequest, isCustomerLoggedIn, getCustomerToken, setCustomerToken
 
   async function fetchServiceReviews(serviceId) {
     try {
       const res = await fetch(`/api/reviews/${serviceId}`);
       const data = await res.json();
-      if (data.success) {
-        return { reviews: data.reviews, average: data.average };
-      }
+      if (data.success) return { reviews: data.reviews, average: data.average };
       return { reviews: [], average: null };
-    } catch (err) {
-      console.error(err);
-      return { reviews: [], average: null };
-    }
+    } catch { return { reviews: [], average: null }; }
   }
 
   async function fetchAverageRating(serviceId) {
@@ -212,7 +174,6 @@
     return data.average ? parseFloat(data.average) : null;
   }
 
-  // ========== Modal (reviews only – no submission form) ==========
   async function openServiceModal(service) {
     const backdrop = document.getElementById("serviceModal");
     const contentDiv = backdrop.querySelector(".modal-content");
@@ -280,7 +241,6 @@
     }
   });
 
-  // ========== Signature packages (with average rating stars) ==========
   async function loadSignature() {
     const grid = document.getElementById("signature-grid");
     if (!grid) return;
@@ -293,7 +253,6 @@
         grid.innerHTML = `<div class="empty">No packages yet.</div>`;
         return;
       }
-
       const cards = await Promise.all(active.map(async (s) => {
         const avg = await fetchAverageRating(s.service_id);
         const avgHtml = avg ? `<div class="avg-rating">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>` : '';
@@ -312,7 +271,6 @@
           </article>
         `;
       }));
-
       grid.innerHTML = cards.join("");
       grid.querySelectorAll(".view-btn").forEach(btn => {
         btn.addEventListener("click", (e) => {
@@ -329,7 +287,6 @@
     }
   }
 
-  // ========== Featured destinations (paginated, with average rating stars) ==========
   let featuredPage = 1, limit = 6, totalPages = 1, featuredList = [], rotateTimer = null, ROTATE_INTERVAL = 10000;
 
   async function renderFeaturedPage(page) {
