@@ -45,6 +45,46 @@
   .avg-rating { margin-top: 0.5rem; }
   .featured-grid-fade-out { opacity: 0; transition: opacity 0.6s ease; }
   .featured-grid-transition { transition: opacity 0.6s ease; }
+
+  /* Featured review block */
+  .featured-review {
+    background: var(--bg-soft);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    text-align: center;
+    margin: 2rem 0;
+  }
+  .featured-review .quote-icon {
+    font-size: 3rem;
+    color: var(--gold);
+    opacity: 0.4;
+    margin-bottom: 0.5rem;
+  }
+  .featured-review blockquote {
+    font-size: 1.25rem;
+    font-style: italic;
+    max-width: 700px;
+    margin: 0 auto 1rem;
+    color: var(--ink);
+  }
+  .featured-review .reviewer {
+    font-weight: 600;
+    margin-top: 0.5rem;
+  }
+  .featured-review .verified-badge {
+    background: #1d7a3f;
+    color: white;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-left: 6px;
+  }
+  .featured-review .destination {
+    font-size: 0.85rem;
+    color: var(--gold-dark);
+    margin-top: 0.25rem;
+  }
 </style>
 </head>
 <body>
@@ -135,6 +175,19 @@
       <button id="prev-page" disabled class="btn btn-outline btn-sm">← Previous</button>
       <span class="page-info" id="page-info">Page 1</span>
       <button id="next-page" class="btn btn-outline btn-sm">Next →</button>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED REVIEW SECTION -->
+<section id="featured-review-section" style="display: none;">
+  <div class="container">
+    <div class="featured-review">
+      <div class="quote-icon">“</div>
+      <blockquote id="review-comment"></blockquote>
+      <div class="reviewer" id="reviewer-name"></div>
+      <div class="destination" id="review-destination"></div>
+      <div id="review-stars" class="stars"></div>
     </div>
   </div>
 </section>
@@ -405,11 +458,35 @@
     startRotateTimer();
   }
 
+  // ----- Featured Review -----
+  async function loadFeaturedReview() {
+    try {
+      const res = await fetch('/api/reviews/featured');
+      const data = await res.json();
+      if (!data.success || !data.review) {
+        document.getElementById('featured-review-section').style.display = 'none';
+        return;
+      }
+      const review = data.review;
+      document.getElementById('review-comment').innerText = review.comment || 'No comment provided.';
+      const fullName = `${escapeHtml(review.first_name)} ${escapeHtml(review.last_name)}`;
+      const verifiedBadge = review.verified ? '<span class="verified-badge">✓ Verified Purchase</span>' : '';
+      document.getElementById('reviewer-name').innerHTML = `${fullName} ${verifiedBadge}`;
+      document.getElementById('review-destination').innerHTML = `Reviewed on: ${escapeHtml(review.destination)}`;
+      document.getElementById('review-stars').innerHTML = renderStars(review.rating);
+      document.getElementById('featured-review-section').style.display = 'block';
+    } catch (err) {
+      console.error('Featured review error:', err);
+      document.getElementById('featured-review-section').style.display = 'none';
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("year").textContent = new Date().getFullYear();
     await loadSignature();
     await loadFeatured(1, false);
     setupAutoRotate();
+    await loadFeaturedReview();
   });
 </script>
 </body>

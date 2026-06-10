@@ -75,7 +75,6 @@ const pool = new Pool({
 // RATE LIMITER (database backed) - SYNCHRONOUS CREATION
 // ==========================================
 function createRateLimiter({ windowMs, max }) {
-  // Returns an async middleware function directly
   return async function rateLimiterMiddleware(req, res, next) {
     const key = `${req.ip}:${req.path}`;
     const now = new Date();
@@ -103,7 +102,6 @@ function createRateLimiter({ windowMs, max }) {
       const row = existing.rows[0];
       const windowEndDB = new Date(row.window_end);
 
-      // If the current time is past the stored window_end, reset the window
       if (now > windowEndDB) {
         await client.query(
           `UPDATE rate_limits
@@ -115,7 +113,6 @@ function createRateLimiter({ windowMs, max }) {
         return next();
       }
 
-      // Still inside the same window – increment count
       const newCount = row.count + 1;
       if (newCount > max) {
         await client.query('ROLLBACK');
@@ -134,7 +131,6 @@ function createRateLimiter({ windowMs, max }) {
     } catch (err) {
       await client.query('ROLLBACK');
       console.error('Rate limiter error:', err);
-      // Fail open – allow request to avoid blocking users
       next();
     } finally {
       client.release();
@@ -276,7 +272,7 @@ async function initializeDatabase() {
     console.log('✅ Database ready.');
   } catch (err) {
     console.error('DB init error:', err);
-    throw err; // Crash if database fails to initialize
+    throw err;
   } finally {
     client.release();
   }
@@ -1307,6 +1303,60 @@ app.get('/api/admin/reviews', authenticateAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// FEATURED REVIEW (random, verified status)
+// ==========================================
+app.get('/api/reviews/featured', async (req, res) => {
+  try {
+    // Get one random review
+    const reviewResult = await pool.query(`
+      SELECT r.review_id, r.rating, r.comment, r.created_at,
+             r.service_id, r.user_id,
+             u.first_name, u.last_name
+      FROM reviews r
+      JOIN users u ON r.user_id = u.user_id
+      ORDER BY RANDOM()
+      LIMIT 1
+    `);
+    if (reviewResult.rows.length === 0) {
+      return res.json({ success: true, review: null });
+    }
+    const review = reviewResult.rows[0];
+
+    // Check if the user has a completed booking for this service (verified purchase)
+    const bookingCheck = await pool.query(
+      `SELECT booking_id FROM bookings 
+       WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
+      [review.user_id, review.service_id]
+    );
+    const verified = bookingCheck.rows.length > 0;
+
+    // Fetch destination title
+    const destResult = await pool.query(
+      `SELECT title FROM services WHERE service_id = $1`,
+      [review.service_id]
+    );
+    const destination = destResult.rows[0]?.title || 'Safari Package';
+
+    res.json({
+      success: true,
+      review: {
+        id: review.review_id,
+        rating: review.rating,
+        comment: review.comment,
+        created_at: review.created_at,
+        first_name: review.first_name,
+        last_name: review.last_name,
+        verified: verified,
+        destination: destination
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch featured review.' });
+  }
+});
+
 // Checkout
 async function generateBookingReference(client) {
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -1493,7 +1543,7 @@ app.get('/admin', (req, res) => {
 async function startServer() {
   try {
     await initializeDatabase();
-    // Optional: clean up old rate limit records every hour
+    // Clean up old rate limit records every hour
     setInterval(async () => {
       try {
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
