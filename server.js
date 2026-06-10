@@ -1178,7 +1178,59 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Reviews
+// ==========================================
+// REVIEW ROUTES (order matters: featured before :service_id)
+// ==========================================
+
+// Featured review (must come before /:service_id)
+app.get('/api/reviews/featured', async (req, res) => {
+  try {
+    const reviewResult = await pool.query(`
+      SELECT r.review_id, r.rating, r.comment, r.created_at,
+             r.service_id, r.user_id,
+             u.first_name, u.last_name
+      FROM reviews r
+      JOIN users u ON r.user_id = u.user_id
+      ORDER BY RANDOM()
+      LIMIT 1
+    `);
+    if (reviewResult.rows.length === 0) {
+      return res.json({ success: true, review: null });
+    }
+    const review = reviewResult.rows[0];
+
+    const bookingCheck = await pool.query(
+      `SELECT booking_id FROM bookings 
+       WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
+      [review.user_id, review.service_id]
+    );
+    const verified = bookingCheck.rows.length > 0;
+
+    const destResult = await pool.query(
+      `SELECT title FROM services WHERE service_id = $1`,
+      [review.service_id]
+    );
+    const destination = destResult.rows[0]?.title || 'Safari Package';
+
+    res.json({
+      success: true,
+      review: {
+        id: review.review_id,
+        rating: review.rating,
+        comment: review.comment,
+        created_at: review.created_at,
+        first_name: review.first_name,
+        last_name: review.last_name,
+        verified: verified,
+        destination: destination
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch featured review.' });
+  }
+});
+
 app.post('/api/reviews', authenticateCustomer, async (req, res) => {
   const { service_id, rating, comment } = req.body;
   if (!service_id || !rating || rating < 1 || rating > 5) {
@@ -1300,60 +1352,6 @@ app.get('/api/admin/reviews', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch reviews.' });
-  }
-});
-
-// ==========================================
-// FEATURED REVIEW (random, verified status)
-// ==========================================
-app.get('/api/reviews/featured', async (req, res) => {
-  try {
-    // Get one random review
-    const reviewResult = await pool.query(`
-      SELECT r.review_id, r.rating, r.comment, r.created_at,
-             r.service_id, r.user_id,
-             u.first_name, u.last_name
-      FROM reviews r
-      JOIN users u ON r.user_id = u.user_id
-      ORDER BY RANDOM()
-      LIMIT 1
-    `);
-    if (reviewResult.rows.length === 0) {
-      return res.json({ success: true, review: null });
-    }
-    const review = reviewResult.rows[0];
-
-    // Check if the user has a completed booking for this service (verified purchase)
-    const bookingCheck = await pool.query(
-      `SELECT booking_id FROM bookings 
-       WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
-      [review.user_id, review.service_id]
-    );
-    const verified = bookingCheck.rows.length > 0;
-
-    // Fetch destination title
-    const destResult = await pool.query(
-      `SELECT title FROM services WHERE service_id = $1`,
-      [review.service_id]
-    );
-    const destination = destResult.rows[0]?.title || 'Safari Package';
-
-    res.json({
-      success: true,
-      review: {
-        id: review.review_id,
-        rating: review.rating,
-        comment: review.comment,
-        created_at: review.created_at,
-        first_name: review.first_name,
-        last_name: review.last_name,
-        verified: verified,
-        destination: destination
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch featured review.' });
   }
 });
 
