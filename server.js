@@ -8,7 +8,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Resend } = require('resend');
-const { exec } = require('child_process');
 
 const app = express();
 const port = process.env.PORT || 11037;
@@ -188,6 +187,7 @@ async function initializeDatabase() {
       reset_token VARCHAR(255),
       reset_token_expiry TIMESTAMP
     )`);
+    // These ALTER statements are kept for safety but will be skipped if columns exist
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN DEFAULT FALSE`);
@@ -404,6 +404,13 @@ app.post('/api/auth/signup', authRateLimit, async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
   if (!firstName || !lastName || !email || !password) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  // Server-side password strength validation
+  if (password.length < 8) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
+  }
+  if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
+    return res.status(400).json({ success: false, message: 'Password must contain at least one letter and one number.' });
   }
   try {
     const existing = await pool.query('SELECT user_id, is_guest FROM users WHERE email = $1', [email]);
@@ -652,28 +659,13 @@ app.get('/api/services/search', async (req, res) => {
   }
 });
 
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW() as time');
-    res.json({ success: true, message: 'Database connected', time: result.rows[0].time });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
 // ==========================================
-// ADMIN LOGIN
+// ADMIN LOGIN (database only – no hardcoded fallback)
 // ==========================================
 app.post('/api/admin/login', authRateLimit, async (req, res) => {
   const { email, password } = req.body;
-  const HARDCODED_EMAIL = 'admin@escoconcepts.com';
-  const HARDCODED_PASSWORD = 'admin123';
-  if (email === HARDCODED_EMAIL && password === HARDCODED_PASSWORD) {
-    const token = jwt.sign({ userId: 1, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
-    return res.json({ success: true, token });
-  }
   try {
-    const result = await pool.query('SELECT user_id, password_hash FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
+    const result = await pool.query('SELECT user_id, password_hash, role FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
     if (result.rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password_hash);
@@ -1121,7 +1113,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ==========================================
-// REVIEWS (updated with verified flag and can-review endpoint)
+// REVIEWS
 // ==========================================
 app.post('/api/reviews', authenticateCustomer, async (req, res) => {
   const { service_id, rating, comment } = req.body;
@@ -1162,7 +1154,6 @@ app.get('/api/reviews/:service_id', async (req, res) => {
       ORDER BY r.created_at DESC
     `, [service_id]);
 
-    // For each review, check if the user has a completed booking for this service
     const reviewsWithVerified = await Promise.all(reviews.rows.map(async (review) => {
       const bookingCheck = await pool.query(
         `SELECT booking_id FROM bookings 
@@ -1195,7 +1186,6 @@ app.get('/api/reviews/check/:service_id', authenticateCustomer, async (req, res)
   }
 });
 
-// New endpoint: check if user can write a review (has completed booking and not already reviewed)
 app.get('/api/reviews/can-review/:service_id', authenticateCustomer, async (req, res) => {
   const { service_id } = req.params;
   try {
@@ -1282,6 +1272,11 @@ app.post('/api/checkout', async (req, res) => {
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanTravelDate)) {
     return res.status(400).json({ success: false, message: 'Invalid travel date.' });
+  }
+  // Server-side check: travel date cannot be in the past
+  const today = new Date().toISOString().slice(0,10);
+  if (cleanTravelDate < today) {
+    return res.status(400).json({ success: false, message: 'Travel date cannot be in the past.' });
   }
   if (cleanReturnDate && !/^\d{4}-\d{2}-\d{2}$/.test(cleanReturnDate)) {
     return res.status(400).json({ success: false, message: 'Invalid return date.' });
@@ -1385,7 +1380,7 @@ app.get('/api/services/paginated', async (req, res) => {
 });
 
 // ==========================================
-// CRON ENDPOINT (for cron-job.org)
+// CRON ENDPOINT (inline logic – no exec)
 // ==========================================
 app.get('/api/cron/complete-bookings', (req, res) => {
   const secret = req.query.secret;
@@ -1393,14 +1388,22 @@ app.get('/api/cron/complete-bookings', (req, res) => {
   if (!expectedSecret || secret !== expectedSecret) {
     return res.status(403).json({ success: false, message: 'Unauthorized' });
   }
-  exec('node complete-bookings.js', (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Cron error: ${error}`);
-      return res.status(500).json({ success: false, error: stderr });
+  (async () => {
+    try {
+      const result = await pool.query(`
+        UPDATE bookings 
+        SET status = 'Completed' 
+        WHERE status = 'Confirmed' 
+          AND COALESCE(return_date, travel_date) <= CURRENT_DATE
+        RETURNING booking_id, booking_reference
+      `);
+      console.log(`✅ Cron: Marked ${result.rowCount} booking(s) as Completed.`);
+      res.json({ success: true, message: `Completed ${result.rowCount} bookings.`, updated: result.rowCount });
+    } catch (err) {
+      console.error('Cron error:', err);
+      res.status(500).json({ success: false, message: err.message });
     }
-    console.log(`Cron output: ${stdout}`);
-    res.json({ success: true, output: stdout });
-  });
+  })();
 });
 
 // ==========================================
