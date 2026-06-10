@@ -63,28 +63,245 @@ const APP_URL = process.env.APP_URL || `http://localhost:${port}`;
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 
-function createRateLimiter({ windowMs, max }) {
-  const hits = new Map();
-  return (req, res, next) => {
+// ==========================================
+// DATABASE BACKED RATE LIMITER
+// ==========================================
+async function createRateLimiter({ windowMs, max }) {
+  return async (req, res, next) => {
     const key = `${req.ip}:${req.path}`;
-    const now = Date.now();
-    const entry = hits.get(key) || { count: 0, resetAt: now + windowMs };
-    if (entry.resetAt <= now) {
-      entry.count = 0;
-      entry.resetAt = now + windowMs;
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + windowMs);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Lock the row for update to avoid race conditions
+      const existing = await client.query(
+        `SELECT count, window_start, window_end FROM rate_limits WHERE key = $1 FOR UPDATE`,
+        [key]
+      );
+
+      if (existing.rows.length === 0) {
+        // First request in this window
+        await client.query(
+          `INSERT INTO rate_limits (key, count, window_start, window_end)
+           VALUES ($1, $2, $3, $4)`,
+          [key, 1, now, windowEnd]
+        );
+        await client.query('COMMIT');
+        return next();
+      }
+
+      const row = existing.rows[0];
+      const windowStart = new Date(row.window_start);
+      const windowEndDB = new Date(row.window_end);
+
+      // If the current time is past the stored window_end, reset the window
+      if (now > windowEndDB) {
+        await client.query(
+          `UPDATE rate_limits
+           SET count = $1, window_start = $2, window_end = $3
+           WHERE key = $4`,
+          [1, now, windowEnd, key]
+        );
+        await client.query('COMMIT');
+        return next();
+      }
+
+      // Still inside the same window – increment count
+      const newCount = row.count + 1;
+      if (newCount > max) {
+        await client.query('ROLLBACK');
+        return res.status(429).json({
+          success: false,
+          message: 'Too many requests. Please try again later.'
+        });
+      }
+
+      await client.query(
+        `UPDATE rate_limits SET count = $1 WHERE key = $2`,
+        [newCount, key]
+      );
+      await client.query('COMMIT');
+      next();
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Rate limiter error:', err);
+      // On DB error, fail open (allow request) to avoid blocking users
+      next();
+    } finally {
+      client.release();
     }
-    entry.count += 1;
-    hits.set(key, entry);
-    if (entry.count > max) {
-      return res.status(429).json({ success: false, message: 'Too many requests. Please try again later.' });
-    }
-    next();
   };
 }
 
-const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
-const contactRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
+// ==========================================
+// DATABASE CONNECTION & INIT
+// ==========================================
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { require: true, rejectUnauthorized: false }
+});
 
+async function initializeDatabase() {
+  const client = await pool.connect();
+  try {
+    // Create rate_limits table first (used by rate limiter)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        id SERIAL PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        count INT NOT NULL DEFAULT 1,
+        window_start TIMESTAMP NOT NULL,
+        window_end TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_rate_limits_key ON rate_limits(key)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_rate_limits_window_end ON rate_limits(window_end)`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS users (
+      user_id SERIAL PRIMARY KEY,
+      first_name VARCHAR(50) NOT NULL,
+      last_name VARCHAR(50) NOT NULL,
+      email VARCHAR(100) UNIQUE NOT NULL,
+      phone VARCHAR(20),
+      password_hash VARCHAR(255) NOT NULL,
+      role VARCHAR(20) DEFAULT 'customer',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      reset_token VARCHAR(255),
+      reset_token_expiry TIMESTAMP,
+      is_guest BOOLEAN DEFAULT FALSE
+    )`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS services (
+      service_id SERIAL PRIMARY KEY,
+      service_category VARCHAR(50),
+      title VARCHAR(150) NOT NULL,
+      destination VARCHAR(100),
+      description TEXT,
+      base_price NUMERIC(10,2) NOT NULL,
+      currency VARCHAR(10) DEFAULT 'KES',
+      max_pax INTEGER DEFAULT 1 NOT NULL,
+      image_url VARCHAR(255),
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      itinerary TEXT,
+      gallery TEXT[] DEFAULT '{}'
+    )`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS bookings (
+      booking_id SERIAL PRIMARY KEY,
+      booking_reference VARCHAR(20) UNIQUE NOT NULL,
+      user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+      service_id INTEGER REFERENCES services(service_id) ON DELETE RESTRICT,
+      travel_date DATE NOT NULL,
+      return_date DATE,
+      pax INTEGER DEFAULT 1 NOT NULL,
+      total_amount NUMERIC(10,2) NOT NULL,
+      status VARCHAR(20) DEFAULT 'Pending',
+      booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      special_requests TEXT,
+      guest_first_name VARCHAR(50),
+      guest_last_name VARCHAR(50),
+      guest_email VARCHAR(100),
+      guest_phone VARCHAR(20)
+    )`);
+
+    await client.query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`);
+    await client.query(`ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('Pending', 'Confirmed', 'Cancelled', 'Completed'))`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS payments (
+      payment_id SERIAL PRIMARY KEY,
+      booking_id INTEGER REFERENCES bookings(booking_id) ON DELETE CASCADE,
+      payment_method VARCHAR(50) NOT NULL,
+      amount NUMERIC(10,2) NOT NULL,
+      transaction_reference VARCHAR(100) UNIQUE,
+      payment_status VARCHAR(20) DEFAULT 'Pending',
+      payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS blogs (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      slug VARCHAR(255) UNIQUE NOT NULL,
+      author VARCHAR(100),
+      content TEXT NOT NULL,
+      image_url VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS contactmessages (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      subject VARCHAR(255),
+      message TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        review_id SERIAL PRIMARY KEY,
+        service_id INTEGER NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(service_id, user_id)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_service_id ON reviews(service_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`);
+
+    if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+      const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
+      await client.query(`
+        INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
+        VALUES ($1, $2, $3, $4, $5, 'admin')
+        ON CONFLICT (email) DO NOTHING
+      `, [
+        process.env.ADMIN_FIRST_NAME || 'Esco',
+        process.env.ADMIN_LAST_NAME || 'Admin',
+        process.env.ADMIN_EMAIL,
+        process.env.ADMIN_PHONE || null,
+        adminHash
+      ]);
+    } else {
+      console.warn('ADMIN_EMAIL and ADMIN_PASSWORD not set. Skipping admin bootstrap.');
+    }
+
+    console.log('✅ Database ready.');
+  } catch (err) {
+    console.error('DB init error:', err);
+  } finally {
+    client.release();
+  }
+}
+initializeDatabase();
+
+// ==========================================
+// RATE LIMITER INSTANCES (use with routes)
+// ==========================================
+const authRateLimit = await createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
+const contactRateLimit = await createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
+
+// Clean up old rate limit records every hour
+setInterval(async () => {
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await pool.query('DELETE FROM rate_limits WHERE window_end < $1', [cutoff]);
+    console.log('🗑️ Rate limit old entries cleaned');
+  } catch (err) {
+    console.error('Rate limit cleanup error:', err);
+  }
+}, 60 * 60 * 1000);
+
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -138,167 +355,6 @@ async function sendEmail(to, subject, html) {
   }
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { require: true, rejectUnauthorized: false }
-});
-
-// ==========================================
-// MULTER SETUP
-// ==========================================
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = crypto.randomUUID();
-    const ext = path.extname(file.originalname);
-    cb(null, 'blog-' + uniqueSuffix + ext);
-  }
-});
-
-const fileFilter = (req, file, cb) => {
-  const allowedExts = new Set(['.jpeg', '.jpg', '.png', '.gif', '.webp']);
-  const allowedMimes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-  const ext = allowedExts.has(path.extname(file.originalname).toLowerCase());
-  const mime = allowedMimes.has(file.mimetype);
-  if (ext && mime) cb(null, true);
-  else cb(new Error('Only images allowed'));
-};
-
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
-
-// ==========================================
-// DATABASE INIT
-// ==========================================
-async function initializeDatabase() {
-  const client = await pool.connect();
-  try {
-    await client.query(`CREATE TABLE IF NOT EXISTS users (
-      user_id SERIAL PRIMARY KEY,
-      first_name VARCHAR(50) NOT NULL,
-      last_name VARCHAR(50) NOT NULL,
-      email VARCHAR(100) UNIQUE NOT NULL,
-      phone VARCHAR(20),
-      password_hash VARCHAR(255) NOT NULL,
-      role VARCHAR(20) DEFAULT 'customer',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      reset_token VARCHAR(255),
-      reset_token_expiry TIMESTAMP
-    )`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255)`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN DEFAULT FALSE`);
-
-    await client.query(`CREATE TABLE IF NOT EXISTS services (
-      service_id SERIAL PRIMARY KEY,
-      service_category VARCHAR(50),
-      title VARCHAR(150) NOT NULL,
-      destination VARCHAR(100),
-      description TEXT,
-      base_price NUMERIC(10,2) NOT NULL,
-      currency VARCHAR(10) DEFAULT 'KES',
-      max_pax INTEGER DEFAULT 1 NOT NULL,
-      image_url VARCHAR(255),
-      is_active BOOLEAN DEFAULT true,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      itinerary TEXT,
-      gallery TEXT[] DEFAULT '{}'
-    )`);
-
-    await client.query(`CREATE TABLE IF NOT EXISTS bookings (
-      booking_id SERIAL PRIMARY KEY,
-      booking_reference VARCHAR(20) UNIQUE NOT NULL,
-      user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-      service_id INTEGER REFERENCES services(service_id) ON DELETE RESTRICT,
-      travel_date DATE NOT NULL,
-      return_date DATE,
-      pax INTEGER DEFAULT 1 NOT NULL,
-      total_amount NUMERIC(10,2) NOT NULL,
-      status VARCHAR(20) DEFAULT 'Pending',
-      booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS special_requests TEXT`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_first_name VARCHAR(50)`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_last_name VARCHAR(50)`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_email VARCHAR(100)`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_phone VARCHAR(20)`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS return_date DATE`);
-
-    await client.query(`CREATE TABLE IF NOT EXISTS payments (
-      payment_id SERIAL PRIMARY KEY,
-      booking_id INTEGER REFERENCES bookings(booking_id) ON DELETE CASCADE,
-      payment_method VARCHAR(50) NOT NULL,
-      amount NUMERIC(10,2) NOT NULL,
-      transaction_reference VARCHAR(100) UNIQUE,
-      payment_status VARCHAR(20) DEFAULT 'Pending',
-      payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await client.query(`CREATE TABLE IF NOT EXISTS blogs (
-      id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      slug VARCHAR(255) UNIQUE NOT NULL,
-      author VARCHAR(100),
-      content TEXT NOT NULL,
-      image_url VARCHAR(255),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await client.query(`CREATE TABLE IF NOT EXISTS contactmessages (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255) NOT NULL,
-      subject VARCHAR(255),
-      message TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS reviews (
-        review_id SERIAL PRIMARY KEY,
-        service_id INTEGER NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-        comment TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(service_id, user_id)
-      )
-    `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_service_id ON reviews(service_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id)`);
-
-    await client.query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`);
-    await client.query(`ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('Pending', 'Confirmed', 'Cancelled', 'Completed'))`);
-
-    if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
-      const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
-      await client.query(`
-        INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
-        VALUES ($1, $2, $3, $4, $5, 'admin')
-        ON CONFLICT (email) DO NOTHING
-      `, [
-        process.env.ADMIN_FIRST_NAME || 'Esco',
-        process.env.ADMIN_LAST_NAME || 'Admin',
-        process.env.ADMIN_EMAIL,
-        process.env.ADMIN_PHONE || null,
-        adminHash
-      ]);
-    } else {
-      console.warn('ADMIN_EMAIL and ADMIN_PASSWORD not set. Skipping admin bootstrap.');
-    }
-
-    console.log('✅ Database ready.');
-  } catch (err) {
-    console.error('DB init error:', err);
-  } finally {
-    client.release();
-  }
-}
-initializeDatabase();
-
 async function generateUniqueSlug(baseTitle, currentId = null) {
   let slug = baseTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   let unique = slug;
@@ -339,6 +395,32 @@ function authenticateCustomer(req, res, next) {
     next();
   });
 }
+
+// ==========================================
+// MULTER SETUP
+// ==========================================
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = crypto.randomUUID();
+    const ext = path.extname(file.originalname);
+    cb(null, 'blog-' + uniqueSuffix + ext);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedExts = new Set(['.jpeg', '.jpg', '.png', '.gif', '.webp']);
+  const allowedMimes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  const ext = allowedExts.has(path.extname(file.originalname).toLowerCase());
+  const mime = allowedMimes.has(file.mimetype);
+  if (ext && mime) cb(null, true);
+  else cb(new Error('Only images allowed'));
+};
+
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
 // ==========================================
 // PASSWORD RESET
@@ -658,7 +740,7 @@ app.get('/api/services/search', async (req, res) => {
 });
 
 // ==========================================
-// ADMIN LOGIN (database only – no hardcoded fallback)
+// ADMIN LOGIN
 // ==========================================
 app.post('/api/admin/login', authRateLimit, async (req, res) => {
   const { email, password } = req.body;
@@ -1058,7 +1140,6 @@ app.get('/api/blogs', async (req, res) => {
   }
 });
 
-// Get blog by slug (SEO-friendly)
 app.get('/api/blogs/slug/:slug', async (req, res) => {
   const { slug } = req.params;
   try {
@@ -1378,7 +1459,6 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
-// Slim endpoint for listing pages (only essential fields)
 app.get('/api/services/summary', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -1409,7 +1489,7 @@ app.get('/api/services/paginated', async (req, res) => {
 });
 
 // ==========================================
-// CRON ENDPOINT (inline logic – no exec)
+// CRON ENDPOINT
 // ==========================================
 app.get('/api/cron/complete-bookings', (req, res) => {
   const secret = req.query.secret;
