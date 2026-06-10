@@ -54,16 +54,23 @@
 
   /* Invoice preview modal */
   .invoice-preview {
-    max-width: 600px;
+    max-width: 650px;
     background: white;
     border-radius: var(--radius);
-    padding: 2rem;
-    margin: 2rem auto;
+    padding: 1.5rem;
+    margin: 0 auto;
     box-shadow: var(--shadow-lg);
   }
   .invoice-preview h2 {
     font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
+    text-align: center;
+  }
+  .invoice-preview .subhead {
+    text-align: center;
+    color: var(--ink-soft);
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
   }
   .invoice-preview .invoice-row {
     display: flex;
@@ -72,16 +79,33 @@
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--line);
   }
+  .invoice-preview .invoice-section {
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    border-top: 2px solid var(--gold);
+  }
+  .invoice-preview .section-title {
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: var(--gold-dark);
+  }
   .invoice-preview .total {
     font-weight: 700;
     font-size: 1.2rem;
     margin-top: 1rem;
+    text-align: right;
   }
   .invoice-actions {
     display: flex;
     gap: 1rem;
     justify-content: flex-end;
     margin-top: 1.5rem;
+  }
+  @media print {
+    body * { visibility: hidden; }
+    .invoice-preview, .invoice-preview * { visibility: visible; }
+    .invoice-preview { position: absolute; top: 0; left: 0; width: 100%; margin: 0; padding: 1rem; }
+    .invoice-actions, .modal-close, .modal-footer { display: none; }
   }
 </style>
 </head>
@@ -188,7 +212,7 @@
 
 <!-- Modal for invoice preview -->
 <div id="invoiceModal" class="modal-overlay" style="display: none;">
-  <div class="modal-container" style="max-width: 700px;">
+  <div class="modal-container" style="max-width: 750px;">
     <div class="modal-header">
       <span class="modal-title">Invoice Preview</span>
       <button class="modal-close" id="closeInvoiceModalBtn">&times;</button>
@@ -197,6 +221,7 @@
       <div class="invoice-preview"></div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-outline" id="printInvoiceBtn">Print</button>
       <button class="btn btn-outline" id="cancelInvoiceBtn">Close</button>
       <button class="btn btn-primary" id="downloadInvoiceBtn">Download PDF</button>
     </div>
@@ -212,7 +237,7 @@
 <script>
   // Page‑specific logic uses global helpers: escapeHtml, fmtPrice, fmtDate, showAlert, showToast, isValidEmail, apiRequest, getCustomerToken, setCustomerToken, clearCustomerToken, isCustomerLoggedIn
 
-  // Token management (using global functions from ui.js)
+  // Token management
   function getToken() { return getCustomerToken(); }
   function setToken(token) { setCustomerToken(token); }
   function clearToken() { clearCustomerToken(); }
@@ -328,28 +353,49 @@
     }
   };
 
-  // Invoice preview & PDF generation
+  // Invoice preview & PDF generation (rich data)
   let currentInvoiceData = null;
   const invoiceModal = document.getElementById("invoiceModal");
   const invoicePreviewBody = document.getElementById("invoicePreviewBody");
   const closeInvoiceBtn = document.getElementById("closeInvoiceModalBtn");
   const cancelInvoiceBtn = document.getElementById("cancelInvoiceBtn");
+  const printInvoiceBtn = document.getElementById("printInvoiceBtn");
   const downloadInvoiceBtn = document.getElementById("downloadInvoiceBtn");
 
   function generateInvoiceHTML(data) {
     return `
       <div class="invoice-preview">
         <h2>EscoConcepts Travels</h2>
-        <p>Tailor-made Kenya Safaris</p>
+        <div class="subhead">Tailor-made Kenya Safaris</div>
         <hr>
-        <div class="invoice-row"><strong>Reference:</strong> <span>${escapeHtml(data.ref)}</span></div>
-        <div class="invoice-row"><strong>Guest Name:</strong> <span>${escapeHtml(data.guestName)}</span></div>
-        <div class="invoice-row"><strong>Package:</strong> <span>${escapeHtml(data.packageName)}</span></div>
-        <div class="invoice-row"><strong>Travel Date:</strong> <span>${fmtDate(data.travelDate)}</span></div>
-        <div class="invoice-row"><strong>Return Date:</strong> <span>${data.returnDate ? fmtDate(data.returnDate) : '—'}</span></div>
-        <div class="invoice-row"><strong>Guests:</strong> <span>${data.pax}</span></div>
-        <div class="invoice-row"><strong>Total Amount:</strong> <span>${fmtPrice(data.total)}</span></div>
-        <div class="total">Thank you for choosing us!</div>
+        <div class="invoice-row"><strong>Booking Reference:</strong> <span>${escapeHtml(data.ref)}</span></div>
+        <div class="invoice-row"><strong>Status:</strong> <span>${escapeHtml(data.status || "Pending")}</span></div>
+        <div class="invoice-row"><strong>Booking Date:</strong> <span>${fmtDate(data.bookingDate)}</span></div>
+        
+        <div class="invoice-section">
+          <div class="section-title">Package Details</div>
+          <div class="invoice-row"><strong>Package:</strong> <span>${escapeHtml(data.packageName)}</span></div>
+          <div class="invoice-row"><strong>Destination:</strong> <span>${escapeHtml(data.destination || "Kenya")}</span></div>
+          <div class="invoice-row"><strong>Travel Date:</strong> <span>${fmtDate(data.travelDate)}</span></div>
+          <div class="invoice-row"><strong>Return Date:</strong> <span>${data.returnDate ? fmtDate(data.returnDate) : '—'}</span></div>
+          <div class="invoice-row"><strong>Number of Guests:</strong> <span>${data.pax}</span></div>
+          ${data.specialRequests ? `<div class="invoice-row"><strong>Special Requests:</strong> <span>${escapeHtml(data.specialRequests)}</span></div>` : ''}
+        </div>
+
+        <div class="invoice-section">
+          <div class="section-title">Guest Information</div>
+          <div class="invoice-row"><strong>Name:</strong> <span>${escapeHtml(data.guestName)}</span></div>
+          <div class="invoice-row"><strong>Email:</strong> <span>${escapeHtml(data.guestEmail)}</span></div>
+          <div class="invoice-row"><strong>Phone:</strong> <span>${escapeHtml(data.guestPhone)}</span></div>
+        </div>
+
+        <div class="invoice-section">
+          <div class="section-title">Payment</div>
+          <div class="invoice-row"><strong>Total Amount:</strong> <span>${fmtPrice(data.total)}</span></div>
+          <div class="invoice-row"><strong>Payment Method:</strong> <span>${escapeHtml(data.paymentMethod || "Not specified")}</span></div>
+        </div>
+
+        <div class="total">Thank you for choosing EscoConcepts Travels!</div>
       </div>
     `;
   }
@@ -368,6 +414,30 @@
     invoiceModal.style.display = "none";
   }
 
+  function printInvoice() {
+    const printContent = document.querySelector('#invoicePreviewBody .invoice-preview').cloneNode(true);
+    const originalTitle = document.title;
+    document.title = `Invoice ${currentInvoiceData.ref}`;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html><head><title>Invoice ${currentInvoiceData.ref}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+      <style>
+        body { font-family: 'Inter', sans-serif; padding: 2rem; margin: 0; }
+        .invoice-preview { max-width: 700px; margin: 0 auto; }
+        .invoice-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .invoice-section { margin-top: 1rem; border-top: 1px solid #ccc; padding-top: 0.5rem; }
+        .section-title { font-weight: 700; margin-bottom: 0.75rem; }
+        .total { font-weight: 700; font-size: 1.2rem; margin-top: 1rem; text-align: right; }
+      </style>
+      </head><body>${printContent.outerHTML}</body></html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+    printWindow.close();
+    document.title = originalTitle;
+  }
+
   function downloadInvoicePDF() {
     if (!currentInvoiceData) return;
     const { jsPDF } = window.jspdf;
@@ -378,16 +448,24 @@
     let y = 35;
     const rows = [
       ["Reference", currentInvoiceData.ref],
-      ["Guest", currentInvoiceData.guestName],
+      ["Status", currentInvoiceData.status || "Pending"],
+      ["Booking Date", fmtDate(currentInvoiceData.bookingDate)],
       ["Package", currentInvoiceData.packageName],
-      ["Travel date", fmtDate(currentInvoiceData.travelDate)],
-      ["Return date", currentInvoiceData.returnDate ? fmtDate(currentInvoiceData.returnDate) : "—"],
+      ["Destination", currentInvoiceData.destination || "Kenya"],
+      ["Travel Date", fmtDate(currentInvoiceData.travelDate)],
+      ["Return Date", currentInvoiceData.returnDate ? fmtDate(currentInvoiceData.returnDate) : "—"],
       ["Guests", String(currentInvoiceData.pax)],
-      ["Total", fmtPrice(currentInvoiceData.total)]
+      ["Special Requests", currentInvoiceData.specialRequests || "—"],
+      ["Guest Name", currentInvoiceData.guestName],
+      ["Guest Email", currentInvoiceData.guestEmail],
+      ["Guest Phone", currentInvoiceData.guestPhone],
+      ["Total", fmtPrice(currentInvoiceData.total)],
+      ["Payment Method", currentInvoiceData.paymentMethod || "Not specified"]
     ];
     rows.forEach(([k, v]) => {
       doc.text(`${k}: ${v}`, 14, y);
       y += 8;
+      if (y > 270) { doc.addPage(); y = 20; }
     });
     doc.save(`invoice-${currentInvoiceData.ref}.pdf`);
     showToast("Invoice downloaded", "success");
@@ -395,6 +473,7 @@
 
   if (closeInvoiceBtn) closeInvoiceBtn.onclick = closeInvoiceModal;
   if (cancelInvoiceBtn) cancelInvoiceBtn.onclick = closeInvoiceModal;
+  if (printInvoiceBtn) printInvoiceBtn.onclick = printInvoice;
   if (downloadInvoiceBtn) downloadInvoiceBtn.onclick = downloadInvoicePDF;
   if (invoiceModal) {
     invoiceModal.addEventListener("click", (e) => { if (e.target === invoiceModal) closeInvoiceModal(); });
@@ -435,7 +514,22 @@
         const alreadyReviewed = reviewedStatus[b.service_id] || false;
         const showReviewButton = (status === "completed") && !alreadyReviewed && b.service_id;
         return `
-          <div class="booking-item" data-id="${b.booking_id}" data-ref="${escapeHtml(String(ref))}" data-name="${escapeHtml(guestName)}" data-pkg="${escapeHtml(b.package_name||"")}" data-date="${escapeHtml(b.travel_date||"")}" data-return="${escapeHtml(b.return_date||"")}" data-pax="${escapeHtml(String(b.pax||1))}" data-total="${total}" data-service-id="${b.service_id}">
+          <div class="booking-item" data-id="${b.booking_id}" 
+               data-ref="${escapeHtml(String(ref))}" 
+               data-name="${escapeHtml(guestName)}" 
+               data-email="${escapeHtml(b.guest_email||'')}" 
+               data-phone="${escapeHtml(b.guest_phone||'')}"
+               data-pkg="${escapeHtml(b.package_name||"")}" 
+               data-destination="${escapeHtml(b.destination||"Kenya")}"
+               data-date="${escapeHtml(b.travel_date||"")}" 
+               data-return="${escapeHtml(b.return_date||"")}" 
+               data-pax="${escapeHtml(String(b.pax||1))}" 
+               data-total="${total}" 
+               data-status="${escapeHtml(b.status||"Pending")}"
+               data-booking-date="${escapeHtml(b.booking_date||"")}"
+               data-special="${escapeHtml(b.special_requests||"")}"
+               data-payment-method="${escapeHtml(b.payment_method||"Not specified")}"
+               data-service-id="${b.service_id}">
             <div class="row"><div><span class="booking-ref">${escapeHtml(String(ref))}</span></div><span class="status ${status}">${escapeHtml(status)}</span></div>
             <h4 style="margin:.5rem 0 .25rem">${escapeHtml(b.package_name||"Safari Package")}</h4>
             <div style="font-size:.9rem;color:var(--ink-soft)">Travel: ${fmtDate(b.travel_date)} • Return: ${b.return_date ? fmtDate(b.return_date) : '—'} • Guests: ${escapeHtml(String(b.pax||1))} • Total: ${fmtPrice(total)}</div>
@@ -456,23 +550,28 @@
           if(!confirm("Cancel this booking?")) return;
           try { await apiRequest(`/bookings/cancel/${id}`, { method: "PUT" }); loadAccount(); } catch(e) { showToast(e.message, "error"); }
         };
-        // PDF preview button
         const pdfBtn = el.querySelector(".pdf-btn");
         if(pdfBtn) {
           pdfBtn.onclick = () => {
             const bookingData = {
               ref: el.dataset.ref,
               guestName: el.dataset.name.trim() || "—",
+              guestEmail: el.dataset.email || "—",
+              guestPhone: el.dataset.phone || "—",
               packageName: el.dataset.pkg,
+              destination: el.dataset.destination,
               travelDate: el.dataset.date,
               returnDate: el.dataset.return,
               pax: el.dataset.pax,
-              total: el.dataset.total
+              total: el.dataset.total,
+              status: el.dataset.status,
+              bookingDate: el.dataset.bookingDate,
+              specialRequests: el.dataset.special,
+              paymentMethod: el.dataset.paymentMethod
             };
             showInvoicePreview(bookingData);
           };
         }
-        // Email receipt button
         const emailBtn = el.querySelector(".email-btn");
         if(emailBtn) {
           emailBtn.onclick = async () => {
