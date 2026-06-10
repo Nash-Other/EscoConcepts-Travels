@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Article — EscoConcepts Travels</title>
+<meta name="description" id="meta-desc" content="Field notes from EscoConcepts Travels.">
+<meta name="keywords" content="travel blog, Kenya safaris, field notes, safari stories, wildlife">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" id="og-title" content="EscoConcepts Travels">
+<meta property="og:description" id="og-desc" content="Field notes from EscoConcepts Travels.">
+<meta property="og:image" id="og-image" content="">
+<meta property="og:type" content="article">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" id="twitter-title" content="EscoConcepts Travels">
+<meta name="twitter:description" id="twitter-desc" content="Field notes">
+<meta name="twitter:image" id="twitter-image" content="">
+<script type="application/ld+json" id="blog-jsonld"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<script src="config.js"></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a><a href="packages.html">Packages</a><a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a>
+      <a href="account.html">Account</a><a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<article class="article" id="article"><div class="loading">Loading…</div></article>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div>
+    <div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div>
+    <div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div>
+  </div>
+  <div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  function escapeHtml(str) { if (!str) return ""; return String(str).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function safeUrl(url, fallback="") { if (!url) return fallback; try { const u = new URL(url, window.location.origin); if (["http:","https:"].includes(u.protocol)) return u.href; } catch(e){} return fallback; }
+  function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, {year:"numeric",month:"short",day:"numeric"}); } catch(e){ return d; } }
+  function sanitizeHtml(html) { const tpl=document.createElement("template"); tpl.innerHTML=String(html); const allowedTags=new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]); const allowedAttrs={A:["href","title","target","rel"],IMG:["src","alt","title"]}; const walk=(node)=>{[...node.childNodes].forEach(child=>{if(child.nodeType===1){if(!allowedTags.has(child.tagName)){child.replaceWith(...child.childNodes);return;}const allowed=allowedAttrs[child.tagName]||[];[...child.attributes].forEach(a=>{if(!allowed.includes(a.name))child.removeAttribute(a.name);if(a.name==="href"||a.name==="src"){const v=safeUrl(a.value);if(!v)child.removeAttribute(a.name);else child.setAttribute(a.name,v);}});if(child.tagName==="A"){child.setAttribute("rel","noopener noreferrer");child.setAttribute("target","_blank");}walk(child);}else if(child.nodeType===8)child.remove();});}; walk(tpl.content); return tpl.innerHTML; }
+  function truncate(str, n=150) { const s=String(str).replace(/<[^>]*>/g,""); return s.length>n?s.slice(0,n).trim()+"…":s; }
+
+  const id = new URLSearchParams(window.location.search).get("id");
+  const wrap = document.getElementById("article");
+  if (!id) { wrap.innerHTML = `<div class="empty">No article selected.</div>`; }
+  else (async () => {
+    try {
+      const res = await fetch(`/api/blogs/${id}`);
+      const data = await res.json();
+      const b = data.blog || data.data || data;
+      const img = safeUrl(b.image_url || b.cover_image) || "https://images.unsplash.com/photo-1504609813442-a8924e83f76e?auto=format&fit=crop&w=1600&q=80";
+      document.title = `${b.title} — EscoConcepts Travels`;
+      const desc = truncate(b.excerpt || b.content || "", 150);
+      document.getElementById("meta-desc").content = desc;
+      document.getElementById("og-title").content = b.title || "";
+      document.getElementById("og-desc").content = desc;
+      document.getElementById("og-image").content = img;
+      document.getElementById("twitter-title").content = b.title || "";
+      document.getElementById("twitter-desc").content = desc;
+      document.getElementById("twitter-image").content = img;
+      // JSON-LD for BlogPosting
+      const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": b.title,
+        "image": img,
+        "datePublished": b.created_at || b.published_at,
+        "author": { "@type": "Person", "name": b.author || "EscoConcepts" },
+        "publisher": { "@type": "Organization", "name": "EscoConcepts Travels", "logo": { "@type": "ImageObject", "url": "https://esconcepts-travels.onrender.com/images/logo.png" } },
+        "description": desc,
+        "mainEntityOfPage": window.location.href
+      };
+      document.getElementById("blog-jsonld").innerHTML = JSON.stringify(jsonLd);
+      wrap.innerHTML = `
+        <img class="hero-img" src="${img}" alt="${escapeHtml(b.title)}" loading="eager">
+        <h1>${escapeHtml(b.title)}</h1>
+        <div class="article-meta">${escapeHtml(b.author||"EscoConcepts")} • ${fmtDate(b.created_at || b.published_at)}</div>
+        <div class="content">${sanitizeHtml(b.content || "")}</div>
+        <p style="margin-top:2rem"><a class="btn btn-ghost" href="blog.html">← Back to all articles</a></p>`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  })();
+
+  function initHeader() { const h=document.querySelector(".site-header"); if(!h)return; const onScroll=()=>{ if(window.scrollY>30)h.classList.add("scrolled"); else h.classList.remove("scrolled"); }; window.addEventListener("scroll",onScroll,{passive:true}); onScroll(); const t=h.querySelector(".nav-toggle"), n=h.querySelector(".nav"); if(t&&n){ t.addEventListener("click",()=>n.classList.toggle("open")); n.addEventListener("click",(e)=>{ if(e.target.tagName==="A")n.classList.remove("open"); }); } }
+  initHeader();
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

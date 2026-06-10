@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contact — EscoConcepts Travels</title>
+<meta name="description" content="Plan your dream Kenya safari. Tell us what you dream of, and we'll craft the rest. Get in touch with our travel experts.">
+<meta name="keywords" content="contact Kenya safari, plan my trip, travel inquiry, EscoConcepts contact">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="Contact Us | EscoConcepts Travels">
+<meta property="og:description" content="Tell us what you dream of. We'll craft the rest.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/contact.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Contact Us | EscoConcepts Travels">
+<meta name="twitter:description" content="Plan your safari today.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ContactPage",
+  "name": "Contact EscoConcepts Travels",
+  "description": "Get in touch to plan your Kenya safari.",
+  "url": "https://esconcepts-travels.onrender.com/contact.html"
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<script src="config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a><a href="packages.html">Packages</a><a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a>
+      <a href="account.html">Account</a><a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero" style="padding:7rem 0 3rem"><div class="container"><h1>Plan My Trip</h1><p>Tell us what you dream of. We'll craft the rest.</p></div></section>
+
+<section>
+  <div class="container" style="max-width:720px">
+    <form id="contact-form" style="background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06)">
+      <div class="form-grid">
+        <div class="form-field"><label>Name *</label><input name="name" required class="input"></div>
+        <div class="form-field"><label>Email *</label><input type="email" name="email" required class="input"></div>
+        <div class="form-field full"><label>Subject *</label><input name="subject" required class="input"></div>
+        <div class="form-field full"><label>Message *</label><textarea name="message" required class="textarea"></textarea></div>
+      </div>
+      <div id="msg"></div>
+      <button class="btn btn-gold btn-block">Send Message</button>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div>
+    <div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div>
+    <div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div>
+  </div>
+  <div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+  initHeader();
+
+  function showAlert(el, msg, kind="error") { if(!el)return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if(kind==="success") setTimeout(()=>{el.innerHTML="";},6000); }
+  function escapeHtml(str) { if(!str)return""; return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function isValidEmail(email) { return /^\S+@\S+\.\S+$/.test(email); }
+
+  const form = document.getElementById("contact-form");
+  const msgDiv = document.getElementById("msg");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const payload = Object.fromEntries(fd.entries());
+    if (!isValidEmail(payload.email)) { showAlert(msgDiv, "Please enter a valid email."); return; }
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed");
+      showAlert(msgDiv, "Thanks — we'll reply within 24 hours.", "success");
+      form.reset();
+    } catch (err) { showAlert(msgDiv, err.message); }
+  });
+
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

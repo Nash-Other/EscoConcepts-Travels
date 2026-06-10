@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About — EscoConcepts Travels</title>
+<meta name="description" content="Learn about EscoConcepts Travels – a locally owned Kenyan safari company founded over a decade ago. We design personal, unforgettable journeys.">
+<meta name="keywords" content="about EscoConcepts, Kenya safari company, locally owned, tailor-made tours, Nairobi">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="Our Story | EscoConcepts Travels">
+<meta property="og:description" content="Born in Nairobi, told around campfires. Discover the people behind the journeys.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/about.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Our Story | EscoConcepts Travels">
+<meta name="twitter:description" content="Locally owned, deeply personal safaris.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "About EscoConcepts Travels",
+  "description": "Locally owned Kenyan safari company crafting tailor-made journeys.",
+  "url": "https://esconcepts-travels.onrender.com/about.html"
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<script src="config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a><a href="packages.html">Packages</a><a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a>
+      <a href="account.html">Account</a><a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero"><div class="container"><h1>Our Story</h1><p>Born in Nairobi, told around campfires.</p></div></section>
+
+<section>
+  <div class="container" style="max-width:780px">
+    <p>EscoConcepts Travels was founded over a decade ago by a small team of Kenyans who believed travel should feel personal. We design safaris like we'd design a trip for a close friend — careful, thoughtful, and full of the moments most travellers miss.</p>
+    <p>From the migration plains of the Maasai Mara to the white sands of Diani, every itinerary we craft is built on relationships: with the camps, the guides, the rangers, and the communities that call these places home.</p>
+    <p>We're proud to be locally owned, locally guided, and deeply invested in keeping the wild parts of Kenya wild.</p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div>
+    <div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="about.html">Our Story</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div>
+    <div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div>
+  </div>
+  <div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+  initHeader();
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

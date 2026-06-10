@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — EscoConcepts Travels</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
+</head>
+<body style="background:var(--bg)">
+
+<!-- Login View -->
+<div id="login-view" style="display:none;min-height:100vh;display:flex;align-items:center">
+  <div class="container">
+    <div class="card" style="max-width: 460px; margin: 0 auto;">
+      <div class="card-header">
+        <h2 class="card-title" style="text-align:center">Admin Login</h2>
+      </div>
+      <div class="card-content">
+        <form id="admin-login">
+          <div class="form-field"><label>Email</label><input type="email" name="email" required class="input"></div>
+          <div class="form-field"><label>Password</label><input type="password" name="password" required class="input"></div>
+          <div id="login-msg"></div>
+          <button class="btn btn-primary btn-block" type="submit">Log in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dash" style="display:none">
+  <div class="admin-shell">
+    <aside class="admin-sidebar">
+      <span class="logo">Esco<span style="color:var(--gold)">Concepts</span> Admin</span>
+      <button data-tab="bookings" class="active">Bookings</button>
+      <button data-tab="services">Destinations</button>
+      <button data-tab="contacts">Messages</button>
+      <button data-tab="blogs">Blogs</button>
+      <button id="admin-logout" style="margin-top:2rem;color:#e6b422" data-tooltip="Log out of admin panel">Log out</button>
+    </aside>
+    <main class="admin-main">
+      <!-- Bookings Tab -->
+      <section id="tab-bookings">
+        <h2>Bookings</h2>
+        <div class="toolbar">
+          <input id="b-search" placeholder="Search reference, guest name, email" class="input">
+          <select id="b-status" class="select">
+            <option value="">All statuses</option>
+            <option>Pending</option>
+            <option>Confirmed</option>
+            <option>Cancelled</option>
+            <option>Completed</option>
+          </select>
+          <input type="date" id="b-from" class="input"><input type="date" id="b-to" class="input">
+          <button class="btn btn-outline btn-sm" id="b-apply">Apply</button>
+        </div>
+        <div id="b-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="b-prev" class="btn btn-outline btn-sm">←</button><span id="b-info" class="page-info">Page 1</span><button id="b-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
+
+      <!-- Services Tab -->
+      <section id="tab-services" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h2 style="margin:0">Destinations</h2>
+          <button class="btn btn-primary btn-sm" id="add-svc">+ Add Destination</button>
+        </div>
+        <div class="toolbar">
+          <input id="s-search" placeholder="Search title" class="input">
+          <select id="s-active" class="select"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select>
+          <button class="btn btn-outline btn-sm" id="s-apply">Apply</button>
+        </div>
+        <div id="s-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="s-prev" class="btn btn-outline btn-sm">←</button><span id="s-info" class="page-info">Page 1</span><button id="s-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
+
+      <!-- Contacts Tab -->
+      <section id="tab-contacts" style="display:none">
+        <h2>Contact Messages</h2>
+        <div class="toolbar">
+          <input id="c-search" placeholder="Search" class="input">
+          <input type="date" id="c-from" class="input"><input type="date" id="c-to" class="input">
+          <button class="btn btn-outline btn-sm" id="c-apply">Apply</button>
+        </div>
+        <div id="c-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="c-prev" class="btn btn-outline btn-sm">←</button><span id="c-info" class="page-info">Page 1</span><button id="c-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
+
+      <!-- Blogs Tab -->
+      <section id="tab-blogs" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h2 style="margin:0">Blogs</h2>
+          <button class="btn btn-primary btn-sm" id="add-blog">+ New Article</button>
+        </div>
+        <div class="toolbar">
+          <input id="bl-search" placeholder="Search title" class="input">
+          <input id="bl-author" placeholder="Author" class="input">
+          <button class="btn btn-outline btn-sm" id="bl-apply">Apply</button>
+        </div>
+        <div id="bl-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="bl-prev" class="btn btn-outline btn-sm">←</button><span id="bl-info" class="page-info">Page 1</span><button id="bl-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Service Modal (Add/Edit Destination) -->
+<div id="serviceModal" class="modal-overlay">
+  <div class="modal-container" style="max-width: 700px;">
+    <div class="modal-header">
+      <span class="modal-title" id="serviceModalTitle">Add Destination</span>
+      <button class="modal-close" onclick="closeModal('serviceModal')">&times;</button>
+    </div>
+    <div class="modal-body" style="position: relative;">
+      <div id="serviceLoadingOverlay" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.8); align-items:center; justify-content:center; z-index:10; border-radius:0.75rem;">
+        <div class="spinner"></div>
+      </div>
+      <form id="svc-form">
+        <input type="hidden" id="serviceId">
+        <div class="form-grid">
+          <div class="form-field"><label>Title *</label><input name="title" id="svcTitle" required class="input"></div>
+          <div class="form-field"><label>Destination *</label><input name="destination" id="svcDestination" required class="input"></div>
+          <div class="form-field"><label>Base price *</label><input type="number" name="base_price" id="svcPrice" required class="input"></div>
+          <div class="form-field"><label>Max pax *</label><input type="number" name="max_pax" id="svcMaxPax" required class="input"></div>
+          <div class="form-field full"><label>Image URL</label><input name="image_url" id="svcImageUrl" class="input"></div>
+          <div class="form-field full"><label>Gallery (comma-separated URLs)</label><textarea name="gallery" id="svcGallery" rows="2" class="textarea"></textarea></div>
+          <div class="form-field full"><label>Description (HTML allowed)</label><textarea name="description" id="svcDescription" rows="3" class="textarea"></textarea></div>
+          <div class="form-field full"><label>Itinerary (HTML allowed)</label><textarea name="itinerary" id="svcItinerary" rows="3" class="textarea"></textarea></div>
+          <div class="form-field"><label><input type="checkbox" id="svcActive" checked> Active</label></div>
+        </div>
+        <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('serviceModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="svcSubmitBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Blog Modal (Add/Edit) -->
+<div id="blogModal" class="modal-overlay">
+  <div class="modal-container" style="max-width: 700px;">
+    <div class="modal-header">
+      <span class="modal-title" id="blogModalTitle">Add Blog</span>
+      <button class="modal-close" onclick="closeModal('blogModal')">&times;</button>
+    </div>
+    <div class="modal-body" style="position: relative;">
+      <div id="blogLoadingOverlay" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.8); align-items:center; justify-content:center; z-index:10; border-radius:0.75rem;">
+        <div class="spinner"></div>
+      </div>
+      <form id="blog-form">
+        <input type="hidden" id="blogId">
+        <div class="form-field"><label>Title *</label><input name="title" id="blogTitle" required class="input"></div>
+        <div class="form-field"><label>Author</label><input name="author" id="blogAuthor" class="input"></div>
+        <div class="form-field"><label>Cover image URL</label><input name="image_url" id="blogImageUrl" class="input"></div>
+        <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
+        <div class="form-field"><label>Content</label><div id="editor" style="height:300px;background:#fff"></div></div>
+        <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('blogModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="ui.js"></script>
+<script>
+  // ========== Helper functions ==========
+  function escapeHtml(str) { if (!str) return ""; return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch(e) { return d; } }
+  function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
+  function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
+  function showToast(message, type = "info") { if (window.showToast) window.showToast(message, type); else alert(message); }
+
+  // ========== Token management ==========
+  const TOKEN_KEY = "adminToken";
+  function getToken() { return localStorage.getItem(TOKEN_KEY) || ""; }
+  function setToken(token) { if (token) localStorage.setItem(TOKEN_KEY, token); }
+  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+  function isLoggedIn() { return !!getToken(); }
+
+  // ========== API wrapper ==========
+  async function request(path, options = {}) {
+    const headers = { "Content-Type": "application/json" };
+    const token = getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`/api${path}`, { ...options, headers });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
+
+  // ========== UI State ==========
+  const loginView = document.getElementById("login-view");
+  const dash = document.getElementById("dash");
+  let currentQuill = null;
+
+  function show() {
+    const ok = isLoggedIn();
+    loginView.style.display = ok ? "none" : "flex";
+    dash.style.display = ok ? "block" : "none";
+    if (ok) loadBookings();
+  }
+
+  // ========== Login / Logout ==========
+  document.getElementById("admin-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Login failed");
+      const t = data.token || data.accessToken;
+      if (!t) throw new Error("No token received");
+      setToken(t);
+      // REMOVED: showToast("Login successful", "success");  <- This line caused recursion
+      show();
+    } catch (err) {
+      showAlert(document.getElementById("login-msg"), err.message);
+    }
+  });
+
+  document.getElementById("admin-logout").onclick = () => {
+    if (confirm("Log out?")) {
+      clearToken();
+      show();
+      showToast("Logged out", "success");
+    }
+  };
+
+  // ========== Tabs ==========
+  document.querySelectorAll(".admin-sidebar [data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".admin-sidebar [data-tab]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const t = btn.dataset.tab;
+      ["bookings", "services", "contacts", "blogs"].forEach(k => {
+        document.getElementById("tab-" + k).style.display = k === t ? "block" : "none";
+      });
+      if (t === "bookings") loadBookings();
+      if (t === "services") loadServices();
+      if (t === "contacts") loadContacts();
+      if (t === "blogs") loadBlogs();
+    });
+  });
+
+  // ========== Bookings ==========
+  let bPage = 1, bTotalPages = 1;
+  async function loadBookings() {
+    const wrap = document.getElementById("b-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: bPage, limit: 15 });
+    const q = document.getElementById("b-search").value.trim(); if (q) params.set("search", q);
+    const st = document.getElementById("b-status").value; if (st) params.set("status", st);
+    const from = document.getElementById("b-from").value; if (from) params.set("dateFrom", from);
+    const to = document.getElementById("b-to").value; if (to) params.set("dateTo", to);
+    try {
+      const data = await request(`/bookings?${params.toString()}`);
+      const list = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: bPage };
+      bTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No bookings.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr>
+        <th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th>
+        </td></thead><tbody>${list.map(b => {
+          const ref = b.booking_reference || b.id;
+          const status = (b.status || "pending").toLowerCase();
+          const total = b.total_amount || "";
+          const guestName = b.guest_name || "";
+          const guestEmail = b.guest_email || "";
+          const guestPhone = b.guest_phone || "";
+          const special = b.special_requests || "";
+          return `<tr>
+            <td><span class="booking-ref">${escapeHtml(String(ref))}</span></td>
+            <td>${escapeHtml(guestName)}</span></td>
+            <td>${escapeHtml(guestEmail)}<br>${escapeHtml(guestPhone)}<br><small>${escapeHtml(special)}</small></td>
+            <td>${escapeHtml(b.package_booked || "")}</td>
+            <td>${fmtDate(b.travel_date)}</span></td>
+            <td>${fmtDate(b.return_date)}</span></td>
+            <td>${b.total_guests || b.pax || ""}</td>
+            <td>${fmtPrice(total)}</span></td>
+            <td><span class="status ${status}">${status}</span></span></td>
+            <td>
+              <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
+                <option ${status === "pending" ? "selected" : ""}>Pending</option>
+                <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
+                <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
+                <option ${status === "completed" ? "selected" : ""}>Completed</option>
+              </select>
+              <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
+             </span>
+          </tr>`;
+        }).join("")}</tbody></table>`;
+      document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
+      wrap.querySelectorAll(".update-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.dataset.id;
+          const status = wrap.querySelector(`.status-sel[data-id="${id}"]`).value;
+          try {
+            await request(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
+            showToast(`Booking status updated to ${status}`, "success");
+            loadBookings();
+          } catch (e) { showToast(e.message, "error"); }
+        };
+      });
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("b-apply").onclick = () => { bPage = 1; loadBookings(); };
+  document.getElementById("b-prev").onclick = () => { if (bPage > 1) { bPage--; loadBookings(); } };
+  document.getElementById("b-next").onclick = () => { if (bPage < bTotalPages) { bPage++; loadBookings(); } };
+
+  // ========== Services ==========
+  let sPage = 1, sTotalPages = 1;
+  async function loadServices() {
+    const wrap = document.getElementById("s-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: sPage, limit: 15 });
+    const q = document.getElementById("s-search").value.trim(); if (q) params.set("search", q);
+    const a = document.getElementById("s-active").value; if (a) params.set("is_active", a);
+    try {
+      const data = await request(`/admin/services?${params.toString()}`);
+      const list = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: sPage };
+      sTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr>
+        <th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th>
+        </tr></thead><tbody>${list.map(s => `<tr>
+          <td>${escapeHtml(s.title || "")}</td>
+          <td>${escapeHtml(s.destination || "")}</td>
+          <td>${fmtPrice(s.base_price)}</span></td>
+          <td>${escapeHtml(String(s.max_pax || "—"))}</td>
+          <td>${s.is_active === false ? "No" : "Yes"}</td>
+          <td>
+            <button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+            <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button>
+           </span>
+        </tr>`).join("")}</tbody></table>`;
+      document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
+      wrap.querySelectorAll(".edit-svc").forEach(b => b.onclick = () => editService(b.dataset.id));
+      wrap.querySelectorAll(".del-svc").forEach(b => b.onclick = async () => {
+        if (confirm("Delete this destination permanently?")) {
+          try {
+            await request(`/admin/services/${b.dataset.id}`, { method: "DELETE" });
+            loadServices();
+            showToast("Destination deleted", "success");
+          } catch (e) { showToast(e.message, "error"); }
+        }
+      });
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("s-apply").onclick = () => { sPage = 1; loadServices(); };
+  document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
+  document.getElementById("s-next").onclick = () => { if (sPage < sTotalPages) { sPage++; loadServices(); } };
+
+  async function editService(id) {
+    try {
+      const data = await request(`/admin/services/${id}`);
+      const svc = data.data || data;
+      document.getElementById("serviceModalTitle").innerText = "Edit Destination";
+      document.getElementById("serviceId").value = svc.service_id;
+      document.getElementById("svcTitle").value = svc.title || "";
+      document.getElementById("svcDestination").value = svc.destination || "";
+      document.getElementById("svcPrice").value = svc.base_price || "";
+      document.getElementById("svcMaxPax").value = svc.max_pax || 10;
+      document.getElementById("svcImageUrl").value = svc.image_url || "";
+      document.getElementById("svcDescription").value = svc.description || "";
+      document.getElementById("svcItinerary").value = svc.itinerary || "";
+      document.getElementById("svcGallery").value = (svc.gallery || []).join(", ");
+      document.getElementById("svcActive").checked = svc.is_active !== false;
+      openModal("serviceModal");
+    } catch (e) { showToast(e.message, "error"); }
+  }
+  document.getElementById("add-svc").onclick = () => {
+    document.getElementById("serviceModalTitle").innerText = "Add Destination";
+    document.getElementById("serviceId").value = "";
+    document.getElementById("svcTitle").value = "";
+    document.getElementById("svcDestination").value = "";
+    document.getElementById("svcPrice").value = "";
+    document.getElementById("svcMaxPax").value = "10";
+    document.getElementById("svcImageUrl").value = "";
+    document.getElementById("svcDescription").value = "";
+    document.getElementById("svcItinerary").value = "";
+    document.getElementById("svcGallery").value = "";
+    document.getElementById("svcActive").checked = true;
+    openModal("serviceModal");
+  };
+  document.getElementById("svc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("serviceId").value;
+    const overlay = document.getElementById("serviceLoadingOverlay");
+    overlay.style.display = "flex";
+    const payload = {
+      title: document.getElementById("svcTitle").value,
+      destination: document.getElementById("svcDestination").value,
+      base_price: parseFloat(document.getElementById("svcPrice").value),
+      max_pax: parseInt(document.getElementById("svcMaxPax").value),
+      image_url: document.getElementById("svcImageUrl").value,
+      description: document.getElementById("svcDescription").value,
+      itinerary: document.getElementById("svcItinerary").value,
+      gallery: document.getElementById("svcGallery").value.split(",").map(s => s.trim()).filter(Boolean),
+      is_active: document.getElementById("svcActive").checked
+    };
+    try {
+      if (id) await request(`/admin/services/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await request("/admin/services", { method: "POST", body: JSON.stringify(payload) });
+      closeModal("serviceModal");
+      loadServices();
+      showToast(id ? "Destination updated" : "Destination created", "success");
+    } catch (err) { showToast(err.message, "error"); }
+    finally { overlay.style.display = "none"; }
+  });
+
+  // ========== Contacts ==========
+  let cPage = 1, cTotalPages = 1;
+  async function loadContacts() {
+    const wrap = document.getElementById("c-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: cPage, limit: 15 });
+    const q = document.getElementById("c-search").value.trim(); if (q) params.set("search", q);
+    const from = document.getElementById("c-from").value; if (from) params.set("dateFrom", from);
+    const to = document.getElementById("c-to").value; if (to) params.set("dateTo", to);
+    try {
+      const data = await request(`/contact?${params.toString()}`);
+      const list = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: cPage };
+      cTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No messages.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody>${
+        list.map(c => `<tr><td>${fmtDate(c.created_at)}</span></td><td>${escapeHtml(c.name || "")}</span></td><td>${escapeHtml(c.email || "")}</span></td><td>${escapeHtml(c.subject || "")}</span></td><td>${escapeHtml(c.message || "")}</span></tr>`).join("")
+      }</tbody></table>`;
+      document.getElementById("c-info").textContent = `Page ${pagination.currentPage} of ${cTotalPages}`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("c-apply").onclick = () => { cPage = 1; loadContacts(); };
+  document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
+  document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
+
+  // ========== Blogs ==========
+  let blPage = 1, blTotalPages = 1;
+  async function loadBlogs() {
+    const wrap = document.getElementById("bl-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: blPage, limit: 15 });
+    const q = document.getElementById("bl-search").value.trim(); if (q) params.set("search", q);
+    const a = document.getElementById("bl-author").value.trim(); if (a) params.set("author", a);
+    try {
+      const data = await request(`/blogs?${params.toString()}`);
+      const list = data.blogs || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: blPage };
+      blTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No articles.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${
+        list.map(b => `<tr>
+          <td>${escapeHtml(b.title || "")}</span></td>
+          <td>${escapeHtml(b.author || "")}</span></td>
+          <td>${fmtDate(b.created_at)}</span></td>
+          <td>
+            <button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+            <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button>
+           </span>
+        </tr>`).join("")
+      }</tbody></table>`;
+      document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
+      wrap.querySelectorAll(".edit-blog").forEach(btn => btn.onclick = async () => {
+        try { const d = await request(`/blogs/${btn.dataset.id}`); openBlogForm(d.data || d); } catch (e) { showToast(e.message, "error"); }
+      });
+      wrap.querySelectorAll(".del-blog").forEach(btn => btn.onclick = async () => {
+        if (confirm("Delete this blog?")) {
+          try { await request(`/blogs/${btn.dataset.id}`, { method: "DELETE" }); loadBlogs(); showToast("Blog deleted", "success"); } catch (e) { showToast(e.message, "error"); }
+        }
+      });
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
+  document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
+  document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
+  document.getElementById("add-blog").onclick = () => openBlogForm();
+
+  function openBlogForm(blog = {}) {
+    document.getElementById("blogModalTitle").innerText = blog.id ? "Edit Blog" : "New Article";
+    document.getElementById("blogId").value = blog.id || "";
+    document.getElementById("blogTitle").value = blog.title || "";
+    document.getElementById("blogAuthor").value = blog.author || "";
+    document.getElementById("blogImageUrl").value = blog.image_url || "";
+    document.getElementById("blogExcerpt").value = blog.excerpt || "";
+    if (currentQuill) currentQuill.root.innerHTML = blog.content || "";
+    else {
+      currentQuill = new Quill("#editor", { theme: "snow", modules: { toolbar: [
+        [{ header: [2, 3, false] }], ["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link", "image"], ["clean"]
+      ] } });
+      if (blog.content) currentQuill.root.innerHTML = blog.content;
+      currentQuill.getModule("toolbar").addHandler("image", () => {
+        const input = document.createElement("input"); input.type = "file"; input.accept = "image/*";
+        input.onchange = async () => {
+          if (!input.files[0]) return;
+          try {
+            const formData = new FormData(); formData.append("image", input.files[0]);
+            const res = await fetch("/api/upload", { method: "POST", headers: { "Authorization": `Bearer ${getToken()}` }, body: formData });
+            const data = await res.json();
+            if (data.url) currentQuill.insertEmbed(currentQuill.getSelection(true).index, "image", data.url);
+          } catch (e) { showToast(e.message, "error"); }
+        };
+        input.click();
+      });
+    }
+    openModal("blogModal");
+  }
+  document.getElementById("blog-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("blogId").value;
+    const overlay = document.getElementById("blogLoadingOverlay");
+    overlay.style.display = "flex";
+    const payload = {
+      title: document.getElementById("blogTitle").value,
+      author: document.getElementById("blogAuthor").value,
+      image_url: document.getElementById("blogImageUrl").value,
+      excerpt: document.getElementById("blogExcerpt").value,
+      content: currentQuill.root.innerHTML
+    };
+    try {
+      if (id) await request(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await request("/blogs", { method: "POST", body: JSON.stringify(payload) });
+      closeModal("blogModal");
+      loadBlogs();
+      showToast(id ? "Blog updated" : "Blog published", "success");
+    } catch (err) { showToast(err.message, "error"); }
+    finally { overlay.style.display = "none"; }
+  });
+
+  // Image upload for blog cover (file input)
+  document.getElementById("blogImageUrl")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const formData = new FormData(); formData.append("image", file);
+      const res = await fetch("/api/upload", { method: "POST", headers: { "Authorization": `Bearer ${getToken()}` }, body: formData });
+      const data = await res.json();
+      if (data.url) document.getElementById("blogImageUrl").value = data.url;
+    } catch (err) { showToast(err.message, "error"); }
+  });
+
+  show();
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terms &amp; Conditions — EscoConcepts Travels</title>
+<meta name="description" content="Read the terms and conditions for booking safaris with EscoConcepts Travels. Cancellation policy, liability, and more.">
+<meta name="keywords" content="terms and conditions, booking policy, cancellation, refund, EscoConcepts">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="Terms &amp; Conditions | EscoConcepts Travels">
+<meta property="og:description" content="Our booking terms, cancellation policy, and liability.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/terms.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Terms &amp; Conditions | EscoConcepts Travels">
+<meta name="twitter:description" content="Important information for your booking.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Terms and Conditions",
+  "description": "Terms and conditions for booking safaris with EscoConcepts Travels.",
+  "url": "https://esconcepts-travels.onrender.com/terms.html"
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<script src="config.js"></script></head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a><a href="packages.html">Packages</a><a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a>
+      <a href="account.html">Account</a><a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero" style="padding:7rem 0 3rem"><div class="container"><h1>Terms &amp; Conditions</h1></div></section>
+<section><div class="container" style="max-width:780px">
+  <p>By using EscoConcepts Travels you agree to these terms. Bookings are confirmed upon receipt of payment. Cancellations made more than 30 days before travel are eligible for a full refund minus a 5% admin fee. Within 30 days, refunds are at the discretion of our team and operating partners.</p>
+  <p>We are not liable for delays caused by weather, civil unrest, or other circumstances beyond our control. Travel insurance is strongly recommended.</p>
+  <p>For full details, contact <a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a>.</p>
+</div></section>
+<footer class="site-footer"><div class="container footer-grid">
+  <div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div>
+  <div><h4>Quick Links</h4><a href="packages.html">Packages</a><a href="about.html">Our Story</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div>
+  <div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div>
+</div><div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div></footer>
+<script src="ui.js"></script>
+<script>
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+  initHeader();
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script></body></html>

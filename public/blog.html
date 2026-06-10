@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blog — EscoConcepts Travels</title>
+<meta name="description" content="Field notes from the bush, the beach, and the road in between. Stories, tips, and inspiration for your Kenya safari.">
+<meta name="keywords" content="Kenya travel blog, safari stories, travel tips, Maasai Mara, Diani Beach">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="Field Notes | EscoConcepts Travels Blog">
+<meta property="og:description" content="Stories from the bush, the beach, and the road in between.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/blog.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Field Notes | EscoConcepts Travels">
+<meta name="twitter:description" content="Travel stories and inspiration from Kenya.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "EscoConcepts Travels Field Notes",
+  "description": "Travel stories and safari tips from Kenya.",
+  "url": "https://esconcepts-travels.onrender.com/blog.html"
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+  /* Make "Read Article" buttons visible (gold background, dark text) */
+  .card .btn-sm {
+    background: var(--gold);
+    color: var(--ink);
+    border: none;
+    transition: background 0.2s;
+  }
+  .card .btn-sm:hover {
+    background: var(--gold-dark);
+  }
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a>
+      <a href="packages.html">Packages</a>
+      <a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a>
+      <a href="blog.html">Blog</a>
+      <a href="contact.html">Contact</a>
+      <a href="account.html">Account</a>
+      <a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero" style="padding:7rem 0 3rem"><div class="container"><h1>Field Notes</h1><p>Stories from the bush, the beach, and the road in between.</p></div></section>
+
+<section>
+  <div class="container">
+    <div id="grid" class="grid grid-3"><div class="loading">Loading…</div></div>
+    <div class="pagination">
+      <button id="prev" disabled class="btn btn-outline btn-sm">← Previous</button>
+      <span class="page-info" id="info">Page 1</span>
+      <button id="next" class="btn btn-outline btn-sm">Next →</button>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div>
+    <div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div>
+    <div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div>
+  </div>
+  <div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+  initHeader();
+
+  function escapeHtml(str){if(!str)return"";return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
+  function fmtDate(d){if(!d)return"—";try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;}}
+  function truncate(str,n=120){const s=String(str).replace(/<[^>]*>/g,"");return s.length>n?s.slice(0,n).trim()+"…":s;}
+
+  let page = 1, limit = 6;
+  const grid = document.getElementById("grid"), prev = document.getElementById("prev"), next = document.getElementById("next"), info = document.getElementById("info");
+
+  async function load() {
+    grid.innerHTML = `<div class="loading">Loading…</div>`;
+    try {
+      const res = await fetch(`/api/blogs?page=${page}&limit=${limit}`);
+      const data = await res.json();
+      const list = data.blogs || data.data || data.items || (Array.isArray(data) ? data : []);
+      const total = data.totalPages || data.total_pages || Math.ceil((data.total || list.length) / limit) || 1;
+      grid.innerHTML = list.length ? list.map(b => {
+        const img = safeUrl(b.image_url || b.cover_image) || "https://images.unsplash.com/photo-1504609813442-a8924e83f76e?auto=format&fit=crop&w=900&q=80";
+        return `<article class="card"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(b.title)}"><div class="card-body"><div class="card-meta">${escapeHtml(b.author||"EscoConcepts")} • ${fmtDate(b.created_at || b.published_at)}</div><h3>${escapeHtml(b.title)}</h3><p>${escapeHtml(truncate(b.excerpt || b.content || "", 120))}</p><a class="btn btn-sm" href="article.html?id=${encodeURIComponent(b.id)}">Read Article</a></div></article>`;
+      }).join("") : `<div class="empty">No articles yet.</div>`;
+      info.textContent = `Page ${page} of ${total}`;
+      prev.disabled = page <= 1; next.disabled = page >= total;
+    } catch(e) { grid.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  prev.onclick = () => { if(page>1){page--;load();} };
+  next.onclick = () => { page++; load(); };
+  load();
+
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

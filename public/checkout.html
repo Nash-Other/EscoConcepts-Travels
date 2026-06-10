@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout — EscoConcepts Travels</title>
+<meta name="description" content="Complete your safari booking. Tell us about your trip and we'll confirm within 24 hours.">
+<meta name="keywords" content="book safari, checkout, safari booking, payment">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="Checkout | EscoConcepts Travels">
+<meta property="og:description" content="Book your tailor-made Kenya safari.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/checkout.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Checkout | EscoConcepts Travels">
+<meta name="twitter:description" content="Secure your safari booking.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CheckoutPage",
+  "name": "Safari Booking Checkout",
+  "description": "Complete your safari booking.",
+  "url": "https://esconcepts-travels.onrender.com/checkout.html"
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<script src="config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a><a href="packages.html">Packages</a><a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a>
+      <a href="account.html">Account</a><a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero" style="padding:7rem 0 3rem"><div class="container"><h1>Book Your Safari</h1><p>Tell us a bit about your trip. We'll confirm within 24 hours.</p></div></section>
+
+<section>
+  <div class="container" style="max-width:900px">
+    <div id="pkg-summary" style="background:#fff;padding:1.5rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06);margin-bottom:2rem"><div class="loading">Loading package…</div></div>
+    <form id="checkout-form" style="background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06)">
+      <div class="form-grid">
+        <div class="form-field"><label>First name *</label><input name="firstName" required class="input"></div>
+        <div class="form-field"><label>Last name *</label><input name="lastName" required class="input"></div>
+        <div class="form-field"><label>Email *</label><input type="email" name="email" required class="input"></div>
+        <div class="form-field"><label>Phone *</label><input name="phone" required class="input"></div>
+        <div class="form-field"><label>Travel date *</label><input type="date" name="travelDate" required class="input"></div>
+        <div class="form-field"><label>Return date (end date) *</label><input type="date" name="returnDate" required class="input"></div>
+        <div class="form-field"><label>Number of guests *</label><select name="pax" id="pax" required class="select"></select></div>
+        <div class="form-field full"><label>Special requests</label><textarea name="specialRequests" placeholder="Dietary needs, occasions, accessibility…" class="textarea"></textarea></div>
+        <div class="form-field full"><label>Payment method *</label><select name="paymentMethod" required class="select"><option value="card">Credit / Debit Card</option><option value="mpesa">M-Pesa</option></select></div>
+      </div>
+      <div id="form-msg"></div>
+      <button class="btn btn-gold btn-block" type="submit" id="submit-btn">Confirm Booking</button>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-grid"><div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div><div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div><div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div></div>
+  <div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+  initHeader();
+
+  function escapeHtml(str){if(!str)return"";return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
+  function fmtPrice(v){if(v==null||isNaN(Number(v)))return"—";return"KSh "+Number(v).toLocaleString();}
+  function showAlert(el,msg,kind="error"){if(!el)return;el.innerHTML=`<div class="alert ${kind}">${escapeHtml(msg)}</div>`;if(kind==="success")setTimeout(()=>{el.innerHTML="";},6000);}
+  function openModal(html){const b=document.getElementById("checkoutModal")|| (()=>{const d=document.createElement("div");d.id="checkoutModal";d.className="modal-backdrop";d.innerHTML='<div class="modal" role="dialog" aria-modal="true"><button class="modal-close">&times;</button><div class="modal-content"></div></div>';document.body.appendChild(d);d.addEventListener("click",e=>{if(e.target===d||e.target.classList.contains("modal-close"))closeModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});return d;})(); const c=b.querySelector(".modal-content");c.innerHTML=html;b.classList.add("open");document.body.style.overflow="hidden";}
+  function closeModal(){const b=document.getElementById("checkoutModal");if(b){b.classList.remove("open");document.body.style.overflow="";}}
+
+  const pkgId = new URLSearchParams(window.location.search).get("package");
+  const summary = document.getElementById("pkg-summary");
+  const paxSel = document.getElementById("pax");
+  const form = document.getElementById("checkout-form");
+  const msg = document.getElementById("form-msg");
+  let pkg = null;
+
+  async function loadPkg() {
+    if(!pkgId){ summary.innerHTML=`<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display="none"; return; }
+    try {
+      const res = await fetch("/api/services");
+      const data = await res.json();
+      const list = data.data || data.services || (Array.isArray(data)?data:[]);
+      pkg = list.find(s => String(s.service_id) === String(pkgId));
+      if(!pkg) throw new Error("Package not found");
+      const img = safeUrl(pkg.image_url) || "";
+      summary.innerHTML = `<div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:.75rem">` : ""}<div style="flex:1;min-width:200px"><span class="eyebrow">${escapeHtml(pkg.destination||"Kenya")}</span><h3 style="margin:.25rem 0">${escapeHtml(pkg.title)}</h3><div style="color:var(--gold-dark);font-weight:700">${fmtPrice(pkg.base_price)} per person</div></div></div>`;
+      const max = Number(pkg.max_pax) || 10;
+      paxSel.innerHTML = Array.from({length:max},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("");
+      const travelDateInput = document.querySelector('input[name="travelDate"]');
+      const returnDateInput = document.querySelector('input[name="returnDate"]');
+      if(travelDateInput && returnDateInput) {
+        travelDateInput.addEventListener('change', () => {
+          if(travelDateInput.value) {
+            returnDateInput.min = travelDateInput.value;
+            if(returnDateInput.value && returnDateInput.value < travelDateInput.value) returnDateInput.value = travelDateInput.value;
+          }
+        });
+      }
+    } catch(e){ summary.innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`; form.style.display="none"; }
+  }
+  loadPkg();
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.innerHTML = "";
+    const fd = new FormData(form);
+    const payload = Object.fromEntries(fd.entries());
+    payload.pax = Number(payload.pax);
+    payload.service_id = pkg.service_id;
+    if(!/^\S+@\S+\.\S+$/.test(payload.email)) return showAlert(msg, "Please enter a valid email.");
+    if(payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `Max ${pkg.max_pax} guests for this package.`);
+    if(payload.travelDate && payload.returnDate && payload.returnDate < payload.travelDate) {
+      return showAlert(msg, "Return date cannot be before travel date.");
+    }
+    const btn = document.getElementById("submit-btn"); btn.disabled = true; btn.textContent = "Submitting…";
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.message || "Checkout failed");
+      const ref = data.bookingReference || data.reference || data.booking_reference || "—";
+      openModal(`<div class="modal-body" style="text-align:center"><h2>Booking received!</h2><p>Thank you, ${escapeHtml(payload.firstName)}. We'll be in touch shortly to confirm your safari.</p><p>Your booking reference:</p><div style="font-family:monospace;font-size:1.3rem;background:var(--bg-soft);padding:1rem;border-radius:.5rem;margin:1rem 0">${escapeHtml(String(ref))}</div><a href="account.html" class="btn btn-gold">View My Bookings</a></div>`);
+      form.reset();
+    } catch(err){ showAlert(msg, err.message); }
+    finally { btn.disabled = false; btn.textContent = "Confirm Booking"; }
+  });
+
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

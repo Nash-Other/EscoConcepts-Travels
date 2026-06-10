@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EscoConcepts Travels — Tailor‑Made Kenya Safaris</title>
+<meta name="description" content="Crafted journeys through Kenya's plains, peaks and pristine coast — guided by people who call it home. Book your safari today.">
+<meta name="keywords" content="Kenya safaris, tailor-made tours, Maasai Mara, Diani Beach, Amboseli, travel packages, safari holidays">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="EscoConcepts Travels | Tailor‑Made Kenya Safaris">
+<meta property="og:description" content="Walk where the wild things roam. Crafted journeys through Kenya's plains, peaks and pristine coast.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="EscoConcepts Travels">
+<meta name="twitter:description" content="Tailor‑made Kenya safaris.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TravelAgency",
+  "name": "EscoConcepts Travels",
+  "url": "https://esconcepts-travels.onrender.com",
+  "logo": "https://esconcepts-travels.onrender.com/images/logo.png",
+  "description": "Tailor‑made Kenya safaris and tours.",
+  "address": { "@type": "PostalAddress", "addressLocality": "Nairobi", "addressCountry": "KE" },
+  "contactPoint": { "@type": "ContactPoint", "telephone": "+254700000000", "contactType": "customer service" }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+  .stars { color: var(--gold); letter-spacing: 2px; font-size: 0.9rem; }
+  .review-item { margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding: 0.5rem 0; }
+  .review-item small { color: var(--muted-foreground); font-size: 0.7rem; }
+  .average-rating { margin-bottom: 0.5rem; font-weight: 600; }
+  .reviews-section { margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+  .card .view-btn { background: var(--gold); color: var(--ink); border: none; }
+  .card .view-btn:hover { background: var(--gold-dark); }
+  .avg-rating { margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle" aria-label="Menu">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a>
+      <a href="packages.html">Packages</a>
+      <a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a>
+      <a href="blog.html">Blog</a>
+      <a href="contact.html">Contact</a>
+      <a href="account.html">Account</a>
+      <a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <span class="eyebrow">Tailor-Made Kenya Safaris</span>
+    <h1>Walk where the wild things roam.</h1>
+    <p class="lead">Crafted journeys through Kenya's plains, peaks and pristine coast — guided by people who call it home.</p>
+    <div class="hero-actions">
+      <a href="packages.html" class="btn btn-primary">Explore Packages</a>
+      <a href="contact.html" class="btn btn-outline">Plan My Trip</a>
+    </div>
+  </div>
+  <div class="scroll-indicator">SCROLL<span class="arrow"></span></div>
+</section>
+
+<!-- Karibu -->
+<section class="karibu">
+  <div class="container">
+    <span class="eyebrow">Karibu Kenya</span>
+    <h2>Karibu Kenya</h2>
+    <p style="font-style:italic;color:var(--ink)">Journeys shaped by you, led by people who live here.</p>
+    <p>For over a decade we've designed deeply personal safaris — from the migration plains of the Mara to the white sands of Diani — with the warmth of Kenyan hospitality at every step.</p>
+  </div>
+</section>
+
+<!-- Signature Packages -->
+<section>
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Curated Experiences</span>
+      <h2>Signature Safari Packages</h2>
+      <p>Three of our most-loved itineraries, hand-built for unforgettable moments.</p>
+    </div>
+    <div id="signature-grid" class="grid grid-3"><div class="loading">Loading packages…</div></div>
+    <div style="text-align:center;margin-top:2rem">
+      <a href="packages.html" class="btn btn-ghost">View all packages →</a>
+    </div>
+  </div>
+</section>
+
+<!-- Iconic destinations (static mosaic) -->
+<section style="background:var(--bg-soft)">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Where We Go</span>
+      <h2>Iconic Kenyan destinations</h2>
+    </div>
+    <div class="mosaic">
+      <div class="tile big"><img loading="lazy" src="https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?auto=format&fit=crop&w=1200&q=80" alt="Maasai Mara"><div class="overlay"><div class="region">SOUTH WEST</div><h4>Maasai Mara</h4><p>The greatest wildlife spectacle on Earth — endless plains and the Great Migration.</p></div></div>
+      <div class="tile"><img loading="lazy" src="https://images.unsplash.com/photo-1535941339077-2dd1c7963098?auto=format&fit=crop&w=900&q=80" alt="Amboseli"><div class="overlay"><div class="region">SOUTHERN</div><h4>Amboseli</h4><p>Elephants framed by Kilimanjaro.</p></div></div>
+      <div class="tile"><img loading="lazy" src="https://images.unsplash.com/photo-1589553416260-f586c8f1514f?auto=format&fit=crop&w=900&q=80" alt="Diani Beach"><div class="overlay"><div class="region">COAST</div><h4>Diani Beach</h4><p>White sand, turquoise water.</p></div></div>
+      <div class="tile"><img loading="lazy" src="https://images.unsplash.com/photo-1571406761758-9a3eed5338ef?auto=format&fit=crop&w=900&q=80" alt="Lake Nakuru"><div class="overlay"><div class="region">RIFT VALLEY</div><h4>Lake Nakuru</h4><p>Flamingo-pink shores, rhinos, big cats.</p></div></div>
+      <div class="tile"><img loading="lazy" src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=900&q=80" alt="Mt. Kenya"><div class="overlay"><div class="region">CENTRAL</div><h4>Mt. Kenya</h4><p>Africa's second peak — alpine trekking.</p></div></div>
+      <div class="tile"><img loading="lazy" src="https://images.unsplash.com/photo-1534177616072-ef7dc120449d?auto=format&fit=crop&w=900&q=80" alt="Tsavo"><div class="overlay"><div class="region">SOUTH EAST</div><h4>Tsavo</h4><p>Red elephants and raw wilderness.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Featured Destinations -->
+<section>
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Trending Right Now</span>
+      <h2>Featured Destinations</h2>
+    </div>
+    <div id="featured-grid" class="grid grid-3 featured-grid-transition"><div class="loading">Loading…</div></div>
+    <div class="pagination">
+      <button id="prev-page" disabled class="btn btn-outline btn-sm">← Previous</button>
+      <span class="page-info" id="page-info">Page 1</span>
+      <button id="next-page" class="btn btn-outline btn-sm">Next →</button>
+    </div>
+  </div>
+</section>
+
+<!-- Service Modal (reviews only – no submission form) -->
+<div id="serviceModal" class="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="modal-close" aria-label="Close">&times;</button>
+    <div class="modal-content"></div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris, crafted by locals. Walk where the wild things roam.</p></div>
+    <div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="about.html">Our Story</a><a href="terms.html">Terms &amp; Conditions</a><a href="privacy.html">Privacy Policy</a></div>
+    <div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a><a href="tel:+254700000000">+254 700 000 000</a><a href="#">Nairobi, Kenya</a></div>
+  </div>
+  <div class="footer-bottom">© <span id="year"></span> EscoConcepts Travels. All rights reserved.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  // ========== Helper functions ==========
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function safeUrl(url, fallback = "") {
+    if (!url) return fallback;
+    try { const u = new URL(url, window.location.origin); if (["http:", "https:"].includes(u.protocol)) return u.href; } catch (_) { return fallback; }
+  }
+  function sanitizeHtml(html) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = String(html);
+    const allowedTags = new Set(["P", "BR", "STRONG", "EM", "B", "I", "U", "UL", "OL", "LI", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "A", "IMG", "HR", "SPAN", "DIV", "FIGURE", "FIGCAPTION", "PRE", "CODE"]);
+    const allowedAttrs = { A: ["href", "title", "target", "rel"], IMG: ["src", "alt", "title"] };
+    const walk = (node) => {
+      [...node.childNodes].forEach(child => {
+        if (child.nodeType === 1) {
+          if (!allowedTags.has(child.tagName)) { child.replaceWith(...child.childNodes); return; }
+          const allowed = allowedAttrs[child.tagName] || [];
+          [...child.attributes].forEach(a => {
+            if (!allowed.includes(a.name)) child.removeAttribute(a.name);
+            if (a.name === "href" || a.name === "src") {
+              const v = safeUrl(a.value);
+              if (!v) child.removeAttribute(a.name);
+              else child.setAttribute(a.name, v);
+            }
+          });
+          if (child.tagName === "A") { child.setAttribute("rel", "noopener noreferrer"); child.setAttribute("target", "_blank"); }
+          walk(child);
+        } else if (child.nodeType === 8) child.remove();
+      });
+    };
+    walk(tpl.content);
+    return tpl.innerHTML;
+  }
+  function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
+  function truncate(str, n = 120) { const s = String(str).replace(/<[^>]*>/g, ""); return s.length > n ? s.slice(0, n).trim() + "…" : s; }
+  function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch { return d; } }
+  function renderStars(rating) { const full = Math.floor(rating); const empty = 5 - full; return '<span class="stars">' + '★'.repeat(full) + '☆'.repeat(empty) + '</span>'; }
+
+  async function fetchServiceReviews(serviceId) {
+    try {
+      const res = await fetch(`/api/reviews/${serviceId}`);
+      const data = await res.json();
+      if (data.success) {
+        return { reviews: data.reviews, average: data.average };
+      }
+      return { reviews: [], average: null };
+    } catch (err) {
+      console.error(err);
+      return { reviews: [], average: null };
+    }
+  }
+
+  async function fetchAverageRating(serviceId) {
+    const data = await fetchServiceReviews(serviceId);
+    return data.average ? parseFloat(data.average) : null;
+  }
+
+  // ========== Modal (reviews only – no submission form) ==========
+  async function openServiceModal(service) {
+    const backdrop = document.getElementById("serviceModal");
+    const contentDiv = backdrop.querySelector(".modal-content");
+    const img = safeUrl(service.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
+    const gallery = (service.gallery || []).map(safeUrl).filter(Boolean);
+    const galleryHtml = gallery.length ? `<div class="modal-gallery">${gallery.map(u => `<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>` : "";
+    const itinerary = service.itinerary ? `<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>` : "";
+    const serviceId = service.service_id || service.id;
+
+    const { reviews, average } = await fetchServiceReviews(serviceId);
+    let reviewsHtml = `<div class="reviews-section"><h4>Customer Reviews</h4>`;
+    if (average) {
+      reviewsHtml += `<div class="average-rating">Average: ${renderStars(parseFloat(average))} (${average})</div>`;
+    } else {
+      reviewsHtml += `<div class="average-rating">No reviews yet.</div>`;
+    }
+    if (reviews.length) {
+      reviewsHtml += `<div class="reviews-list" style="max-height:200px; overflow-y:auto;">`;
+      reviews.forEach(r => {
+        const verifiedBadge = r.verified ? '<span class="verified-badge" style="background:#1d7a3f; color:white; font-size:0.7rem; padding:2px 6px; border-radius:20px; margin-left:8px; display:inline-block;">✓ Verified Purchase</span>' : '';
+        reviewsHtml += `<div class="review-item" style="border-bottom:1px solid var(--border); padding:0.5rem 0;">
+          <strong>${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</strong> ${verifiedBadge}
+          <span class="stars">${renderStars(r.rating)}</span>
+          <p style="margin:0.25rem 0 0;">${escapeHtml(r.comment || '')}</p>
+          <small>${fmtDate(r.created_at)}</small>
+        </div>`;
+      });
+      reviewsHtml += `</div>`;
+    } else {
+      reviewsHtml += `<div class="reviews-list"><p>No reviews yet.</p></div>`;
+    }
+    reviewsHtml += `</div>`;
+
+    contentDiv.innerHTML = `
+      <img class="modal-img" src="${img}" alt="${escapeHtml(service.title || "")}">
+      <div class="modal-body">
+        <span class="eyebrow">${escapeHtml(service.destination || "Kenya")}</span>
+        <h2>${escapeHtml(service.title || "")}</h2>
+        <div class="meta">Up to ${escapeHtml(String(service.max_pax || "—"))} guests</div>
+        <div class="price">${fmtPrice(service.base_price)}</div>
+        <div>${sanitizeHtml(service.description || "")}</div>
+        ${itinerary}
+        ${galleryHtml}
+        <a class="btn btn-gold" href="checkout.html?package=${encodeURIComponent(serviceId)}">Book This Safari</a>
+        ${reviewsHtml}
+      </div>
+    `;
+    backdrop.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeServiceModal() {
+    const backdrop = document.getElementById("serviceModal");
+    backdrop.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const backdrop = document.getElementById("serviceModal");
+    if (backdrop) {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop || e.target.classList.contains("modal-close")) closeServiceModal();
+      });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeServiceModal(); });
+    }
+  });
+
+  // ========== Signature packages (with average rating stars) ==========
+  async function loadSignature() {
+    const grid = document.getElementById("signature-grid");
+    if (!grid) return;
+    try {
+      const res = await fetch("/api/services");
+      const data = await res.json();
+      const services = data.success ? data.data : (Array.isArray(data) ? data : []);
+      const active = services.filter(s => s.is_active !== false).slice(0, 3);
+      if (active.length === 0) {
+        grid.innerHTML = `<div class="empty">No packages yet.</div>`;
+        return;
+      }
+
+      // Build cards with average rating
+      const cards = await Promise.all(active.map(async (s) => {
+        const avg = await fetchAverageRating(s.service_id);
+        const avgHtml = avg ? `<div class="avg-rating">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>` : '';
+        const img = safeUrl(s.image_url) || 'https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80';
+        return `
+          <article class="card" data-id="${s.service_id}">
+            <img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}">
+            <div class="card-body">
+              <h3>${escapeHtml(s.title)}</h3>
+              <div class="card-meta">${escapeHtml(s.destination || "Kenya")}</div>
+              <p>${escapeHtml(truncate(s.description || "", 110))}</p>
+              <div class="card-price">${fmtPrice(s.base_price)}</div>
+              ${avgHtml}
+              <button class="btn btn-sm view-btn">Learn more →</button>
+            </div>
+          </article>
+        `;
+      }));
+
+      grid.innerHTML = cards.join("");
+      grid.querySelectorAll(".view-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const card = btn.closest(".card");
+          const id = parseInt(card.dataset.id);
+          const svc = active.find(s => s.service_id === id);
+          if (svc) openServiceModal(svc);
+        });
+      });
+    } catch (err) {
+      grid.innerHTML = `<div class="empty">Could not load packages.</div>`;
+      console.error(err);
+    }
+  }
+
+  // ========== Featured destinations (paginated, with average rating stars) ==========
+  let featuredPage = 1, limit = 6, totalPages = 1, featuredList = [], rotateTimer = null, ROTATE_INTERVAL = 10000;
+
+  async function renderFeaturedPage(page) {
+    const grid = document.getElementById("featured-grid");
+    const prevBtn = document.getElementById("prev-page");
+    const nextBtn = document.getElementById("next-page");
+    const pageInfo = document.getElementById("page-info");
+    try {
+      const res = await fetch(`/api/services/paginated?page=${page}&limit=${limit}`);
+      const data = await res.json();
+      const services = data.success ? data.data : (data.data || []);
+      const pagination = data.pagination || { currentPage: page, totalPages: 1 };
+      featuredList = services;
+      totalPages = pagination.totalPages || 1;
+      if (services.length === 0) {
+        grid.innerHTML = `<div class="empty">No destinations found.</div>`;
+      } else {
+        // Build cards with average rating
+        const cards = await Promise.all(services.map(async (s) => {
+          const avg = await fetchAverageRating(s.service_id);
+          const avgHtml = avg ? `<div class="avg-rating">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>` : '';
+          const img = safeUrl(s.image_url) || 'https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80';
+          return `
+            <article class="card" data-id="${s.service_id}">
+              <img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}">
+              <div class="card-body">
+                <h3>${escapeHtml(s.title)}</h3>
+                <div class="card-meta">${escapeHtml(s.destination || "Kenya")}</div>
+                <p>${escapeHtml(truncate(s.description || "", 110))}</p>
+                <div class="card-price">${fmtPrice(s.base_price)}</div>
+                ${avgHtml}
+                <button class="btn btn-sm view-btn">View Details</button>
+              </div>
+            </article>
+          `;
+        }));
+        grid.innerHTML = cards.join("");
+        grid.querySelectorAll(".view-btn").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const card = btn.closest(".card");
+            const id = parseInt(card.dataset.id);
+            const svc = featuredList.find(s => s.service_id === id);
+            if (svc) {
+              openServiceModal(svc);
+              resetRotateTimer();
+            }
+          });
+        });
+      }
+      pageInfo.textContent = `Page ${page} of ${totalPages}`;
+      prevBtn.disabled = (page <= 1);
+      nextBtn.disabled = (page >= totalPages);
+      featuredPage = page;
+    } catch (err) {
+      grid.innerHTML = `<div class="empty">Could not load destinations.</div>`;
+      console.error(err);
+    }
+  }
+
+  async function loadFeatured(page, withTransition = true) {
+    const grid = document.getElementById("featured-grid");
+    if (!grid) return;
+    if (!withTransition) {
+      await renderFeaturedPage(page);
+      return;
+    }
+    grid.classList.add("featured-grid-fade-out");
+    await new Promise(resolve => setTimeout(resolve, 600));
+    await renderFeaturedPage(page);
+    grid.offsetHeight;
+    grid.classList.remove("featured-grid-fade-out");
+  }
+
+  function rotateToNextPage() {
+    let nextPage = featuredPage + 1;
+    if (nextPage > totalPages) nextPage = 1;
+    if (nextPage !== featuredPage) loadFeatured(nextPage, true);
+  }
+
+  function startRotateTimer() {
+    if (rotateTimer) clearInterval(rotateTimer);
+    if (totalPages > 1) rotateTimer = setInterval(() => rotateToNextPage(), ROTATE_INTERVAL);
+  }
+
+  function stopRotateTimer() {
+    if (rotateTimer) {
+      clearInterval(rotateTimer);
+      rotateTimer = null;
+    }
+  }
+
+  function resetRotateTimer() {
+    stopRotateTimer();
+    startRotateTimer();
+  }
+
+  function setupAutoRotate() {
+    const featuredSection = document.querySelector("#featured-grid")?.closest("section");
+    if (!featuredSection) return;
+    featuredSection.addEventListener("mouseenter", () => stopRotateTimer());
+    featuredSection.addEventListener("mouseleave", () => startRotateTimer());
+    const prevBtn = document.getElementById("prev-page");
+    const nextBtn = document.getElementById("next-page");
+    if (prevBtn) prevBtn.onclick = () => {
+      if (featuredPage > 1) {
+        loadFeatured(featuredPage - 1, true);
+        resetRotateTimer();
+      }
+    };
+    if (nextBtn) nextBtn.onclick = () => {
+      if (featuredPage < totalPages) {
+        loadFeatured(featuredPage + 1, true);
+        resetRotateTimer();
+      }
+    };
+    startRotateTimer();
+  }
+
+  // ========== Header ==========
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    initHeader();
+    document.getElementById("year").textContent = new Date().getFullYear();
+    await loadSignature();
+    await loadFeatured(1, false);
+    setupAutoRotate();
+  });
+</script>
+</body>
+</html>

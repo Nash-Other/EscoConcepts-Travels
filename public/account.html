@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Account — EscoConcepts Travels</title>
+<meta name="description" content="Manage your bookings, update your profile, and leave reviews for completed safaris.">
+<meta name="keywords" content="account, login, signup, bookings, profile, reviews">
+<meta name="author" content="EscoConcepts Travels">
+<meta property="og:title" content="My Account | EscoConcepts Travels">
+<meta property="og:description" content="Manage your safari bookings and leave reviews.">
+<meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<meta property="og:url" content="https://esconcepts-travels.onrender.com/account.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="My Account | EscoConcepts Travels">
+<meta name="twitter:description" content="Access your account.">
+<meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "User Account",
+  "description": "Customer account management page.",
+  "url": "https://esconcepts-travels.onrender.com/account.html"
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  /* Force modal to be visible when style.display is set */
+  .modal-overlay[style*="display: flex"] {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+  /* Custom toast styles */
+  .custom-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #2c2b28;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+  }
+  .custom-toast.success {
+    background: #1d7a3f;
+  }
+  .custom-toast.error {
+    background: #b00020;
+  }
+  .custom-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="index.html">Esco<span>Concepts</span></a>
+    <button class="nav-toggle">&#9776;</button>
+    <nav class="nav">
+      <a href="index.html">Home</a><a href="packages.html">Packages</a><a href="destinations.html">Destinations</a>
+      <a href="about.html">About Us</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a>
+      <a href="account.html">Account</a><a href="packages.html" class="btn btn-gold">Book a Safari</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero" style="padding:7rem 0 3rem"><div class="container"><h1>My Account</h1></div></section>
+
+<section>
+  <div class="container">
+    <!-- Auth View -->
+    <div id="auth-view" style="display:none">
+      <div class="auth-card">
+        <div class="auth-toggle">
+          <button id="tab-login" class="active">Log in</button>
+          <button id="tab-signup">Sign up</button>
+        </div>
+        <form id="login-form">
+          <div class="form-field"><label>Email</label><input type="email" name="email" required class="input"></div>
+          <div class="form-field"><label>Password</label><input type="password" name="password" required class="input"></div>
+          <div id="login-msg"></div>
+          <button class="btn btn-gold btn-block">Log in</button>
+          <p style="text-align:center;margin-top:1rem"><a href="forgot-password.html" style="color:var(--gold-dark)">Forgot password?</a></p>
+        </form>
+        <form id="signup-form" style="display:none">
+          <div class="form-field"><label>Full name</label><input name="name" required class="input"></div>
+          <div class="form-field"><label>Email</label><input type="email" name="email" required class="input"></div>
+          <div class="form-field"><label>Phone</label><input name="phone" class="input"></div>
+          <div class="form-field"><label>Password (min 8)</label><input type="password" name="password" minlength="8" required class="input"></div>
+          <div id="signup-msg"></div>
+          <button class="btn btn-gold btn-block">Create account</button>
+        </form>
+      </div>
+    </div>
+    <!-- Profile + Bookings View -->
+    <div id="account-view" style="display:none">
+      <div class="profile-grid">
+        <div class="profile-card">
+          <h3>Profile</h3>
+          <form id="profile-form">
+            <div class="form-field"><label>First Name</label><input name="first_name" class="input"></div>
+            <div class="form-field"><label>Last Name</label><input name="last_name" class="input"></div>
+            <div class="form-field"><label>Email</label><input type="email" name="email" class="input"></div>
+            <div class="form-field"><label>Phone</label><input name="phone" class="input"></div>
+            <div id="profile-msg"></div>
+            <button class="btn btn-sm btn-gold">Save</button>
+            <button type="button" id="logout" class="btn btn-sm btn-ghost" style="margin-left:.5rem">Log out</button>
+          </form>
+        </div>
+        <div class="bookings-card">
+          <h3>My Bookings</h3>
+          <div id="bookings"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for writing a review -->
+<div id="reviewModal" class="modal-overlay" style="display: none;">
+  <div class="modal-container" style="max-width: 500px;">
+    <div class="modal-header">
+      <span class="modal-title">Write a Review</span>
+      <button class="modal-close" id="closeReviewModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="reviewPackageName" style="font-weight: 600; margin-bottom: 1rem;"></div>
+      <div class="form-field">
+        <label>Rating (1-5)</label>
+        <select id="reviewRating" class="select">
+          <option value="5">5 - Excellent</option>
+          <option value="4">4 - Very Good</option>
+          <option value="3">3 - Average</option>
+          <option value="2">2 - Poor</option>
+          <option value="1">1 - Terrible</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Comment (optional)</label>
+        <textarea id="reviewComment" rows="3" class="textarea" placeholder="Share your experience..."></textarea>
+      </div>
+      <div id="reviewMsg"></div>
+      <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+        <button class="btn btn-outline" id="cancelReviewBtn">Cancel</button>
+        <button class="btn btn-primary" id="submitReviewBtn">Submit Review</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container footer-grid"><div><h4>EscoConcepts Travels</h4><p style="color:#cfcec9">Tailor-made Kenya safaris.</p></div><div><h4>Quick Links</h4><a href="packages.html">Our Packages</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div><div><h4>Contact</h4><a href="mailto:hello@escoconceptstravels.com">hello@escoconceptstravels.com</a></div></div>
+  <div class="footer-bottom">© <span id="y"></span> EscoConcepts Travels.</div>
+</footer>
+
+<script src="ui.js"></script>
+<script>
+  // ========== Helper functions ==========
+  function escapeHtml(str) { if(!str)return""; return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function fmtPrice(v) { if(v==null||isNaN(Number(v)))return"—"; return "KSh "+Number(v).toLocaleString(); }
+  function fmtDate(d) { if(!d)return"—"; try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;} }
+  function showAlert(el,msg,kind="error"){ if(!el)return; el.innerHTML=`<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if(kind==="success") setTimeout(()=>{el.innerHTML="";},6000); }
+  function isValidEmail(email){ return /^\S+@\S+\.\S+$/.test(email); }
+
+  // Custom toast with nice UI (no recursion)
+  function showToast(message, type = 'info') {
+    const existingToast = document.querySelector('.custom-toast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `custom-toast ${type}`;
+    toast.innerText = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  // ========== Token management ==========
+  const TOKEN_KEY = "customerToken";
+  function getToken(){ return localStorage.getItem(TOKEN_KEY) || ""; }
+  function setToken(token){ if(token) localStorage.setItem(TOKEN_KEY, token); }
+  function clearToken(){ localStorage.removeItem(TOKEN_KEY); }
+  function isLoggedIn(){ return !!getToken(); }
+
+  // ========== API wrapper ==========
+  async function request(path, options={}) {
+    const headers = { "Content-Type": "application/json" };
+    const token = getToken();
+    if(token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`/api${path}`, { ...options, headers });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
+
+  // ========== DOM elements ==========
+  const authView = document.getElementById("auth-view");
+  const accountView = document.getElementById("account-view");
+  function show(loggedIn) {
+    authView.style.display = loggedIn ? "none" : "block";
+    accountView.style.display = loggedIn ? "block" : "none";
+  }
+
+  // ========== Auth toggling ==========
+  document.getElementById("tab-login").onclick = () => {
+    document.getElementById("tab-login").classList.add("active");
+    document.getElementById("tab-signup").classList.remove("active");
+    document.getElementById("login-form").style.display = "block";
+    document.getElementById("signup-form").style.display = "none";
+  };
+  document.getElementById("tab-signup").onclick = () => {
+    document.getElementById("tab-signup").classList.add("active");
+    document.getElementById("tab-login").classList.remove("active");
+    document.getElementById("signup-form").style.display = "block";
+    document.getElementById("login-form").style.display = "none";
+  };
+
+  // Login
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+      const data = await request("/auth/login", { method: "POST", body: JSON.stringify(payload) });
+      const t = data.token || data.accessToken || (data.data && data.data.token);
+      if(!t) throw new Error("Login failed");
+      setToken(t);
+      location.reload();
+    } catch(err) { showAlert(document.getElementById("login-msg"), err.message); }
+  });
+
+  // Signup
+  document.getElementById("signup-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const fullName = fd.get("name") || "";
+    const nameParts = fullName.split(" ");
+    const payload = {
+      firstName: nameParts[0] || "",
+      lastName: nameParts.slice(1).join(" ") || "",
+      email: fd.get("email"),
+      phone: fd.get("phone"),
+      password: fd.get("password")
+    };
+    try {
+      const data = await request("/auth/signup", { method: "POST", body: JSON.stringify(payload) });
+      const t = data.token || data.accessToken || (data.data && data.data.token);
+      if(t) setToken(t);
+      location.reload();
+    } catch(err) { showAlert(document.getElementById("signup-msg"), err.message); }
+  });
+
+  // Logout
+  document.getElementById("logout").onclick = () => { clearToken(); location.reload(); };
+
+  // Update profile
+  document.getElementById("profile-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+      const data = await request("/auth/profile", { method: "PUT", body: JSON.stringify(payload) });
+      if(data.token) setToken(data.token);
+      showAlert(document.getElementById("profile-msg"), "Profile updated", "success");
+    } catch(err) { showAlert(document.getElementById("profile-msg"), err.message); }
+  });
+
+  // ========== Review modal ==========
+  let currentReviewBooking = null;
+  const reviewModal = document.getElementById("reviewModal");
+  function openReviewModal(booking) {
+    if (!reviewModal) {
+      showToast("Modal not found. Please refresh.", "error");
+      return;
+    }
+    currentReviewBooking = booking;
+    document.getElementById("reviewPackageName").innerText = `"${escapeHtml(booking.package_name || 'Safari Package')}"`;
+    document.getElementById("reviewRating").value = "5";
+    document.getElementById("reviewComment").value = "";
+    document.getElementById("reviewMsg").innerHTML = "";
+    reviewModal.style.display = "flex";
+    reviewModal.style.opacity = "1";
+    reviewModal.style.visibility = "visible";
+    reviewModal.style.pointerEvents = "auto";
+  }
+  function closeReviewModal() {
+    if (reviewModal) reviewModal.style.display = "none";
+  }
+  const closeBtn = document.getElementById("closeReviewModalBtn");
+  const cancelBtn = document.getElementById("cancelReviewBtn");
+  if (closeBtn) closeBtn.onclick = closeReviewModal;
+  if (cancelBtn) cancelBtn.onclick = closeReviewModal;
+  if (reviewModal) {
+    reviewModal.addEventListener("click", (e) => {
+      if(e.target === reviewModal) closeReviewModal();
+    });
+  }
+  document.getElementById("submitReviewBtn").onclick = async () => {
+    if (!currentReviewBooking) return;
+    const rating = parseInt(document.getElementById("reviewRating").value);
+    const comment = document.getElementById("reviewComment").value;
+    const msgDiv = document.getElementById("reviewMsg");
+    msgDiv.innerHTML = "";
+    try {
+      await request("/reviews", {
+        method: "POST",
+        body: JSON.stringify({ service_id: currentReviewBooking.service_id, rating, comment })
+      });
+      showToast("Thank you for your review!", "success");
+      closeReviewModal();
+      loadAccount();
+    } catch (err) {
+      msgDiv.innerHTML = `<div class="alert error">${escapeHtml(err.message)}</div>`;
+    }
+  };
+
+  // ========== Load bookings ==========
+  async function loadAccount() {
+    try {
+      const me = await request("/auth/me");
+      const u = me.user || me.data || me;
+      const f = document.getElementById("profile-form");
+      f.first_name.value = u.first_name || "";
+      f.last_name.value = u.last_name || "";
+      f.email.value = u.email || "";
+      f.phone.value = u.phone || "";
+    } catch(e) { clearToken(); location.reload(); return; }
+
+    const wrap = document.getElementById("bookings");
+    try {
+      const data = await request("/bookings/my-bookings");
+      const list = data.data || [];
+      if(!list.length) { wrap.innerHTML = `<div class="empty">No bookings yet. <a href="packages.html">Book a safari</a></div>`; return; }
+      
+      const reviewedStatus = {};
+      for (const b of list) {
+        if (b.service_id) {
+          try {
+            const check = await request(`/reviews/check/${b.service_id}`);
+            reviewedStatus[b.service_id] = check.reviewed === true;
+          } catch(e) { reviewedStatus[b.service_id] = false; }
+        }
+      }
+
+      wrap.innerHTML = list.map(b => {
+        const status = (b.status || "pending").toLowerCase();
+        const ref = b.booking_reference || b.id;
+        const total = b.total_amount || "";
+        const guestName = (b.guest_first_name||"") + " " + (b.guest_last_name||"");
+        const alreadyReviewed = reviewedStatus[b.service_id] || false;
+        const showReviewButton = (status === "completed") && !alreadyReviewed && b.service_id;
+        return `
+          <div class="booking-item" data-id="${b.booking_id}" data-ref="${escapeHtml(String(ref))}" data-name="${escapeHtml(guestName)}" data-pkg="${escapeHtml(b.package_name||"")}" data-date="${escapeHtml(b.travel_date||"")}" data-total="${total}" data-service-id="${b.service_id}">
+            <div class="row"><div><span class="booking-ref">${escapeHtml(String(ref))}</span></div><span class="status ${status}">${escapeHtml(status)}</span></div>
+            <h4 style="margin:.5rem 0 .25rem">${escapeHtml(b.package_name||"Safari Package")}</h4>
+            <div style="font-size:.9rem;color:var(--ink-soft)">Travel: ${fmtDate(b.travel_date)} • Return: ${b.return_date ? fmtDate(b.return_date) : '—'} • Guests: ${escapeHtml(String(b.pax||1))} • Total: ${fmtPrice(total)}</div>
+            ${b.special_requests ? `<p style="margin-top:.5rem;font-size:.85rem;font-style:italic">"${escapeHtml(b.special_requests)}"</p>` : ""}
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+              ${status==="pending" ? `<button class="btn btn-sm cancel-btn">Cancel Booking</button>` : ""}
+              <button class="btn btn-sm btn-ghost pdf-btn">Download Invoice (PDF)</button>
+              <button class="btn btn-sm btn-ghost email-btn">Email Receipt</button>
+              ${showReviewButton ? `<button class="btn btn-sm btn-primary review-btn">Write a Review</button>` : (status==="completed" && alreadyReviewed ? `<span class="badge badge-outline">Reviewed</span>` : "")}
+            </div>
+          </div>`;
+      }).join("");
+      
+      wrap.querySelectorAll(".booking-item").forEach(el => {
+        const id = el.dataset.id;
+        const cancelBtn = el.querySelector(".cancel-btn");
+        if(cancelBtn) cancelBtn.onclick = async () => {
+          if(!confirm("Cancel this booking?")) return;
+          try { await request(`/bookings/cancel/${id}`, { method: "PUT" }); loadAccount(); } catch(e) { alert(e.message); }
+        };
+        el.querySelector(".pdf-btn").onclick = () => {
+          const { jsPDF } = window.jspdf; const doc = new jsPDF();
+          doc.setFontSize(18); doc.text("EscoConcepts Travels — Invoice", 14, 20);
+          doc.setFontSize(11);
+          let y = 35;
+          const rows = [
+            ["Reference", el.dataset.ref],
+            ["Guest", el.dataset.name.trim() || "—"],
+            ["Package", el.dataset.pkg],
+            ["Travel date", fmtDate(el.dataset.date)],
+            ["Total", el.dataset.total ? fmtPrice(el.dataset.total) : "—"],
+          ];
+          rows.forEach(([k,v]) => { doc.text(`${k}: ${v}`, 14, y); y += 8; });
+          doc.save(`invoice-${el.dataset.ref}.pdf`);
+        };
+        el.querySelector(".email-btn").onclick = async () => {
+          try { await request(`/bookings/receipt/${id}`, { method: "POST" }); showToast("Receipt sent to your email.", "success"); } catch(e) { showToast(e.message, "error"); }
+        };
+        const reviewBtn = el.querySelector(".review-btn");
+        if(reviewBtn) {
+          reviewBtn.onclick = () => {
+            const booking = list.find(b => b.booking_id == id);
+            if(booking) openReviewModal(booking);
+          };
+        }
+      });
+    } catch(e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+
+  if(isLoggedIn()) { show(true); loadAccount(); } else { show(false); }
+
+  function initHeader() {
+    const header = document.querySelector(".site-header");
+    if (!header) return;
+    const onScroll = () => {
+      if (window.scrollY > 30) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    const toggle = header.querySelector(".nav-toggle");
+    const nav = header.querySelector(".nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", () => nav.classList.toggle("open"));
+      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
+    }
+  }
+  initHeader();
+  document.getElementById("y").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
