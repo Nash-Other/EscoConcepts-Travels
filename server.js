@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');          // 3.3
+const helmet = require('helmet');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -16,7 +16,20 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(helmet());                        // 3.3 – adds many security headers
+
+// Helmet with relaxed CSP to allow external images (Unsplash, etc.)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https://images.unsplash.com", "https://*.unsplash.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
 
 const configuredOrigins = (process.env.CORS_ORIGIN || process.env.APP_URL || '')
   .split(',')
@@ -32,7 +45,7 @@ app.use(cors({
   }
 }));
 
-// Additional security headers (helmet already does X-Content-Type-Options, but we keep custom ones for compatibility)
+// Additional security headers (helmet already does X-Content-Type-Options)
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -41,11 +54,11 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '1mb' }));
 
-// Serve uploads with security headers (2.4)
+// Serve uploads WITHOUT forcing attachment (so images display inline)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, filePath) => {
     res.set('X-Content-Type-Options', 'nosniff');
-    res.set('Content-Disposition', 'attachment');
+    // Remove Content-Disposition: attachment to allow inline display
   }
 }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -217,7 +230,7 @@ async function initializeDatabase() {
     await client.query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check`);
     await client.query(`ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('Pending', 'Confirmed', 'Cancelled', 'Completed'))`);
 
-    // 4.3 – Add constraint for return_date (must be >= travel_date)
+    // Constraint for return_date (must be >= travel_date)
     await client.query(`
       ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_return_date_check;
       ALTER TABLE bookings ADD CONSTRAINT bookings_return_date_check 
@@ -391,7 +404,7 @@ function authenticateCustomer(req, res, next) {
   });
 }
 
-// 3.1 – Async error handling wrapper
+// Async error handling wrapper
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
@@ -426,10 +439,8 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilt
 // CREATE RATE LIMITER INSTANCES
 // ==========================================
 const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
-// 2.3 – Admin login stricter limit (10 per 15 min)
 const adminRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 const contactRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
-// 3.4 – Upload rate limit (10 per hour)
 const uploadRateLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
 
 // ==========================================
@@ -721,7 +732,6 @@ app.post('/api/upload', authenticateAdmin, uploadRateLimit, (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, message: 'No file.' });
-    // 2.5 – Force HTTPS in production
     const protocol = isProduction ? 'https' : (req.protocol === 'https' ? 'https' : 'http');
     const url = `${protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     res.json({ success: true, url });
@@ -1248,7 +1258,6 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   const cleanTravelDate = travelDate ? String(travelDate).trim() : null;
   const cleanReturnDate = returnDate ? String(returnDate).trim() : null;
 
-  // 4.4 – Validate parsePositiveInteger results
   if (paxCount === null) {
     return res.status(400).json({ success: false, message: 'Invalid number of guests.' });
   }
@@ -1367,7 +1376,7 @@ app.get('/api/services/paginated', asyncHandler(async (req, res) => {
   res.json({ success: true, data: result.rows, pagination: { currentPage: page, totalPages: totalPages, totalItems: totalDestinations, limit: limit } });
 }));
 
-// Cron endpoint – 4.2: return less data
+// Cron endpoint – returns less data
 app.get('/api/cron/complete-bookings', (req, res) => {
   const secret = req.query.secret;
   const expectedSecret = process.env.CRON_SECRET;
@@ -1384,7 +1393,6 @@ app.get('/api/cron/complete-bookings', (req, res) => {
         RETURNING booking_id, booking_reference
       `);
       console.log(`✅ Cron: Marked ${result.rowCount} booking(s) as Completed.`);
-      // 4.2 – Only return success, not the number of updated bookings
       res.json({ success: true, message: 'Cron completed successfully.' });
     } catch (err) {
       console.error('Cron error:', err);
