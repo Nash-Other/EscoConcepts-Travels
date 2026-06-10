@@ -75,7 +75,7 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic uses global helpers: escapeHtml, safeUrl, fmtPrice, showAlert, isValidEmail, etc.
+  // Page‑specific logic uses global helpers: escapeHtml, safeUrl, fmtPrice, showAlert, isValidEmail, apiRequest
 
   const pkgId = new URLSearchParams(window.location.search).get("package");
   const summary = document.getElementById("pkg-summary");
@@ -142,13 +142,11 @@
     }
     const btn = document.getElementById("submit-btn"); btn.disabled = true; btn.textContent = "Submitting…";
     try {
-      const res = await fetch("/api/checkout", {
+      // Use unified apiRequest to automatically send token if logged in
+      const data = await apiRequest("/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Checkout failed");
       const ref = data.bookingReference || data.reference || data.booking_reference || "—";
       openModal(`<div class="modal-body" style="text-align:center"><h2>Booking received!</h2><p>Thank you, ${escapeHtml(payload.firstName)}. We'll be in touch shortly to confirm your safari.</p><p>Your booking reference:</p><div style="font-family:monospace;font-size:1.3rem;background:var(--bg-soft);padding:1rem;border-radius:.5rem;margin:1rem 0">${escapeHtml(String(ref))}</div><a href="account.html" class="btn btn-gold">View My Bookings</a></div>`);
       form.reset();
