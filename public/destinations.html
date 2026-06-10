@@ -100,12 +100,10 @@
 
 <script src="ui.js"></script>
 <script>
-  // All shared helpers (escapeHtml, initHeader) are now in ui.js
-
+  // Shared helpers (escapeHtml, etc.) are in ui.js
   function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
   function sanitizeHtml(html){const tpl=document.createElement("template");tpl.innerHTML=String(html);const allowedTags=new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);const allowedAttrs={A:["href","title","target","rel"],IMG:["src","alt","title"]};const walk=(node)=>{[...node.childNodes].forEach(child=>{if(child.nodeType===1){if(!allowedTags.has(child.tagName)){child.replaceWith(...child.childNodes);return;}const allowed=allowedAttrs[child.tagName]||[];[...child.attributes].forEach(a=>{if(!allowed.includes(a.name))child.removeAttribute(a.name);if(a.name==="href"||a.name==="src"){const v=safeUrl(a.value);if(!v)child.removeAttribute(a.name);else child.setAttribute(a.name,v);}});if(child.tagName==="A"){child.setAttribute("rel","noopener noreferrer");child.setAttribute("target","_blank");}walk(child);}else if(child.nodeType===8)child.remove();});};walk(tpl.content);return tpl.innerHTML;}
   function fmtPrice(v){if(v==null||isNaN(Number(v)))return"—";return"KSh "+Number(v).toLocaleString();}
-  function truncate(str,n=120){const s=String(str).replace(/<[^>]*>/g,"");return s.length>n?s.slice(0,n).trim()+"…":s;}
   function fmtDate(d){if(!d)return"—";try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;}}
   function renderStars(rating){const full=Math.floor(rating);const empty=5-full;return'<span class="stars">'+'★'.repeat(full)+'☆'.repeat(empty)+'</span>';}
   function showToast(message, type = 'info') {
@@ -143,16 +141,30 @@
     } catch(e) { return null; }
   }
 
-  async function openServiceModal(service){
+  // Fetch full service details for modal (uses the main /api/services endpoint)
+  async function fetchFullService(serviceId) {
+    const res = await fetch(`/api/services`);
+    const data = await res.json();
+    const services = data.data || [];
+    return services.find(s => s.service_id == serviceId);
+  }
+
+  async function openServiceModal(serviceId){
     const backdrop=document.getElementById("serviceModal");
     const contentDiv=backdrop.querySelector(".modal-content");
+    // Fetch full service details
+    const service = await fetchFullService(serviceId);
+    if (!service) {
+      showToast("Could not load destination details", "error");
+      return;
+    }
     const img=safeUrl(service.image_url)||"https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
     const gallery=(service.gallery||[]).map(safeUrl).filter(Boolean);
     const galleryHtml=gallery.length?`<div class="modal-gallery">${gallery.map(u=>`<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>`:"";
     const itinerary=service.itinerary?`<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>`:"";
-    const serviceId=service.service_id||service.id;
+    const serviceIdNum = service.service_id;
 
-    const reviewsData = await apiRequest(`/reviews/${serviceId}`);
+    const reviewsData = await apiRequest(`/reviews/${serviceIdNum}`);
     const reviews = reviewsData.reviews || [];
     const average = reviewsData.average;
 
@@ -160,7 +172,7 @@
     let alreadyReviewed = false;
     if (isLoggedIn()) {
       try {
-        const check = await apiRequest(`/reviews/can-review/${serviceId}`);
+        const check = await apiRequest(`/reviews/can-review/${serviceIdNum}`);
         canReview = check.canReview === true;
         alreadyReviewed = check.alreadyReviewed === true;
       } catch(e) { console.log(e); }
@@ -229,7 +241,7 @@
         <div>${sanitizeHtml(service.description||"")}</div>
         ${itinerary}
         ${galleryHtml}
-        <a class="btn btn-gold" href="checkout.html?package=${encodeURIComponent(serviceId)}">Book This Safari</a>
+        <a class="btn btn-gold" href="checkout.html?package=${encodeURIComponent(serviceIdNum)}">Book This Safari</a>
         ${reviewsHtml}
       </div>
     `;
@@ -244,11 +256,11 @@
         try {
           await apiRequest("/reviews", {
             method: "POST",
-            body: JSON.stringify({ service_id: serviceId, rating, comment })
+            body: JSON.stringify({ service_id: serviceIdNum, rating, comment })
           });
           showToast("Thank you for your review!", "success");
           closeServiceModal();
-          openServiceModal(service);
+          openServiceModal(serviceIdNum);
         } catch (err) {
           msgDiv.innerHTML = `<div class="alert error">${escapeHtml(err.message)}</div>`;
         }
@@ -261,6 +273,7 @@
   function closeServiceModal(){const b=document.getElementById("serviceModal");b.classList.remove("open");document.body.style.overflow="";}
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("serviceModal");if(b){b.addEventListener("click",e=>{if(e.target===b||e.target.classList.contains("modal-close"))closeServiceModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeServiceModal();});}});
 
+  // Render card using lightweight summary data (no description)
   async function card(s) {
     let avgRatingHtml = '';
     const avg = await fetchAverageRating(s.service_id);
@@ -268,14 +281,15 @@
       avgRatingHtml = `<div class="avg-rating" style="margin-top:0.5rem;">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>`;
     }
     const img = safeUrl(s.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80";
-    return `<article class="card" data-id="${s.service_id}"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}"><div class="card-body"><h3>${escapeHtml(s.title)}</h3><div class="card-meta">${escapeHtml(s.destination||"Kenya")}</div><p>${escapeHtml(truncate(s.description||"",110))}</p><div class="card-price">${fmtPrice(s.base_price)}</div>${avgRatingHtml}<button class="btn btn-sm view-btn">View Details</button></div></article>`;
+    return `<article class="card" data-id="${s.service_id}"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}"><div class="card-body"><h3>${escapeHtml(s.title)}</h3><div class="card-meta">${escapeHtml(s.destination||"Kenya")}</div><div class="card-price">${fmtPrice(s.base_price)}</div>${avgRatingHtml}<button class="btn btn-sm view-btn">View Details</button></div></article>`;
   }
 
   let allDestinations = [];
   async function loadDestinations(){
     const grid=document.getElementById("destinations-grid");
     try{
-      const res=await fetch("/api/services");
+      // Use lightweight summary endpoint
+      const res=await fetch("/api/services/summary");
       const data=await res.json();
       const destinations=data.data||(Array.isArray(data)?data:[]);
       allDestinations = destinations.filter(s=>s.is_active!==false);
@@ -286,8 +300,7 @@
         btn.addEventListener("click",(e)=>{
           e.stopPropagation();
           const id=parseInt(btn.closest(".card").dataset.id);
-          const svc=allDestinations.find(s=>s.service_id===id);
-          if(svc) openServiceModal(svc);
+          openServiceModal(id);
         });
       });
     }catch(err){grid.innerHTML=`<div class="empty">Could not load destinations: ${escapeHtml(err.message)}</div>`;console.error(err);}
