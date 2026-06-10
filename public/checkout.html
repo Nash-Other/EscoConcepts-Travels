@@ -58,7 +58,9 @@
         <div class="form-field"><label>Phone *</label><input name="phone" id="phone" required class="input"></div>
         <div class="form-field"><label>Travel date *</label><input type="date" name="travelDate" required class="input" id="travelDate"></div>
         <div class="form-field"><label>Return date (end date) *</label><input type="date" name="returnDate" required class="input" id="returnDate"></div>
-        <div class="form-field"><label>Number of guests *</label><select name="pax" id="pax" required class="select"></select></div>
+        <div class="form-field"><label>Number of guests *</label><select name="pax" id="pax" required class="select"></select>
+          <small style="display:block; margin-top:0.25rem; color:var(--ink-soft);">For groups larger than 10 guests, please <a href="contact.html">contact us</a> for a custom quote.</small>
+        </div>
         <div class="form-field full"><label>Special requests</label><textarea name="specialRequests" placeholder="Dietary needs, occasions, accessibility…" class="textarea"></textarea></div>
         <div class="form-field full"><label>Payment method *</label><select name="paymentMethod" required class="select"><option value="card">Credit / Debit Card</option><option value="mpesa">M-Pesa</option></select></div>
       </div>
@@ -114,7 +116,6 @@
       document.getElementById("phone").value = user.phone || "";
     } catch (err) {
       console.warn("Could not fetch user profile for prefill:", err);
-      // Non‑critical – leave fields empty
     }
   }
 
@@ -128,8 +129,18 @@
       if (!pkg) throw new Error("Package not found");
       const img = safeUrl(pkg.image_url) || "";
       summary.innerHTML = `<div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:.75rem">` : ""}<div style="flex:1;min-width:200px"><span class="eyebrow">${escapeHtml(pkg.destination||"Kenya")}</span><h3 style="margin:.25rem 0">${escapeHtml(pkg.title)}</h3><div style="color:var(--gold-dark);font-weight:700">${fmtPrice(pkg.base_price)} per person</div></div></div>`;
-      const max = Number(pkg.max_pax) || 10;
-      paxSel.innerHTML = Array.from({ length: max }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join("");
+      // Cap guest dropdown at 10, even if max_pax is larger
+      const maxAllowed = Math.min(Number(pkg.max_pax) || 10, 10);
+      paxSel.innerHTML = Array.from({ length: maxAllowed }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join("");
+      if (maxAllowed < (pkg.max_pax || 0)) {
+        // Show additional note that larger groups can contact us
+        const note = document.createElement("small");
+        note.style.display = "block";
+        note.style.marginTop = "0.25rem";
+        note.style.color = "var(--ink-soft)";
+        note.innerHTML = `This package can accommodate up to ${pkg.max_pax} guests, but for online bookings we only accept up to 10. <a href="contact.html">Contact us</a> for larger groups.`;
+        paxSel.parentNode.appendChild(note);
+      }
       const travelDateInput = document.getElementById("travelDate");
       const returnDateInput = document.getElementById("returnDate");
       const today = new Date().toISOString().slice(0,10);
@@ -154,7 +165,8 @@
     payload.pax = Number(payload.pax);
     payload.service_id = pkg.service_id;
     if (!isValidEmail(payload.email)) return showAlert(msg, "Please enter a valid email.");
-    if (payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `Max ${pkg.max_pax} guests for this package.`);
+    if (payload.pax > 10) return showAlert(msg, "For groups larger than 10, please contact us directly.");
+    if (payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `This package allows up to ${pkg.max_pax} guests.`);
     if (payload.travelDate && payload.returnDate && payload.returnDate < payload.travelDate) {
       return showAlert(msg, "Return date cannot be before travel date.");
     }
