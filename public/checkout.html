@@ -52,10 +52,10 @@
     <div id="pkg-summary" style="background:#fff;padding:1.5rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06);margin-bottom:2rem"><div class="loading">Loading package…</div></div>
     <form id="checkout-form" style="background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06)">
       <div class="form-grid">
-        <div class="form-field"><label>First name *</label><input name="firstName" required class="input"></div>
-        <div class="form-field"><label>Last name *</label><input name="lastName" required class="input"></div>
-        <div class="form-field"><label>Email *</label><input type="email" name="email" required class="input"></div>
-        <div class="form-field"><label>Phone *</label><input name="phone" required class="input"></div>
+        <div class="form-field"><label>First name *</label><input name="firstName" id="firstName" required class="input"></div>
+        <div class="form-field"><label>Last name *</label><input name="lastName" id="lastName" required class="input"></div>
+        <div class="form-field"><label>Email *</label><input type="email" name="email" id="email" required class="input"></div>
+        <div class="form-field"><label>Phone *</label><input name="phone" id="phone" required class="input"></div>
         <div class="form-field"><label>Travel date *</label><input type="date" name="travelDate" required class="input" id="travelDate"></div>
         <div class="form-field"><label>Return date (end date) *</label><input type="date" name="returnDate" required class="input" id="returnDate"></div>
         <div class="form-field"><label>Number of guests *</label><select name="pax" id="pax" required class="select"></select></div>
@@ -75,7 +75,7 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic uses global helpers: escapeHtml, safeUrl, fmtPrice, showAlert, isValidEmail, apiRequest
+  // Page‑specific logic uses global helpers: escapeHtml, safeUrl, fmtPrice, showAlert, isValidEmail, apiRequest, isCustomerLoggedIn, getCustomerToken, setCustomerToken
 
   const pkgId = new URLSearchParams(window.location.search).get("package");
   const summary = document.getElementById("pkg-summary");
@@ -102,6 +102,22 @@
   }
   function closeModal() { const b = document.getElementById("checkoutModal"); if (b) { b.classList.remove("open"); document.body.style.overflow = ""; } }
 
+  // Pre-fill user data if logged in
+  async function prefillUserData() {
+    if (!isCustomerLoggedIn()) return;
+    try {
+      const me = await apiRequest("/auth/me");
+      const user = me.user || me.data || me;
+      document.getElementById("firstName").value = user.first_name || "";
+      document.getElementById("lastName").value = user.last_name || "";
+      document.getElementById("email").value = user.email || "";
+      document.getElementById("phone").value = user.phone || "";
+    } catch (err) {
+      console.warn("Could not fetch user profile for prefill:", err);
+      // Non‑critical – leave fields empty
+    }
+  }
+
   async function loadPkg() {
     if (!pkgId) { summary.innerHTML = `<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display = "none"; return; }
     try {
@@ -126,7 +142,9 @@
       });
     } catch(e) { summary.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; form.style.display = "none"; }
   }
-  loadPkg();
+
+  // Load package, then prefill user data
+  loadPkg().then(() => prefillUserData());
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -142,7 +160,6 @@
     }
     const btn = document.getElementById("submit-btn"); btn.disabled = true; btn.textContent = "Submitting…";
     try {
-      // Use unified apiRequest to automatically send token if logged in
       const data = await apiRequest("/checkout", {
         method: "POST",
         body: JSON.stringify(payload)
