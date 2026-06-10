@@ -18,6 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <script src="config.js"></script>
 </head>
 <body>
@@ -46,54 +47,81 @@
 
 <script src="ui.js"></script>
 <script>
-  function escapeHtml(str) { if (!str) return ""; return String(str).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  // Page‑specific helpers (safeUrl, sanitizeHtml, fmtDate, truncate)
   function safeUrl(url, fallback="") { if (!url) return fallback; try { const u = new URL(url, window.location.origin); if (["http:","https:"].includes(u.protocol)) return u.href; } catch(e){} return fallback; }
+  function sanitizeHtml(html) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = String(html);
+    const allowedTags = new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);
+    const allowedAttrs = { A: ["href","title","target","rel"], IMG: ["src","alt","title"] };
+    const walk = (node) => {
+      [...node.childNodes].forEach(child => {
+        if (child.nodeType === 1) {
+          if (!allowedTags.has(child.tagName)) { child.replaceWith(...child.childNodes); return; }
+          const allowed = allowedAttrs[child.tagName] || [];
+          [...child.attributes].forEach(a => {
+            if (!allowed.includes(a.name)) child.removeAttribute(a.name);
+            if (a.name === "href" || a.name === "src") {
+              const v = safeUrl(a.value);
+              if (!v) child.removeAttribute(a.name);
+              else child.setAttribute(a.name, v);
+            }
+          });
+          if (child.tagName === "A") { child.setAttribute("rel","noopener noreferrer"); child.setAttribute("target","_blank"); }
+          walk(child);
+        } else if (child.nodeType === 8) child.remove();
+      });
+    };
+    walk(tpl.content);
+    return tpl.innerHTML;
+  }
   function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, {year:"numeric",month:"short",day:"numeric"}); } catch(e){ return d; } }
-  function sanitizeHtml(html) { const tpl=document.createElement("template"); tpl.innerHTML=String(html); const allowedTags=new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]); const allowedAttrs={A:["href","title","target","rel"],IMG:["src","alt","title"]}; const walk=(node)=>{[...node.childNodes].forEach(child=>{if(child.nodeType===1){if(!allowedTags.has(child.tagName)){child.replaceWith(...child.childNodes);return;}const allowed=allowedAttrs[child.tagName]||[];[...child.attributes].forEach(a=>{if(!allowed.includes(a.name))child.removeAttribute(a.name);if(a.name==="href"||a.name==="src"){const v=safeUrl(a.value);if(!v)child.removeAttribute(a.name);else child.setAttribute(a.name,v);}});if(child.tagName==="A"){child.setAttribute("rel","noopener noreferrer");child.setAttribute("target","_blank");}walk(child);}else if(child.nodeType===8)child.remove();});}; walk(tpl.content); return tpl.innerHTML; }
-  function truncate(str, n=150) { const s=String(str).replace(/<[^>]*>/g,""); return s.length>n?s.slice(0,n).trim()+"…":s; }
+  function truncate(str, n=150) { const s = String(str).replace(/<[^>]*>/g,""); return s.length > n ? s.slice(0,n).trim() + "…" : s; }
 
-  const id = new URLSearchParams(window.location.search).get("id");
+  const slug = new URLSearchParams(window.location.search).get("slug");
   const wrap = document.getElementById("article");
-  if (!id) { wrap.innerHTML = `<div class="empty">No article selected.</div>`; }
-  else (async () => {
-    try {
-      const res = await fetch(`/api/blogs/${id}`);
-      const data = await res.json();
-      const b = data.blog || data.data || data;
-      const img = safeUrl(b.image_url || b.cover_image) || "https://images.unsplash.com/photo-1504609813442-a8924e83f76e?auto=format&fit=crop&w=1600&q=80";
-      document.title = `${b.title} — EscoConcepts Travels`;
-      const desc = truncate(b.excerpt || b.content || "", 150);
-      document.getElementById("meta-desc").content = desc;
-      document.getElementById("og-title").content = b.title || "";
-      document.getElementById("og-desc").content = desc;
-      document.getElementById("og-image").content = img;
-      document.getElementById("twitter-title").content = b.title || "";
-      document.getElementById("twitter-desc").content = desc;
-      document.getElementById("twitter-image").content = img;
-      // JSON-LD for BlogPosting
-      const jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "BlogPosting",
-        "headline": b.title,
-        "image": img,
-        "datePublished": b.created_at || b.published_at,
-        "author": { "@type": "Person", "name": b.author || "EscoConcepts" },
-        "publisher": { "@type": "Organization", "name": "EscoConcepts Travels", "logo": { "@type": "ImageObject", "url": "https://esconcepts-travels.onrender.com/images/logo.png" } },
-        "description": desc,
-        "mainEntityOfPage": window.location.href
-      };
-      document.getElementById("blog-jsonld").innerHTML = JSON.stringify(jsonLd);
-      wrap.innerHTML = `
-        <img class="hero-img" src="${img}" alt="${escapeHtml(b.title)}" loading="eager">
-        <h1>${escapeHtml(b.title)}</h1>
-        <div class="article-meta">${escapeHtml(b.author||"EscoConcepts")} • ${fmtDate(b.created_at || b.published_at)}</div>
-        <div class="content">${sanitizeHtml(b.content || "")}</div>
-        <p style="margin-top:2rem"><a class="btn btn-ghost" href="blog.html">← Back to all articles</a></p>`;
-    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
-  })();
+  if (!slug) {
+    wrap.innerHTML = `<div class="empty">No article specified.</div>`;
+  } else {
+    (async () => {
+      try {
+        const res = await fetch(`/api/blogs/slug/${encodeURIComponent(slug)}`);
+        const data = await res.json();
+        const b = data.blog || data.data || data;
+        const img = safeUrl(b.image_url || b.cover_image) || "https://images.unsplash.com/photo-1504609813442-a8924e83f76e?auto=format&fit=crop&w=1600&q=80";
+        document.title = `${b.title} — EscoConcepts Travels`;
+        const desc = truncate(b.excerpt || b.content || "", 150);
+        document.getElementById("meta-desc").content = desc;
+        document.getElementById("og-title").content = b.title || "";
+        document.getElementById("og-desc").content = desc;
+        document.getElementById("og-image").content = img;
+        document.getElementById("twitter-title").content = b.title || "";
+        document.getElementById("twitter-desc").content = desc;
+        document.getElementById("twitter-image").content = img;
+        const jsonLd = {
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          "headline": b.title,
+          "image": img,
+          "datePublished": b.created_at || b.published_at,
+          "author": { "@type": "Person", "name": b.author || "EscoConcepts" },
+          "publisher": { "@type": "Organization", "name": "EscoConcepts Travels", "logo": { "@type": "ImageObject", "url": "https://esconcepts-travels.onrender.com/images/logo.png" } },
+          "description": desc,
+          "mainEntityOfPage": window.location.href
+        };
+        document.getElementById("blog-jsonld").innerHTML = JSON.stringify(jsonLd);
+        wrap.innerHTML = `
+          <img class="hero-img" src="${img}" alt="${escapeHtml(b.title)}" loading="eager">
+          <h1>${escapeHtml(b.title)}</h1>
+          <div class="article-meta">${escapeHtml(b.author||"EscoConcepts")} • ${fmtDate(b.created_at || b.published_at)}</div>
+          <div class="content">${sanitizeHtml(b.content || "")}</div>
+          <p style="margin-top:2rem"><a class="btn btn-ghost" href="blog.html">← Back to all articles</a></p>`;
+      } catch (e) {
+        wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+      }
+    })();
+  }
 
-  function initHeader() { const h=document.querySelector(".site-header"); if(!h)return; const onScroll=()=>{ if(window.scrollY>30)h.classList.add("scrolled"); else h.classList.remove("scrolled"); }; window.addEventListener("scroll",onScroll,{passive:true}); onScroll(); const t=h.querySelector(".nav-toggle"), n=h.querySelector(".nav"); if(t&&n){ t.addEventListener("click",()=>n.classList.toggle("open")); n.addEventListener("click",(e)=>{ if(e.target.tagName==="A")n.classList.remove("open"); }); } }
-  initHeader();
   document.getElementById("y").textContent = new Date().getFullYear();
 </script>
 </body>

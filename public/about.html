@@ -27,6 +27,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <script src="config.js"></script>
 </head>
 <body>
@@ -64,23 +65,6 @@
 
 <script src="ui.js"></script>
 <script>
-  function initHeader() {
-    const header = document.querySelector(".site-header");
-    if (!header) return;
-    const onScroll = () => {
-      if (window.scrollY > 30) header.classList.add("scrolled");
-      else header.classList.remove("scrolled");
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    const toggle = header.querySelector(".nav-toggle");
-    const nav = header.querySelector(".nav");
-    if (toggle && nav) {
-      toggle.addEventListener("click", () => nav.classList.toggle("open"));
-      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
-    }
-  }
-  initHeader();
   document.getElementById("y").textContent = new Date().getFullYear();
 </script>
 </body>

@@ -27,8 +27,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <style>
-  /* Make "Read Article" buttons visible (gold background, dark text) */
   .card .btn-sm {
     background: var(--gold);
     color: var(--ink);
@@ -84,25 +84,8 @@
 
 <script src="ui.js"></script>
 <script>
-  function initHeader() {
-    const header = document.querySelector(".site-header");
-    if (!header) return;
-    const onScroll = () => {
-      if (window.scrollY > 30) header.classList.add("scrolled");
-      else header.classList.remove("scrolled");
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    const toggle = header.querySelector(".nav-toggle");
-    const nav = header.querySelector(".nav");
-    if (toggle && nav) {
-      toggle.addEventListener("click", () => nav.classList.toggle("open"));
-      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
-    }
-  }
-  initHeader();
+  // No need to redeclare escapeHtml, initHeader, etc. – they are in ui.js
 
-  function escapeHtml(str){if(!str)return"";return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
   function fmtDate(d){if(!d)return"—";try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;}}
   function truncate(str,n=120){const s=String(str).replace(/<[^>]*>/g,"");return s.length>n?s.slice(0,n).trim()+"…":s;}
@@ -119,7 +102,7 @@
       const total = data.totalPages || data.total_pages || Math.ceil((data.total || list.length) / limit) || 1;
       grid.innerHTML = list.length ? list.map(b => {
         const img = safeUrl(b.image_url || b.cover_image) || "https://images.unsplash.com/photo-1504609813442-a8924e83f76e?auto=format&fit=crop&w=900&q=80";
-        return `<article class="card"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(b.title)}"><div class="card-body"><div class="card-meta">${escapeHtml(b.author||"EscoConcepts")} • ${fmtDate(b.created_at || b.published_at)}</div><h3>${escapeHtml(b.title)}</h3><p>${escapeHtml(truncate(b.excerpt || b.content || "", 120))}</p><a class="btn btn-sm" href="article.html?id=${encodeURIComponent(b.id)}">Read Article</a></div></article>`;
+        return `<article class="card"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(b.title)}"><div class="card-body"><div class="card-meta">${escapeHtml(b.author||"EscoConcepts")} • ${fmtDate(b.created_at || b.published_at)}</div><h3>${escapeHtml(b.title)}</h3><p>${escapeHtml(truncate(b.excerpt || b.content || "", 120))}</p><a class="btn btn-sm" href="article.html?slug=${encodeURIComponent(b.slug)}">Read Article</a></div></article>`;
       }).join("") : `<div class="empty">No articles yet.</div>`;
       info.textContent = `Page ${page} of ${total}`;
       prev.disabled = page <= 1; next.disabled = page >= total;

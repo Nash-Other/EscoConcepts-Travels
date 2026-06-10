@@ -27,17 +27,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-  /* Force modal to be visible when style.display is set */
-  .modal-overlay[style*="display: flex"] {
-    display: flex !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-  }
-  /* Custom toast styles */
   .custom-toast {
     position: fixed;
     bottom: 20px;
@@ -55,16 +48,9 @@
     transition: opacity 0.3s ease, transform 0.3s ease;
     pointer-events: none;
   }
-  .custom-toast.success {
-    background: #1d7a3f;
-  }
-  .custom-toast.error {
-    background: #b00020;
-  }
-  .custom-toast.show {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  .custom-toast.success { background: #1d7a3f; }
+  .custom-toast.error { background: #b00020; }
+  .custom-toast.show { opacity: 1; transform: translateY(0); }
 </style>
 </head>
 <body>
@@ -133,7 +119,7 @@
   </div>
 </div>
 
-<!-- Modal for writing a review -->
+<!-- Modal for writing a review (self-contained) -->
 <div id="reviewModal" class="modal-overlay" style="display: none;">
   <div class="modal-container" style="max-width: 500px;">
     <div class="modal-header">
@@ -172,38 +158,29 @@
 
 <script src="ui.js"></script>
 <script>
-  // ========== Helper functions ==========
-  function escapeHtml(str) { if(!str)return""; return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  // All shared helpers (escapeHtml, initHeader) are now in ui.js
+
   function fmtPrice(v) { if(v==null||isNaN(Number(v)))return"—"; return "KSh "+Number(v).toLocaleString(); }
   function fmtDate(d) { if(!d)return"—"; try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(e){return d;} }
   function showAlert(el,msg,kind="error"){ if(!el)return; el.innerHTML=`<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if(kind==="success") setTimeout(()=>{el.innerHTML="";},6000); }
   function isValidEmail(email){ return /^\S+@\S+\.\S+$/.test(email); }
-
-  // Custom toast with nice UI (no recursion)
   function showToast(message, type = 'info') {
-    const existingToast = document.querySelector('.custom-toast');
-    if (existingToast) existingToast.remove();
-
+    const existing = document.querySelector('.custom-toast');
+    if (existing) existing.remove();
     const toast = document.createElement('div');
     toast.className = `custom-toast ${type}`;
     toast.innerText = message;
     document.body.appendChild(toast);
-
     setTimeout(() => toast.classList.add('show'), 10);
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
   }
 
-  // ========== Token management ==========
   const TOKEN_KEY = "customerToken";
   function getToken(){ return localStorage.getItem(TOKEN_KEY) || ""; }
   function setToken(token){ if(token) localStorage.setItem(TOKEN_KEY, token); }
   function clearToken(){ localStorage.removeItem(TOKEN_KEY); }
   function isLoggedIn(){ return !!getToken(); }
 
-  // ========== API wrapper ==========
   async function request(path, options={}) {
     const headers = { "Content-Type": "application/json" };
     const token = getToken();
@@ -214,7 +191,6 @@
     return data;
   }
 
-  // ========== DOM elements ==========
   const authView = document.getElementById("auth-view");
   const accountView = document.getElementById("account-view");
   function show(loggedIn) {
@@ -222,7 +198,6 @@
     accountView.style.display = loggedIn ? "block" : "none";
   }
 
-  // ========== Auth toggling ==========
   document.getElementById("tab-login").onclick = () => {
     document.getElementById("tab-login").classList.add("active");
     document.getElementById("tab-signup").classList.remove("active");
@@ -236,7 +211,6 @@
     document.getElementById("login-form").style.display = "none";
   };
 
-  // Login
   document.getElementById("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -250,7 +224,6 @@
     } catch(err) { showAlert(document.getElementById("login-msg"), err.message); }
   });
 
-  // Signup
   document.getElementById("signup-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -271,10 +244,8 @@
     } catch(err) { showAlert(document.getElementById("signup-msg"), err.message); }
   });
 
-  // Logout
   document.getElementById("logout").onclick = () => { clearToken(); location.reload(); };
 
-  // Update profile
   document.getElementById("profile-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -286,7 +257,6 @@
     } catch(err) { showAlert(document.getElementById("profile-msg"), err.message); }
   });
 
-  // ========== Review modal ==========
   let currentReviewBooking = null;
   const reviewModal = document.getElementById("reviewModal");
   function openReviewModal(booking) {
@@ -304,17 +274,13 @@
     reviewModal.style.visibility = "visible";
     reviewModal.style.pointerEvents = "auto";
   }
-  function closeReviewModal() {
-    if (reviewModal) reviewModal.style.display = "none";
-  }
+  function closeReviewModal() { if (reviewModal) reviewModal.style.display = "none"; }
   const closeBtn = document.getElementById("closeReviewModalBtn");
   const cancelBtn = document.getElementById("cancelReviewBtn");
   if (closeBtn) closeBtn.onclick = closeReviewModal;
   if (cancelBtn) cancelBtn.onclick = closeReviewModal;
   if (reviewModal) {
-    reviewModal.addEventListener("click", (e) => {
-      if(e.target === reviewModal) closeReviewModal();
-    });
+    reviewModal.addEventListener("click", (e) => { if(e.target === reviewModal) closeReviewModal(); });
   }
   document.getElementById("submitReviewBtn").onclick = async () => {
     if (!currentReviewBooking) return;
@@ -335,7 +301,6 @@
     }
   };
 
-  // ========== Load bookings ==========
   async function loadAccount() {
     try {
       const me = await request("/auth/me");
@@ -423,23 +388,6 @@
 
   if(isLoggedIn()) { show(true); loadAccount(); } else { show(false); }
 
-  function initHeader() {
-    const header = document.querySelector(".site-header");
-    if (!header) return;
-    const onScroll = () => {
-      if (window.scrollY > 30) header.classList.add("scrolled");
-      else header.classList.remove("scrolled");
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    const toggle = header.querySelector(".nav-toggle");
-    const nav = header.querySelector(".nav");
-    if (toggle && nav) {
-      toggle.addEventListener("click", () => nav.classList.toggle("open"));
-      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
-    }
-  }
-  initHeader();
   document.getElementById("y").textContent = new Date().getFullYear();
 </script>
 </body>

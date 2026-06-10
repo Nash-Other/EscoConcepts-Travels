@@ -1,5 +1,37 @@
-// ui.js - Initialises and controls UI components
+// ui.js - Initialises and controls UI components + shared helpers
 
+// ========== Shared Helper Functions (added for all pages) ==========
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str).replace(/[&<>"']/g, function(c) {
+    if (c === '&') return '&amp;';
+    if (c === '<') return '&lt;';
+    if (c === '>') return '&gt;';
+    if (c === '"') return '&quot;';
+    return '&#39;';
+  });
+}
+
+function initHeader() {
+  const header = document.querySelector(".site-header");
+  if (!header) return;
+  const onScroll = () => {
+    if (window.scrollY > 30) header.classList.add("scrolled");
+    else header.classList.remove("scrolled");
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+  const toggle = header.querySelector(".nav-toggle");
+  const nav = header.querySelector(".nav");
+  if (toggle && nav) {
+    toggle.addEventListener("click", () => nav.classList.toggle("open"));
+    nav.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") nav.classList.remove("open");
+    });
+  }
+}
+
+// ========== Original UI code (unchanged) ==========
 (function() {
   // Helper: data-state toggling (not used elsewhere, kept for reference)
   function toggleAttribute(element, attr, value) {
@@ -127,17 +159,6 @@
     openModal(id);
   };
 
-  // Helper to escape HTML
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-      if (m === '&') return '&amp;';
-      if (m === '<') return '&lt;';
-      if (m === '>') return '&gt;';
-      return m;
-    });
-  }
-
   // --- Toasts ---
   let toastContainer = document.querySelector('.toast-container');
   if (!toastContainer) {
@@ -158,7 +179,6 @@
   // --- Tooltips (auto) ---
   document.querySelectorAll('[data-tooltip]').forEach(el => {
     const tooltipText = el.getAttribute('data-tooltip');
-    // Avoid adding duplicate tooltip spans
     if (!el.querySelector('.tooltip-text')) {
       const tooltipSpan = document.createElement('span');
       tooltipSpan.className = 'tooltip-text';
@@ -181,5 +201,11 @@
     const bar = element.querySelector('.progress-bar');
     if (bar) bar.style.width = Math.min(100, Math.max(0, percent)) + '%';
   };
-
 })();
+
+// ========== Auto‑initialise header on all pages ==========
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initHeader);
+} else {
+  initHeader();
+}

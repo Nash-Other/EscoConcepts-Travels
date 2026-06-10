@@ -187,7 +187,6 @@ async function initializeDatabase() {
       reset_token VARCHAR(255),
       reset_token_expiry TIMESTAMP
     )`);
-    // These ALTER statements are kept for safety but will be skipped if columns exist
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN DEFAULT FALSE`);
@@ -405,7 +404,6 @@ app.post('/api/auth/signup', authRateLimit, async (req, res) => {
   if (!firstName || !lastName || !email || !password) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
   }
-  // Server-side password strength validation
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -1060,6 +1058,22 @@ app.get('/api/blogs', async (req, res) => {
   }
 });
 
+// Get blog by slug (SEO-friendly)
+app.get('/api/blogs/slug/:slug', async (req, res) => {
+  const { slug } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT id, title, slug, author, content, image_url, created_at, updated_at FROM blogs WHERE slug = $1',
+      [slug]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
 app.get('/api/blogs/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1273,7 +1287,6 @@ app.post('/api/checkout', async (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanTravelDate)) {
     return res.status(400).json({ success: false, message: 'Invalid travel date.' });
   }
-  // Server-side check: travel date cannot be in the past
   const today = new Date().toISOString().slice(0,10);
   if (cleanTravelDate < today) {
     return res.status(400).json({ success: false, message: 'Travel date cannot be in the past.' });
@@ -1358,6 +1371,22 @@ app.post('/api/checkout', async (req, res) => {
 app.get('/api/services', async (req, res) => {
   try {
     const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to fetch services.' });
+  }
+});
+
+// Slim endpoint for listing pages (only essential fields)
+app.get('/api/services/summary', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT service_id, title, destination, base_price, max_pax, image_url
+      FROM services
+      WHERE is_active = TRUE
+      ORDER BY service_id
+    `);
     res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error(err);

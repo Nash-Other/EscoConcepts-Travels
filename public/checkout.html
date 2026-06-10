@@ -28,6 +28,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <script src="config.js"></script>
 </head>
 <body>
@@ -55,8 +56,8 @@
         <div class="form-field"><label>Last name *</label><input name="lastName" required class="input"></div>
         <div class="form-field"><label>Email *</label><input type="email" name="email" required class="input"></div>
         <div class="form-field"><label>Phone *</label><input name="phone" required class="input"></div>
-        <div class="form-field"><label>Travel date *</label><input type="date" name="travelDate" required class="input"></div>
-        <div class="form-field"><label>Return date (end date) *</label><input type="date" name="returnDate" required class="input"></div>
+        <div class="form-field"><label>Travel date *</label><input type="date" name="travelDate" required class="input" id="travelDate"></div>
+        <div class="form-field"><label>Return date (end date) *</label><input type="date" name="returnDate" required class="input" id="returnDate"></div>
         <div class="form-field"><label>Number of guests *</label><select name="pax" id="pax" required class="select"></select></div>
         <div class="form-field full"><label>Special requests</label><textarea name="specialRequests" placeholder="Dietary needs, occasions, accessibility…" class="textarea"></textarea></div>
         <div class="form-field full"><label>Payment method *</label><select name="paymentMethod" required class="select"><option value="card">Credit / Debit Card</option><option value="mpesa">M-Pesa</option></select></div>
@@ -74,30 +75,31 @@
 
 <script src="ui.js"></script>
 <script>
-  function initHeader() {
-    const header = document.querySelector(".site-header");
-    if (!header) return;
-    const onScroll = () => {
-      if (window.scrollY > 30) header.classList.add("scrolled");
-      else header.classList.remove("scrolled");
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    const toggle = header.querySelector(".nav-toggle");
-    const nav = header.querySelector(".nav");
-    if (toggle && nav) {
-      toggle.addEventListener("click", () => nav.classList.toggle("open"));
-      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
-    }
+  // Helper functions (page‑specific – not in ui.js because they depend on safeUrl etc.)
+  function safeUrl(url, fallback = "") {
+    if (!url) return fallback;
+    try { const u = new URL(url, window.location.origin); if (["http:", "https:"].includes(u.protocol)) return u.href; } catch(e) {}
+    return fallback;
   }
-  initHeader();
-
-  function escapeHtml(str){if(!str)return"";return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-  function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
-  function fmtPrice(v){if(v==null||isNaN(Number(v)))return"—";return"KSh "+Number(v).toLocaleString();}
-  function showAlert(el,msg,kind="error"){if(!el)return;el.innerHTML=`<div class="alert ${kind}">${escapeHtml(msg)}</div>`;if(kind==="success")setTimeout(()=>{el.innerHTML="";},6000);}
-  function openModal(html){const b=document.getElementById("checkoutModal")|| (()=>{const d=document.createElement("div");d.id="checkoutModal";d.className="modal-backdrop";d.innerHTML='<div class="modal" role="dialog" aria-modal="true"><button class="modal-close">&times;</button><div class="modal-content"></div></div>';document.body.appendChild(d);d.addEventListener("click",e=>{if(e.target===d||e.target.classList.contains("modal-close"))closeModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});return d;})(); const c=b.querySelector(".modal-content");c.innerHTML=html;b.classList.add("open");document.body.style.overflow="hidden";}
-  function closeModal(){const b=document.getElementById("checkoutModal");if(b){b.classList.remove("open");document.body.style.overflow="";}}
+  function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
+  function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
+  function openModal(html) {
+    const b = document.getElementById("checkoutModal") || (() => {
+      const d = document.createElement("div");
+      d.id = "checkoutModal";
+      d.className = "modal-backdrop";
+      d.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><button class="modal-close">&times;</button><div class="modal-content"></div></div>';
+      document.body.appendChild(d);
+      d.addEventListener("click", e => { if (e.target === d || e.target.classList.contains("modal-close")) closeModal(); });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+      return d;
+    })();
+    const c = b.querySelector(".modal-content");
+    c.innerHTML = html;
+    b.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeModal() { const b = document.getElementById("checkoutModal"); if (b) { b.classList.remove("open"); document.body.style.overflow = ""; } }
 
   const pkgId = new URLSearchParams(window.location.search).get("package");
   const summary = document.getElementById("pkg-summary");
@@ -107,28 +109,29 @@
   let pkg = null;
 
   async function loadPkg() {
-    if(!pkgId){ summary.innerHTML=`<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display="none"; return; }
+    if (!pkgId) { summary.innerHTML = `<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display = "none"; return; }
     try {
       const res = await fetch("/api/services");
       const data = await res.json();
-      const list = data.data || data.services || (Array.isArray(data)?data:[]);
+      const list = data.data || data.services || (Array.isArray(data) ? data : []);
       pkg = list.find(s => String(s.service_id) === String(pkgId));
-      if(!pkg) throw new Error("Package not found");
+      if (!pkg) throw new Error("Package not found");
       const img = safeUrl(pkg.image_url) || "";
       summary.innerHTML = `<div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:.75rem">` : ""}<div style="flex:1;min-width:200px"><span class="eyebrow">${escapeHtml(pkg.destination||"Kenya")}</span><h3 style="margin:.25rem 0">${escapeHtml(pkg.title)}</h3><div style="color:var(--gold-dark);font-weight:700">${fmtPrice(pkg.base_price)} per person</div></div></div>`;
       const max = Number(pkg.max_pax) || 10;
-      paxSel.innerHTML = Array.from({length:max},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("");
-      const travelDateInput = document.querySelector('input[name="travelDate"]');
-      const returnDateInput = document.querySelector('input[name="returnDate"]');
-      if(travelDateInput && returnDateInput) {
-        travelDateInput.addEventListener('change', () => {
-          if(travelDateInput.value) {
-            returnDateInput.min = travelDateInput.value;
-            if(returnDateInput.value && returnDateInput.value < travelDateInput.value) returnDateInput.value = travelDateInput.value;
-          }
-        });
-      }
-    } catch(e){ summary.innerHTML=`<div class="empty">${escapeHtml(e.message)}</div>`; form.style.display="none"; }
+      paxSel.innerHTML = Array.from({ length: max }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join("");
+      const travelDateInput = document.getElementById("travelDate");
+      const returnDateInput = document.getElementById("returnDate");
+      // Set min to today
+      const today = new Date().toISOString().slice(0,10);
+      travelDateInput.min = today;
+      travelDateInput.addEventListener('change', () => {
+        if (travelDateInput.value) {
+          returnDateInput.min = travelDateInput.value;
+          if (returnDateInput.value && returnDateInput.value < travelDateInput.value) returnDateInput.value = travelDateInput.value;
+        }
+      });
+    } catch(e) { summary.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; form.style.display = "none"; }
   }
   loadPkg();
 
@@ -139,9 +142,9 @@
     const payload = Object.fromEntries(fd.entries());
     payload.pax = Number(payload.pax);
     payload.service_id = pkg.service_id;
-    if(!/^\S+@\S+\.\S+$/.test(payload.email)) return showAlert(msg, "Please enter a valid email.");
-    if(payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `Max ${pkg.max_pax} guests for this package.`);
-    if(payload.travelDate && payload.returnDate && payload.returnDate < payload.travelDate) {
+    if (!/^\S+@\S+\.\S+$/.test(payload.email)) return showAlert(msg, "Please enter a valid email.");
+    if (payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `Max ${pkg.max_pax} guests for this package.`);
+    if (payload.travelDate && payload.returnDate && payload.returnDate < payload.travelDate) {
       return showAlert(msg, "Return date cannot be before travel date.");
     }
     const btn = document.getElementById("submit-btn"); btn.disabled = true; btn.textContent = "Submitting…";
@@ -152,11 +155,11 @@
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if(!res.ok) throw new Error(data.message || "Checkout failed");
+      if (!res.ok) throw new Error(data.message || "Checkout failed");
       const ref = data.bookingReference || data.reference || data.booking_reference || "—";
       openModal(`<div class="modal-body" style="text-align:center"><h2>Booking received!</h2><p>Thank you, ${escapeHtml(payload.firstName)}. We'll be in touch shortly to confirm your safari.</p><p>Your booking reference:</p><div style="font-family:monospace;font-size:1.3rem;background:var(--bg-soft);padding:1rem;border-radius:.5rem;margin:1rem 0">${escapeHtml(String(ref))}</div><a href="account.html" class="btn btn-gold">View My Bookings</a></div>`);
       form.reset();
-    } catch(err){ showAlert(msg, err.message); }
+    } catch(err) { showAlert(msg, err.message); }
     finally { btn.disabled = false; btn.textContent = "Confirm Booking"; }
   });
 

@@ -27,6 +27,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <style>
   .stars { color: var(--gold); letter-spacing: 2px; font-size: 0.9rem; }
   .review-item { margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding: 0.5rem 0; }
@@ -36,6 +37,26 @@
   .card .view-btn { background: var(--gold); color: var(--ink); border: none; }
   .card .view-btn:hover { background: var(--gold-dark); }
   .verified-badge { background: #1d7a3f; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 20px; margin-left: 8px; display: inline-block; }
+  .custom-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #2c2b28;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+  }
+  .custom-toast.success { background: #1d7a3f; }
+  .custom-toast.error { background: #b00020; }
+  .custom-toast.show { opacity: 1; transform: translateY(0); }
 </style>
 <script src="config.js"></script>
 </head>
@@ -69,16 +90,13 @@
   </div>
 </section>
 
-<!-- Service Modal (updated with review submission) -->
+<!-- Service Modal -->
 <div id="serviceModal" class="modal-backdrop">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" aria-label="Close">&times;</button>
     <div class="modal-content"></div>
   </div>
 </div>
-
-<!-- Small review form modal (inside the main modal, but we'll embed it) -->
-<!-- Actually we'll embed the review form directly inside the service modal when needed -->
 
 <footer class="site-footer">
   <div class="container footer-grid">
@@ -91,8 +109,7 @@
 
 <script src="ui.js"></script>
 <script>
-  // ========== Helper functions ==========
-  function escapeHtml(str){if(!str)return"";return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  // All shared helpers (escapeHtml, initHeader) are in ui.js
   function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
   function sanitizeHtml(html){const tpl=document.createElement("template");tpl.innerHTML=String(html);const allowedTags=new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);const allowedAttrs={A:["href","title","target","rel"],IMG:["src","alt","title"]};const walk=(node)=>{[...node.childNodes].forEach(child=>{if(child.nodeType===1){if(!allowedTags.has(child.tagName)){child.replaceWith(...child.childNodes);return;}const allowed=allowedAttrs[child.tagName]||[];[...child.attributes].forEach(a=>{if(!allowed.includes(a.name))child.removeAttribute(a.name);if(a.name==="href"||a.name==="src"){const v=safeUrl(a.value);if(!v)child.removeAttribute(a.name);else child.setAttribute(a.name,v);}});if(child.tagName==="A"){child.setAttribute("rel","noopener noreferrer");child.setAttribute("target","_blank");}walk(child);}else if(child.nodeType===8)child.remove();});};walk(tpl.content);return tpl.innerHTML;}
   function fmtPrice(v){if(v==null||isNaN(Number(v)))return"—";return"KSh "+Number(v).toLocaleString();}
@@ -127,7 +144,6 @@
     return data;
   }
 
-  // Fetch average rating for a service (used to display on cards)
   async function fetchAverageRating(serviceId) {
     try {
       const data = await apiRequest(`/reviews/${serviceId}`);
@@ -135,51 +151,19 @@
     } catch(e) { return null; }
   }
 
-  // Custom toast CSS (add once)
-  if (!document.querySelector('#toast-styles')) {
-    const style = document.createElement('style');
-    style.id = 'toast-styles';
-    style.textContent = `
-      .custom-toast {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: #2c2b28;
-        color: #fff;
-        padding: 12px 20px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        z-index: 9999;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.3s ease, transform 0.3s ease;
-        pointer-events: none;
-      }
-      .custom-toast.success { background: #1d7a3f; }
-      .custom-toast.error { background: #b00020; }
-      .custom-toast.show { opacity: 1; transform: translateY(0); }
-    `;
-    document.head.appendChild(style);
-  }
+  async function openServiceModal(service){
+    const backdrop=document.getElementById("serviceModal");
+    const contentDiv=backdrop.querySelector(".modal-content");
+    const img=safeUrl(service.image_url)||"https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
+    const gallery=(service.gallery||[]).map(safeUrl).filter(Boolean);
+    const galleryHtml=gallery.length?`<div class="modal-gallery">${gallery.map(u=>`<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>`:"";
+    const itinerary=service.itinerary?`<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>`:"";
+    const serviceId=service.service_id||service.id;
 
-  // Function to open service modal with reviews and review submission
-  async function openServiceModal(service) {
-    const backdrop = document.getElementById("serviceModal");
-    const contentDiv = backdrop.querySelector(".modal-content");
-    const img = safeUrl(service.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
-    const gallery = (service.gallery || []).map(safeUrl).filter(Boolean);
-    const galleryHtml = gallery.length ? `<div class="modal-gallery">${gallery.map(u => `<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>` : "";
-    const itinerary = service.itinerary ? `<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>` : "";
-    const serviceId = service.service_id || service.id;
-
-    // Fetch reviews and average
     const reviewsData = await apiRequest(`/reviews/${serviceId}`);
     const reviews = reviewsData.reviews || [];
     const average = reviewsData.average;
 
-    // Check if user can write a review (logged in, completed booking, not already reviewed)
     let canReview = false;
     let alreadyReviewed = false;
     if (isLoggedIn()) {
@@ -191,28 +175,25 @@
     }
 
     let reviewsHtml = `<div class="reviews-section"><h4>Customer Reviews</h4>`;
-    if (average) {
-      reviewsHtml += `<div class="average-rating">Average: ${renderStars(parseFloat(average))} (${average})</div>`;
-    } else {
-      reviewsHtml += `<div class="average-rating">No reviews yet.</div>`;
-    }
-    if (reviews.length) {
-      reviewsHtml += `<div class="reviews-list" style="max-height:200px; overflow-y:auto;">`;
-      reviews.forEach(r => {
+    if(average) reviewsHtml+=`<div class="average-rating">Average: ${renderStars(parseFloat(average))} (${average})</div>`;
+    else reviewsHtml+=`<div class="average-rating">No reviews yet.</div>`;
+
+    if(reviews.length){
+      reviewsHtml+=`<div class="reviews-list" style="max-height:200px; overflow-y:auto;">`;
+      reviews.forEach(r=>{
         const verifiedBadge = r.verified ? '<span class="verified-badge">✓ Verified Purchase</span>' : '';
-        reviewsHtml += `<div class="review-item" style="border-bottom:1px solid var(--border); padding:0.5rem 0;">
+        reviewsHtml+=`<div class="review-item" style="border-bottom:1px solid var(--border); padding:0.5rem 0;">
           <strong>${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</strong> ${verifiedBadge}
           <span class="stars">${renderStars(r.rating)}</span>
-          <p style="margin:0.25rem 0 0;">${escapeHtml(r.comment || '')}</p>
+          <p style="margin:0.25rem 0 0;">${escapeHtml(r.comment||'')}</p>
           <small>${fmtDate(r.created_at)}</small>
         </div>`;
       });
-      reviewsHtml += `</div>`;
+      reviewsHtml+=`</div>`;
     } else {
-      reviewsHtml += `<div class="reviews-list"><p>No reviews yet.</p></div>`;
+      reviewsHtml+=`<div class="reviews-list"><p>No reviews yet.</p></div>`;
     }
 
-    // Add review form if user can review
     let reviewFormHtml = '';
     if (canReview) {
       reviewFormHtml = `
@@ -243,7 +224,6 @@
     } else {
       reviewFormHtml = `<p class="empty" style="margin-top:1rem;"><a href="account.html">Log in</a> to write a review after your trip.</p>`;
     }
-
     reviewsHtml += reviewFormHtml;
     reviewsHtml += `</div>`;
 
@@ -262,7 +242,6 @@
       </div>
     `;
 
-    // Attach review submission handler if the form exists
     const submitBtn = contentDiv.querySelector("#submitModalReviewBtn");
     if (submitBtn) {
       submitBtn.onclick = async () => {
@@ -276,7 +255,6 @@
             body: JSON.stringify({ service_id: serviceId, rating, comment })
           });
           showToast("Thank you for your review!", "success");
-          // Close and reopen to refresh reviews
           closeServiceModal();
           openServiceModal(service);
         } catch (err) {
@@ -288,11 +266,9 @@
     backdrop.classList.add("open");
     document.body.style.overflow = "hidden";
   }
-
   function closeServiceModal(){const b=document.getElementById("serviceModal");b.classList.remove("open");document.body.style.overflow="";}
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("serviceModal");if(b){b.addEventListener("click",e=>{if(e.target===b||e.target.classList.contains("modal-close"))closeServiceModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeServiceModal();});}});
 
-  // Card rendering with average rating
   async function card(s) {
     let avgRatingHtml = '';
     const avg = await fetchAverageRating(s.service_id);

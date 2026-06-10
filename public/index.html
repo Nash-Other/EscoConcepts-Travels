@@ -33,6 +33,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <style>
   .stars { color: var(--gold); letter-spacing: 2px; font-size: 0.9rem; }
   .review-item { margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding: 0.5rem 0; }
@@ -155,20 +156,17 @@
 
 <script src="ui.js"></script>
 <script>
-  // ========== Helper functions ==========
-  function escapeHtml(str) {
-    if (!str) return "";
-    return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+  // All shared helpers are now in ui.js – no duplicate definitions here.
+
   function safeUrl(url, fallback = "") {
     if (!url) return fallback;
-    try { const u = new URL(url, window.location.origin); if (["http:", "https:"].includes(u.protocol)) return u.href; } catch (_) { return fallback; }
+    try { const u = new URL(url, window.location.origin); if (["http:","https:"].includes(u.protocol)) return u.href; } catch (_) { return fallback; }
   }
   function sanitizeHtml(html) {
     const tpl = document.createElement("template");
     tpl.innerHTML = String(html);
-    const allowedTags = new Set(["P", "BR", "STRONG", "EM", "B", "I", "U", "UL", "OL", "LI", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "A", "IMG", "HR", "SPAN", "DIV", "FIGURE", "FIGCAPTION", "PRE", "CODE"]);
-    const allowedAttrs = { A: ["href", "title", "target", "rel"], IMG: ["src", "alt", "title"] };
+    const allowedTags = new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);
+    const allowedAttrs = { A: ["href","title","target","rel"], IMG: ["src","alt","title"] };
     const walk = (node) => {
       [...node.childNodes].forEach(child => {
         if (child.nodeType === 1) {
@@ -182,7 +180,7 @@
               else child.setAttribute(a.name, v);
             }
           });
-          if (child.tagName === "A") { child.setAttribute("rel", "noopener noreferrer"); child.setAttribute("target", "_blank"); }
+          if (child.tagName === "A") { child.setAttribute("rel","noopener noreferrer"); child.setAttribute("target","_blank"); }
           walk(child);
         } else if (child.nodeType === 8) child.remove();
       });
@@ -296,7 +294,6 @@
         return;
       }
 
-      // Build cards with average rating
       const cards = await Promise.all(active.map(async (s) => {
         const avg = await fetchAverageRating(s.service_id);
         const avgHtml = avg ? `<div class="avg-rating">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>` : '';
@@ -350,7 +347,6 @@
       if (services.length === 0) {
         grid.innerHTML = `<div class="empty">No destinations found.</div>`;
       } else {
-        // Build cards with average rating
         const cards = await Promise.all(services.map(async (s) => {
           const avg = await fetchAverageRating(s.service_id);
           const avgHtml = avg ? `<div class="avg-rating">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>` : '';
@@ -452,26 +448,7 @@
     startRotateTimer();
   }
 
-  // ========== Header ==========
-  function initHeader() {
-    const header = document.querySelector(".site-header");
-    if (!header) return;
-    const onScroll = () => {
-      if (window.scrollY > 30) header.classList.add("scrolled");
-      else header.classList.remove("scrolled");
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    const toggle = header.querySelector(".nav-toggle");
-    const nav = header.querySelector(".nav");
-    if (toggle && nav) {
-      toggle.addEventListener("click", () => nav.classList.toggle("open"));
-      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
-    }
-  }
-
   document.addEventListener("DOMContentLoaded", async () => {
-    initHeader();
     document.getElementById("year").textContent = new Date().getFullYear();
     await loadSignature();
     await loadFeatured(1, false);

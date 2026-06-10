@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
 </head>
@@ -221,7 +222,6 @@
       const t = data.token || data.accessToken;
       if (!t) throw new Error("No token received");
       setToken(t);
-      // REMOVED: showToast("Login successful", "success");  <- This line caused recursion
       show();
     } catch (err) {
       showAlert(document.getElementById("login-msg"), err.message);
@@ -268,37 +268,29 @@
       const pagination = data.pagination || { totalPages: 1, currentPage: bPage };
       bTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No bookings.</div>`; return; }
-      wrap.innerHTML = `<table class="data"><thead><tr>
-        <th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th>
-        </td></thead><tbody>${list.map(b => {
-          const ref = b.booking_reference || b.id;
-          const status = (b.status || "pending").toLowerCase();
-          const total = b.total_amount || "";
-          const guestName = b.guest_name || "";
-          const guestEmail = b.guest_email || "";
-          const guestPhone = b.guest_phone || "";
-          const special = b.special_requests || "";
-          return `<tr>
-            <td><span class="booking-ref">${escapeHtml(String(ref))}</span></td>
-            <td>${escapeHtml(guestName)}</span></td>
-            <td>${escapeHtml(guestEmail)}<br>${escapeHtml(guestPhone)}<br><small>${escapeHtml(special)}</small></td>
-            <td>${escapeHtml(b.package_booked || "")}</td>
-            <td>${fmtDate(b.travel_date)}</span></td>
-            <td>${fmtDate(b.return_date)}</span></td>
-            <td>${b.total_guests || b.pax || ""}</td>
-            <td>${fmtPrice(total)}</span></td>
-            <td><span class="status ${status}">${status}</span></span></td>
-            <td>
-              <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
-                <option ${status === "pending" ? "selected" : ""}>Pending</option>
-                <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
-                <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
-                <option ${status === "completed" ? "selected" : ""}>Completed</option>
-              </select>
-              <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
-             </span>
-          </tr>`;
-        }).join("")}</tbody></table>`;
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>${list.map(b => {
+        const status = (b.status || "pending").toLowerCase();
+        return `<tr>
+          <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
+          <td>${escapeHtml(b.guest_name||"")}</td>
+          <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
+          <td>${escapeHtml(b.package_booked||"")}</td>
+          <td>${fmtDate(b.travel_date)}</td>
+          <td>${fmtDate(b.return_date)}</td>
+          <td>${b.total_guests || b.pax || ""}</td>
+          <td>${fmtPrice(b.total_amount)}</td>
+          <td><span class="status ${status}">${status}</span></td>
+          <td>
+            <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
+              <option ${status === "pending" ? "selected" : ""}>Pending</option>
+              <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
+              <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
+              <option ${status === "completed" ? "selected" : ""}>Completed</option>
+            </select>
+            <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
+          </td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
       wrap.querySelectorAll(".update-btn").forEach(btn => {
         btn.onclick = async () => {
@@ -331,19 +323,15 @@
       const pagination = data.pagination || { totalPages: 1, currentPage: sPage };
       sTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
-      wrap.innerHTML = `<table class="data"><thead><tr>
-        <th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th>
-        </tr></thead><tbody>${list.map(s => `<tr>
-          <td>${escapeHtml(s.title || "")}</td>
-          <td>${escapeHtml(s.destination || "")}</td>
-          <td>${fmtPrice(s.base_price)}</span></td>
-          <td>${escapeHtml(String(s.max_pax || "—"))}</td>
-          <td>${s.is_active === false ? "No" : "Yes"}</td>
-          <td>
-            <button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
-            <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button>
-           </span>
-        </tr>`).join("")}</tbody></table>`;
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th></tr></thead><tbody>${list.map(s => `<tr>
+        <td>${escapeHtml(s.title || "")}</td>
+        <td>${escapeHtml(s.destination || "")}</td>
+        <td>${fmtPrice(s.base_price)}</td>
+        <td>${escapeHtml(String(s.max_pax || "—"))}</td>
+        <td>${s.is_active === false ? "No" : "Yes"}</td>
+        <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+        <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
+      </tr>`).join("")}</tbody></table>`;
       document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
       wrap.querySelectorAll(".edit-svc").forEach(b => b.onclick = () => editService(b.dataset.id));
       wrap.querySelectorAll(".del-svc").forEach(b => b.onclick = async () => {
@@ -435,7 +423,7 @@
       cTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No messages.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody>${
-        list.map(c => `<tr><td>${fmtDate(c.created_at)}</span></td><td>${escapeHtml(c.name || "")}</span></td><td>${escapeHtml(c.email || "")}</span></td><td>${escapeHtml(c.subject || "")}</span></td><td>${escapeHtml(c.message || "")}</span></tr>`).join("")
+        list.map(c => `<tr><td>${fmtDate(c.created_at)}</td><td>${escapeHtml(c.name || "")}</td><td>${escapeHtml(c.email || "")}</td><td>${escapeHtml(c.subject || "")}</td><td>${escapeHtml(c.message || "")}</td></tr>`).join("")
       }</tbody></table>`;
       document.getElementById("c-info").textContent = `Page ${pagination.currentPage} of ${cTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
@@ -460,13 +448,11 @@
       if (!list.length) { wrap.innerHTML = `<div class="empty">No articles.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${
         list.map(b => `<tr>
-          <td>${escapeHtml(b.title || "")}</span></td>
-          <td>${escapeHtml(b.author || "")}</span></td>
-          <td>${fmtDate(b.created_at)}</span></td>
-          <td>
-            <button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
-            <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button>
-           </span>
+          <td>${escapeHtml(b.title || "")}</td>
+          <td>${escapeHtml(b.author || "")}</td>
+          <td>${fmtDate(b.created_at)}</td>
+          <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+          <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
         </tr>`).join("")
       }</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;

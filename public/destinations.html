@@ -26,6 +26,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <style>
   .stars { color: var(--gold); letter-spacing: 2px; font-size: 0.9rem; }
   .review-item { margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding: 0.5rem 0; }
@@ -80,7 +81,7 @@
   </div>
 </section>
 
-<!-- Service Modal with review submission -->
+<!-- Service Modal -->
 <div id="serviceModal" class="modal-backdrop">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" aria-label="Close">&times;</button>
@@ -99,25 +100,8 @@
 
 <script src="ui.js"></script>
 <script>
-  function initHeader() {
-    const header = document.querySelector(".site-header");
-    if (!header) return;
-    const onScroll = () => {
-      if (window.scrollY > 30) header.classList.add("scrolled");
-      else header.classList.remove("scrolled");
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    const toggle = header.querySelector(".nav-toggle");
-    const nav = header.querySelector(".nav");
-    if (toggle && nav) {
-      toggle.addEventListener("click", () => nav.classList.toggle("open"));
-      nav.addEventListener("click", (e) => { if (e.target.tagName === "A") nav.classList.remove("open"); });
-    }
-  }
-  initHeader();
+  // All shared helpers (escapeHtml, initHeader) are now in ui.js
 
-  function escapeHtml(str){if(!str)return"";return String(str).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   function safeUrl(url,fallback=""){if(!url)return fallback;try{const u=new URL(url,window.location.origin);if(["http:","https:"].includes(u.protocol))return u.href;}catch(e){}return fallback;}
   function sanitizeHtml(html){const tpl=document.createElement("template");tpl.innerHTML=String(html);const allowedTags=new Set(["P","BR","STRONG","EM","B","I","U","UL","OL","LI","H1","H2","H3","H4","H5","H6","BLOCKQUOTE","A","IMG","HR","SPAN","DIV","FIGURE","FIGCAPTION","PRE","CODE"]);const allowedAttrs={A:["href","title","target","rel"],IMG:["src","alt","title"]};const walk=(node)=>{[...node.childNodes].forEach(child=>{if(child.nodeType===1){if(!allowedTags.has(child.tagName)){child.replaceWith(...child.childNodes);return;}const allowed=allowedAttrs[child.tagName]||[];[...child.attributes].forEach(a=>{if(!allowed.includes(a.name))child.removeAttribute(a.name);if(a.name==="href"||a.name==="src"){const v=safeUrl(a.value);if(!v)child.removeAttribute(a.name);else child.setAttribute(a.name,v);}});if(child.tagName==="A"){child.setAttribute("rel","noopener noreferrer");child.setAttribute("target","_blank");}walk(child);}else if(child.nodeType===8)child.remove();});};walk(tpl.content);return tpl.innerHTML;}
   function fmtPrice(v){if(v==null||isNaN(Number(v)))return"—";return"KSh "+Number(v).toLocaleString();}
@@ -172,7 +156,6 @@
     const reviews = reviewsData.reviews || [];
     const average = reviewsData.average;
 
-    // Check if user can write a review
     let canReview = false;
     let alreadyReviewed = false;
     if (isLoggedIn()) {
@@ -203,7 +186,6 @@
       reviewsHtml+=`<div class="reviews-list"><p>No reviews yet.</p></div>`;
     }
 
-    // Add review form if user can review
     let reviewFormHtml = '';
     if (canReview) {
       reviewFormHtml = `
@@ -252,7 +234,6 @@
       </div>
     `;
 
-    // Attach review submission handler
     const submitBtn = contentDiv.querySelector("#submitModalReviewBtn");
     if (submitBtn) {
       submitBtn.onclick = async () => {
@@ -267,7 +248,7 @@
           });
           showToast("Thank you for your review!", "success");
           closeServiceModal();
-          openServiceModal(service); // Refresh modal
+          openServiceModal(service);
         } catch (err) {
           msgDiv.innerHTML = `<div class="alert error">${escapeHtml(err.message)}</div>`;
         }
@@ -277,11 +258,9 @@
     backdrop.classList.add("open");
     document.body.style.overflow = "hidden";
   }
-
   function closeServiceModal(){const b=document.getElementById("serviceModal");b.classList.remove("open");document.body.style.overflow="";}
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("serviceModal");if(b){b.addEventListener("click",e=>{if(e.target===b||e.target.classList.contains("modal-close"))closeServiceModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeServiceModal();});}});
 
-  // Card rendering with average rating
   async function card(s) {
     let avgRatingHtml = '';
     const avg = await fetchAverageRating(s.service_id);
