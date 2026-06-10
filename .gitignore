@@ -4,6 +4,7 @@ uploads/
 .DS_Store
 *.log
 .tmp.driveupload/
+.tmp.drivedownload/
 # Local helper files
 push to GitHub.bat
 *.lnk
