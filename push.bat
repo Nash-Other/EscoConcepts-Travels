@@ -1,5 +1,7 @@
 @echo off
 cd /d C:\Users\nashp\EscoConcepts_Backend
+set GIT_TERMINAL_PROMPT=0
+set GIT_ASK_YESNO=false
 echo Running Git garbage collection...
 git gc --auto
 echo Adding all changes...

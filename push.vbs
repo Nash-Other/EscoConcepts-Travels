@@ -1,0 +1,1 @@
+CreateObject("WScript.Shell").Run "cmd /c push.bat", 1, False
