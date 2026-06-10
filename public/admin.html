@@ -252,8 +252,27 @@
     });
   });
 
-  // ========== Bookings ==========
+  // ========== Bookings (with instant row update, no full refresh) ==========
   let bPage = 1, bTotalPages = 1;
+  
+  // Helper to update a single row's status and badge
+  function updateBookingRow(bookingId, newStatus) {
+    const row = document.querySelector(`tr[data-booking-id="${bookingId}"]`);
+    if (row) {
+      const statusCell = row.querySelector(".status-cell");
+      if (statusCell) {
+        const badge = statusCell.querySelector(".status");
+        if (badge) {
+          badge.className = `status ${newStatus.toLowerCase()}`;
+          badge.textContent = newStatus;
+        }
+      }
+      // Also update the select dropdown to reflect new status
+      const select = row.querySelector(`.status-sel[data-id="${bookingId}"]`);
+      if (select) select.value = newStatus;
+    }
+  }
+
   async function loadBookings() {
     const wrap = document.getElementById("b-table");
     wrap.innerHTML = `<div class="loading">Loading…</div>`;
@@ -270,17 +289,17 @@
       if (!list.length) { wrap.innerHTML = `<div class="empty">No bookings.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>${list.map(b => {
         const status = (b.status || "pending").toLowerCase();
-        return `<tr>
-          <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
-          <td>${escapeHtml(b.guest_name||"")}</td>
-          <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
-          <td>${escapeHtml(b.package_booked||"")}</td>
-          <td>${fmtDate(b.travel_date)}</td>
-          <td>${fmtDate(b.return_date)}</td>
-          <td>${b.total_guests || b.pax || ""}</td>
-          <td>${fmtPrice(b.total_amount)}</td>
-          <td><span class="status ${status}">${status}</span></td>
-          <td>
+        return `<tr data-booking-id="${b.booking_id}">
+           <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
+           <td>${escapeHtml(b.guest_name||"")}</td>
+           <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
+           <td>${escapeHtml(b.package_booked||"")}</td>
+           <td>${fmtDate(b.travel_date)}</td>
+           <td>${fmtDate(b.return_date)}</td>
+           <td>${b.total_guests || b.pax || ""}</td>
+           <td>${fmtPrice(b.total_amount)}</td>
+           <td class="status-cell"><span class="status ${status}">${status}</span></td>
+           <td>
             <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
               <option ${status === "pending" ? "selected" : ""}>Pending</option>
               <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
@@ -288,19 +307,31 @@
               <option ${status === "completed" ? "selected" : ""}>Completed</option>
             </select>
             <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
-          </td>
-        </tr>`;
+           </td>
+         </tr>`;
       }).join("")}</tbody></table>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
+      
+      // Attach event handlers to all update buttons (without full page refresh)
       wrap.querySelectorAll(".update-btn").forEach(btn => {
         btn.onclick = async () => {
           const id = btn.dataset.id;
-          const status = wrap.querySelector(`.status-sel[data-id="${id}"]`).value;
+          const select = wrap.querySelector(`.status-sel[data-id="${id}"]`);
+          const newStatus = select.value;
+          // Optimistically update UI immediately
+          updateBookingRow(id, newStatus);
           try {
-            await request(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
-            showToast(`Booking status updated to ${status}`, "success");
+            await request(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
+            showToast(`Booking status updated to ${newStatus}`, "success");
+            // No need to reload the whole table
+          } catch (e) {
+            // If error, revert the status by reloading the single row or show error
+            showToast(e.message, "error");
+            // Reload just this row's status from server (optional: you could re-fetch that row only)
+            // For simplicity, we reload the whole page data but without changing page?
+            // Better: revert optimistic update by reloading the whole table
             loadBookings();
-          } catch (e) { showToast(e.message, "error"); }
+          }
         };
       });
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
@@ -324,14 +355,14 @@
       sTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th></tr></thead><tbody>${list.map(s => `<tr>
-        <td>${escapeHtml(s.title || "")}</td>
-        <td>${escapeHtml(s.destination || "")}</td>
-        <td>${fmtPrice(s.base_price)}</td>
-        <td>${escapeHtml(String(s.max_pax || "—"))}</td>
-        <td>${s.is_active === false ? "No" : "Yes"}</td>
-        <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+         <td>${escapeHtml(s.title || "")}</td>
+         <td>${escapeHtml(s.destination || "")}</td>
+         <td>${fmtPrice(s.base_price)}</td>
+         <td>${escapeHtml(String(s.max_pax || "—"))}</td>
+         <td>${s.is_active === false ? "No" : "Yes"}</td>
+         <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
         <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
-      </tr>`).join("")}</tbody></table>`;
+       </tr>`).join("")}</tbody></table>`;
       document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
       wrap.querySelectorAll(".edit-svc").forEach(b => b.onclick = () => editService(b.dataset.id));
       wrap.querySelectorAll(".del-svc").forEach(b => b.onclick = async () => {
@@ -448,12 +479,12 @@
       if (!list.length) { wrap.innerHTML = `<div class="empty">No articles.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${
         list.map(b => `<tr>
-          <td>${escapeHtml(b.title || "")}</td>
-          <td>${escapeHtml(b.author || "")}</td>
-          <td>${fmtDate(b.created_at)}</td>
-          <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+           <td>${escapeHtml(b.title || "")}</td>
+           <td>${escapeHtml(b.author || "")}</td>
+           <td>${fmtDate(b.created_at)}</td>
+           <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
           <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
-        </tr>`).join("")
+         </tr>`).join("")
       }</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
       wrap.querySelectorAll(".edit-blog").forEach(btn => btn.onclick = async () => {
@@ -533,6 +564,16 @@
       if (data.url) document.getElementById("blogImageUrl").value = data.url;
     } catch (err) { showToast(err.message, "error"); }
   });
+
+  // Modal helpers (overriding from ui.js if needed)
+  function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = "flex";
+  }
+  function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = "none";
+  }
 
   show();
 </script>
