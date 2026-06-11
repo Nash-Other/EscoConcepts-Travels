@@ -177,34 +177,41 @@
   function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
   function showToast(message, type = "info") { if (window.showToast) window.showToast(message, type); else alert(message); }
 
-  // ========== Token management ==========
-  const TOKEN_KEY = "adminToken";
-  function getToken() { return localStorage.getItem(TOKEN_KEY) || ""; }
-  function setToken(token) { if (token) localStorage.setItem(TOKEN_KEY, token); }
-  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
-  function isLoggedIn() { return !!getToken(); }
+  // No localStorage token – use cookies + CSRF via apiRequest
 
-  // ========== API wrapper ==========
-  async function request(path, options = {}) {
-    const headers = { "Content-Type": "application/json" };
-    const token = getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`/api${path}`, { ...options, headers });
+  async function apiRequestAdmin(path, options = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    const method = (options.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      const csrf = getCsrfToken();
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    }
+    const res = await fetch(`/api${path}`, { ...options, headers, credentials: 'include' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Request failed");
     return data;
   }
 
-  // ========== UI State ==========
+  // Check login status
+  async function isAdminLoggedIn() {
+    try {
+      // Try to fetch any admin-only resource – /api/bookings requires admin auth
+      await apiRequestAdmin('/bookings?page=1&limit=1');
+      return true;
+    } catch(e) {
+      return false;
+    }
+  }
+
   const loginView = document.getElementById("login-view");
   const dash = document.getElementById("dash");
   let currentQuill = null;
 
-  function show() {
-    const ok = isLoggedIn();
-    loginView.style.display = ok ? "none" : "flex";
-    dash.style.display = ok ? "block" : "none";
-    if (ok) loadBookings();
+  async function updateAdminView() {
+    const loggedIn = await isAdminLoggedIn();
+    loginView.style.display = loggedIn ? "none" : "flex";
+    dash.style.display = loggedIn ? "block" : "none";
+    if (loggedIn) loadBookings();
   }
 
   // ========== Login / Logout ==========
@@ -212,27 +219,20 @@
     e.preventDefault();
     const payload = Object.fromEntries(new FormData(e.target).entries());
     try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
-      const t = data.token || data.accessToken;
-      if (!t) throw new Error("No token received");
-      setToken(t);
-      show();
+      await apiRequestAdmin("/admin/login", { method: "POST", body: JSON.stringify(payload) });
+      updateAdminView();
     } catch (err) {
       showAlert(document.getElementById("login-msg"), err.message);
     }
   });
 
-  document.getElementById("admin-logout").onclick = () => {
+  document.getElementById("admin-logout").onclick = async () => {
     if (confirm("Log out?")) {
-      clearToken();
-      show();
-      showToast("Logged out", "success");
+      try {
+        await apiRequestAdmin("/auth/logout", { method: "POST" });
+        updateAdminView();
+        showToast("Logged out", "success");
+      } catch(e) { showToast(e.message, "error"); }
     }
   };
 
@@ -252,10 +252,9 @@
     });
   });
 
-  // ========== Bookings (with instant row update, no full refresh) ==========
+  // ========== Bookings ==========
   let bPage = 1, bTotalPages = 1;
   
-  // Helper to update a single row's status and badge
   function updateBookingRow(bookingId, newStatus) {
     const row = document.querySelector(`tr[data-booking-id="${bookingId}"]`);
     if (row) {
@@ -267,7 +266,6 @@
           badge.textContent = newStatus;
         }
       }
-      // Also update the select dropdown to reflect new status
       const select = row.querySelector(`.status-sel[data-id="${bookingId}"]`);
       if (select) select.value = newStatus;
     }
@@ -282,7 +280,7 @@
     const from = document.getElementById("b-from").value; if (from) params.set("dateFrom", from);
     const to = document.getElementById("b-to").value; if (to) params.set("dateTo", to);
     try {
-      const data = await request(`/bookings?${params.toString()}`);
+      const data = await apiRequestAdmin(`/bookings?${params.toString()}`);
       const list = data.data || [];
       const pagination = data.pagination || { totalPages: 1, currentPage: bPage };
       bTotalPages = pagination.totalPages;
@@ -290,46 +288,39 @@
       wrap.innerHTML = `<table class="data"><thead><tr><th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>${list.map(b => {
         const status = (b.status || "pending").toLowerCase();
         return `<tr data-booking-id="${b.booking_id}">
-           <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
-           <td>${escapeHtml(b.guest_name||"")}</td>
-           <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
-           <td>${escapeHtml(b.package_booked||"")}</td>
-           <td>${fmtDate(b.travel_date)}</td>
-           <td>${fmtDate(b.return_date)}</td>
-           <td>${b.total_guests || b.pax || ""}</td>
-           <td>${fmtPrice(b.total_amount)}</td>
-           <td class="status-cell"><span class="status ${status}">${status}</span></td>
-           <td>
-            <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
-              <option ${status === "pending" ? "selected" : ""}>Pending</option>
-              <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
-              <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
-              <option ${status === "completed" ? "selected" : ""}>Completed</option>
-            </select>
-            <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
-           </td>
-         </tr>`;
+            <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
+            <td>${escapeHtml(b.guest_name||"")}</td>
+            <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
+            <td>${escapeHtml(b.package_booked||"")}</td>
+            <td>${fmtDate(b.travel_date)}</td>
+            <td>${fmtDate(b.return_date)}</td>
+            <td>${b.total_guests || b.pax || ""}</td>
+            <td>${fmtPrice(b.total_amount)}</td>
+            <td class="status-cell"><span class="status ${status}">${status}</span></td>
+            <td>
+              <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
+                <option ${status === "pending" ? "selected" : ""}>Pending</option>
+                <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
+                <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
+                <option ${status === "completed" ? "selected" : ""}>Completed</option>
+              </select>
+              <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
+            </td>
+          </tr>`;
       }).join("")}</tbody></table>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
       
-      // Attach event handlers to all update buttons (without full page refresh)
       wrap.querySelectorAll(".update-btn").forEach(btn => {
         btn.onclick = async () => {
           const id = btn.dataset.id;
           const select = wrap.querySelector(`.status-sel[data-id="${id}"]`);
           const newStatus = select.value;
-          // Optimistically update UI immediately
           updateBookingRow(id, newStatus);
           try {
-            await request(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
+            await apiRequestAdmin(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
             showToast(`Booking status updated to ${newStatus}`, "success");
-            // No need to reload the whole table
           } catch (e) {
-            // If error, revert the status by reloading the single row or show error
             showToast(e.message, "error");
-            // Reload just this row's status from server (optional: you could re-fetch that row only)
-            // For simplicity, we reload the whole page data but without changing page?
-            // Better: revert optimistic update by reloading the whole table
             loadBookings();
           }
         };
@@ -349,26 +340,26 @@
     const q = document.getElementById("s-search").value.trim(); if (q) params.set("search", q);
     const a = document.getElementById("s-active").value; if (a) params.set("is_active", a);
     try {
-      const data = await request(`/admin/services?${params.toString()}`);
+      const data = await apiRequestAdmin(`/admin/services?${params.toString()}`);
       const list = data.data || [];
       const pagination = data.pagination || { totalPages: 1, currentPage: sPage };
       sTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th></tr></thead><tbody>${list.map(s => `<tr>
-         <td>${escapeHtml(s.title || "")}</td>
-         <td>${escapeHtml(s.destination || "")}</td>
-         <td>${fmtPrice(s.base_price)}</td>
-         <td>${escapeHtml(String(s.max_pax || "—"))}</td>
-         <td>${s.is_active === false ? "No" : "Yes"}</td>
-         <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
-        <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
-       </tr>`).join("")}</tbody></table>`;
+          <td>${escapeHtml(s.title || "")}</td>
+          <td>${escapeHtml(s.destination || "")}</td>
+          <td>${fmtPrice(s.base_price)}</td>
+          <td>${escapeHtml(String(s.max_pax || "—"))}</td>
+          <td>${s.is_active === false ? "No" : "Yes"}</td>
+          <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+          <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
+        </tr>`).join("")}</tbody></table>`;
       document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
       wrap.querySelectorAll(".edit-svc").forEach(b => b.onclick = () => editService(b.dataset.id));
       wrap.querySelectorAll(".del-svc").forEach(b => b.onclick = async () => {
         if (confirm("Delete this destination permanently?")) {
           try {
-            await request(`/admin/services/${b.dataset.id}`, { method: "DELETE" });
+            await apiRequestAdmin(`/admin/services/${b.dataset.id}`, { method: "DELETE" });
             loadServices();
             showToast("Destination deleted", "success");
           } catch (e) { showToast(e.message, "error"); }
@@ -382,7 +373,7 @@
 
   async function editService(id) {
     try {
-      const data = await request(`/admin/services/${id}`);
+      const data = await apiRequestAdmin(`/admin/services/${id}`);
       const svc = data.data || data;
       document.getElementById("serviceModalTitle").innerText = "Edit Destination";
       document.getElementById("serviceId").value = svc.service_id;
@@ -429,8 +420,8 @@
       is_active: document.getElementById("svcActive").checked
     };
     try {
-      if (id) await request(`/admin/services/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-      else await request("/admin/services", { method: "POST", body: JSON.stringify(payload) });
+      if (id) await apiRequestAdmin(`/admin/services/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await apiRequestAdmin("/admin/services", { method: "POST", body: JSON.stringify(payload) });
       closeModal("serviceModal");
       loadServices();
       showToast(id ? "Destination updated" : "Destination created", "success");
@@ -448,14 +439,12 @@
     const from = document.getElementById("c-from").value; if (from) params.set("dateFrom", from);
     const to = document.getElementById("c-to").value; if (to) params.set("dateTo", to);
     try {
-      const data = await request(`/contact?${params.toString()}`);
+      const data = await apiRequestAdmin(`/contact?${params.toString()}`);
       const list = data.data || [];
       const pagination = data.pagination || { totalPages: 1, currentPage: cPage };
       cTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No messages.</div>`; return; }
-      wrap.innerHTML = `<table class="data"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody>${
-        list.map(c => `<tr><td>${fmtDate(c.created_at)}</td><td>${escapeHtml(c.name || "")}</td><td>${escapeHtml(c.email || "")}</td><td>${escapeHtml(c.subject || "")}</td><td>${escapeHtml(c.message || "")}</td></tr>`).join("")
-      }</tbody></table>`;
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody>${list.map(c => `<tr><td>${fmtDate(c.created_at)}</td><td>${escapeHtml(c.name || "")}</td><td>${escapeHtml(c.email || "")}</td><td>${escapeHtml(c.subject || "")}</td><td>${escapeHtml(c.message || "")}</td></tr>`).join("")}</tbody></table>`;
       document.getElementById("c-info").textContent = `Page ${pagination.currentPage} of ${cTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
@@ -472,27 +461,25 @@
     const q = document.getElementById("bl-search").value.trim(); if (q) params.set("search", q);
     const a = document.getElementById("bl-author").value.trim(); if (a) params.set("author", a);
     try {
-      const data = await request(`/blogs?${params.toString()}`);
+      const data = await apiRequestAdmin(`/blogs?${params.toString()}`);
       const list = data.blogs || [];
       const pagination = data.pagination || { totalPages: 1, currentPage: blPage };
       blTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No articles.</div>`; return; }
-      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${
-        list.map(b => `<tr>
-           <td>${escapeHtml(b.title || "")}</td>
-           <td>${escapeHtml(b.author || "")}</td>
-           <td>${fmtDate(b.created_at)}</td>
-           <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${list.map(b => `<tr>
+          <td>${escapeHtml(b.title || "")}</td>
+          <td>${escapeHtml(b.author || "")}</td>
+          <td>${fmtDate(b.created_at)}</td>
+          <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
           <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
-         </tr>`).join("")
-      }</tbody></table>`;
+        </tr>`).join("")}</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
       wrap.querySelectorAll(".edit-blog").forEach(btn => btn.onclick = async () => {
-        try { const d = await request(`/blogs/${btn.dataset.id}`); openBlogForm(d.data || d); } catch (e) { showToast(e.message, "error"); }
+        try { const d = await apiRequestAdmin(`/blogs/${btn.dataset.id}`); openBlogForm(d.data || d); } catch (e) { showToast(e.message, "error"); }
       });
       wrap.querySelectorAll(".del-blog").forEach(btn => btn.onclick = async () => {
         if (confirm("Delete this blog?")) {
-          try { await request(`/blogs/${btn.dataset.id}`, { method: "DELETE" }); loadBlogs(); showToast("Blog deleted", "success"); } catch (e) { showToast(e.message, "error"); }
+          try { await apiRequestAdmin(`/blogs/${btn.dataset.id}`, { method: "DELETE" }); loadBlogs(); showToast("Blog deleted", "success"); } catch (e) { showToast(e.message, "error"); }
         }
       });
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
@@ -521,7 +508,10 @@
           if (!input.files[0]) return;
           try {
             const formData = new FormData(); formData.append("image", input.files[0]);
-            const res = await fetch("/api/upload", { method: "POST", headers: { "Authorization": `Bearer ${getToken()}` }, body: formData });
+            const token = getCsrfToken(); // we need to send CSRF for upload
+            const headers = {};
+            if (token) headers['X-CSRF-Token'] = token;
+            const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
             const data = await res.json();
             if (data.url) currentQuill.insertEmbed(currentQuill.getSelection(true).index, "image", data.url);
           } catch (e) { showToast(e.message, "error"); }
@@ -544,8 +534,8 @@
       content: currentQuill.root.innerHTML
     };
     try {
-      if (id) await request(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-      else await request("/blogs", { method: "POST", body: JSON.stringify(payload) });
+      if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await apiRequestAdmin("/blogs", { method: "POST", body: JSON.stringify(payload) });
       closeModal("blogModal");
       loadBlogs();
       showToast(id ? "Blog updated" : "Blog published", "success");
@@ -553,19 +543,20 @@
     finally { overlay.style.display = "none"; }
   });
 
-  // Image upload for blog cover (file input)
   document.getElementById("blogImageUrl")?.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     try {
       const formData = new FormData(); formData.append("image", file);
-      const res = await fetch("/api/upload", { method: "POST", headers: { "Authorization": `Bearer ${getToken()}` }, body: formData });
+      const token = getCsrfToken();
+      const headers = {};
+      if (token) headers['X-CSRF-Token'] = token;
+      const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
       const data = await res.json();
       if (data.url) document.getElementById("blogImageUrl").value = data.url;
     } catch (err) { showToast(err.message, "error"); }
   });
 
-  // Modal helpers (overriding from ui.js if needed)
   function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.style.display = "flex";
@@ -575,7 +566,7 @@
     if (modal) modal.style.display = "none";
   }
 
-  show();
+  updateAdminView();
 </script>
 </body>
 </html>

@@ -10,6 +10,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { Resend } = require('resend');
 const sanitizeHtml = require('sanitize-html');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const port = process.env.PORT || 11037;
@@ -43,7 +44,8 @@ app.use(cors({
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
-  }
+  },
+  credentials: true // Allow cookies to be sent
 }));
 
 app.use((req, res, next) => {
@@ -53,6 +55,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser()); // Parse cookies
 
 // Serve uploads without forcing attachment
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
@@ -89,7 +92,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 // ==========================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { require: true, rejectUnauthorized: false } // Note: this is still disabled – for production, set to true and ensure valid certs
+  ssl: { require: true, rejectUnauthorized: false }
 });
 
 // ==========================================
@@ -382,23 +385,92 @@ async function generateUniqueSlug(baseTitle, currentId = null) {
   return unique;
 }
 
-function authenticateAdmin(req, res, next) {
-  const token = getBearerToken(req);
-  if (!token) return res.status(401).json({ success: false, message: 'No token.' });
+// ==========================================
+// CSRF PROTECTION (double-submit cookie)
+// ==========================================
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function setCsrfCookie(res, token) {
+  res.cookie('csrf_token', token, {
+    httpOnly: false,          // Must be readable by JavaScript on the frontend
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  });
+}
+
+// Middleware to validate CSRF token for state-changing requests that use cookie auth
+function csrfProtection(req, res, next) {
+  // Skip CSRF check for:
+  // - GET, HEAD, OPTIONS
+  // - Requests that use Authorization header (old token-based auth)
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Using token auth – skip CSRF (backward compatibility)
+    return next();
+  }
+
+  // Cookie-based auth – require CSRF header
+  const csrfCookie = req.cookies.csrf_token;
+  const csrfHeader = req.headers['x-csrf-token'];
+
+  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+    return res.status(403).json({ success: false, message: 'Invalid CSRF token.' });
+  }
+  next();
+}
+
+// ==========================================
+// AUTHENTICATION MIDDLEWARE (cookie first, fallback to header)
+// ==========================================
+function authenticateCustomer(req, res, next) {
+  // Try to get token from cookie
+  let token = req.cookies.token;
+  let source = 'cookie';
+
+  if (!token) {
+    // Fallback to Authorization header
+    token = getBearerToken(req);
+    source = 'header';
+  }
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'No token.' });
+  }
+
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ success: false, message: 'Invalid token.' });
-    if (user.role !== 'admin') return res.status(403).json({ success: false, message: 'Admin only.' });
+    if (err) {
+      return res.status(403).json({ success: false, message: 'Invalid token.' });
+    }
     req.user = user;
+    req.authSource = source; // so we know later if CSRF is needed
     next();
   });
 }
 
-function authenticateCustomer(req, res, next) {
-  const token = getBearerToken(req);
-  if (!token) return res.status(401).json({ success: false, message: 'No token.' });
+function authenticateAdmin(req, res, next) {
+  let token = req.cookies.token;
+  if (!token) {
+    token = getBearerToken(req);
+  }
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'No token.' });
+  }
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ success: false, message: 'Invalid token.' });
+    if (err) {
+      return res.status(403).json({ success: false, message: 'Invalid token.' });
+    }
+    if (user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only.' });
+    }
     req.user = user;
+    req.authSource = token ? (req.cookies.token ? 'cookie' : 'header') : null;
     next();
   });
 }
@@ -446,6 +518,13 @@ const uploadRateLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 10 })
 // DEFINE ALL ROUTES
 // ==========================================
 
+// LOGOUT endpoint
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('token');
+  res.clearCookie('csrf_token');
+  res.json({ success: true, message: 'Logged out' });
+});
+
 // PASSWORD RESET (with hashed token)
 app.post('/api/auth/forgot-password', authRateLimit, asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -477,7 +556,6 @@ app.post('/api/auth/reset-password', authRateLimit, asyncHandler(async (req, res
   if (!token || !newPassword) {
     return res.status(400).json({ success: false, message: 'Token and new password required.' });
   }
-  // Enforce password strength (same as signup)
   if (newPassword.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
   }
@@ -505,7 +583,7 @@ app.post('/api/auth/reset-password', authRateLimit, asyncHandler(async (req, res
   res.json({ success: true, message: 'Password reset successful. You can now log in.' });
 }));
 
-// CUSTOMER AUTH
+// CUSTOMER AUTH (with cookie and CSRF token)
 app.post('/api/auth/signup', authRateLimit, asyncHandler(async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
   if (!firstName || !lastName || !email || !password) {
@@ -528,6 +606,17 @@ app.post('/api/auth/signup', authRateLimit, asyncHandler(async (req, res) => {
         [hashedPassword, firstName, lastName, phone || null, user.user_id]
       );
       const token = jwt.sign({ userId: user.user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
+      // Set httpOnly cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+      // Set CSRF cookie
+      const csrfToken = generateCsrfToken();
+      setCsrfCookie(res, csrfToken);
+      // Also return token in body for backward compatibility
       return res.status(200).json({ success: true, message: 'Account claimed successfully!', token });
     } else {
       return res.status(400).json({ success: false, message: 'Email already registered. Please log in or reset password.' });
@@ -541,6 +630,14 @@ app.post('/api/auth/signup', authRateLimit, asyncHandler(async (req, res) => {
     [firstName, lastName, email, phone || null, hashedPassword]
   );
   const token = jwt.sign({ userId: result.rows[0].user_id, email, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+  const csrfToken = generateCsrfToken();
+  setCsrfCookie(res, csrfToken);
   res.status(201).json({ success: true, message: 'Signup successful', token });
 }));
 
@@ -559,6 +656,15 @@ app.post('/api/auth/login', authRateLimit, asyncHandler(async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid credentials.' });
   }
   const token = jwt.sign({ userId: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+  const csrfToken = generateCsrfToken();
+  setCsrfCookie(res, csrfToken);
+  // For backward compatibility, return token in body
   res.json({ success: true, message: 'Login successful', token, role: user.role });
 }));
 
@@ -568,7 +674,7 @@ app.get('/api/auth/me', authenticateCustomer, asyncHandler(async (req, res) => {
   res.json({ success: true, user: result.rows[0] });
 }));
 
-app.put('/api/auth/profile', authenticateCustomer, asyncHandler(async (req, res) => {
+app.put('/api/auth/profile', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const { firstName, lastName, phone, email } = req.body;
   const userId = req.user.userId;
   if (!firstName || !lastName || !email) {
@@ -590,7 +696,14 @@ app.put('/api/auth/profile', authenticateCustomer, asyncHandler(async (req, res)
     );
     await client.query('COMMIT');
     const updatedUser = result.rows[0];
+    // Generate new token with updated email
     const newToken = jwt.sign({ userId: updatedUser.user_id, email: updatedUser.email, role: updatedUser.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
     res.json({ success: true, message: 'Profile updated successfully.', user: updatedUser, token: newToken });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -601,7 +714,7 @@ app.put('/api/auth/profile', authenticateCustomer, asyncHandler(async (req, res)
   }
 }));
 
-// MY BOOKINGS
+// MY BOOKINGS (protected with CSRF)
 app.get('/api/bookings/my-bookings', authenticateCustomer, asyncHandler(async (req, res) => {
   const result = await pool.query(`
     SELECT b.booking_id, b.booking_reference, s.title AS package_name, s.service_id,
@@ -615,7 +728,7 @@ app.get('/api/bookings/my-bookings', authenticateCustomer, asyncHandler(async (r
   res.json({ success: true, data: result.rows });
 }));
 
-app.put('/api/bookings/cancel/:id', authenticateCustomer, asyncHandler(async (req, res) => {
+app.put('/api/bookings/cancel/:id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
   try {
@@ -654,7 +767,7 @@ app.put('/api/bookings/cancel/:id', authenticateCustomer, asyncHandler(async (re
   }
 }));
 
-app.post('/api/bookings/receipt/:id', authenticateCustomer, asyncHandler(async (req, res) => {
+app.post('/api/bookings/receipt/:id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const result = await pool.query(`
     SELECT b.booking_reference, b.travel_date, b.return_date, b.pax, b.total_amount, b.status, b.booking_date,
@@ -738,11 +851,19 @@ app.post('/api/admin/login', adminRateLimit, asyncHandler(async (req, res) => {
   const match = await bcrypt.compare(password, user.password_hash);
   if (!match) return res.status(401).json({ success: false, message: 'Invalid credentials.' });
   const token = jwt.sign({ userId: user.user_id, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    maxAge: 2 * 60 * 60 * 1000
+  });
+  const csrfToken = generateCsrfToken();
+  setCsrfCookie(res, csrfToken);
   res.json({ success: true, token });
 }));
 
-// UPLOAD (with rate limit and HTTPS enforcement)
-app.post('/api/upload', authenticateAdmin, uploadRateLimit, (req, res) => {
+// UPLOAD (admin only, with CSRF)
+app.post('/api/upload', authenticateAdmin, csrfProtection, uploadRateLimit, (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' });
     if (!req.file) return res.status(400).json({ success: false, message: 'No file.' });
@@ -829,7 +950,7 @@ app.get('/api/bookings', authenticateAdmin, asyncHandler(async (req, res) => {
   });
 }));
 
-app.put('/api/bookings/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+app.put('/api/bookings/:id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const allowedStatuses = ['Pending', 'Confirmed', 'Cancelled', 'Completed'];
@@ -879,7 +1000,7 @@ app.put('/api/bookings/:id', authenticateAdmin, asyncHandler(async (req, res) =>
   }
 }));
 
-// ADMIN SERVICES (with sanitization)
+// ADMIN SERVICES (with sanitization and CSRF protection)
 app.get('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
@@ -931,11 +1052,10 @@ app.get('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, r
   res.json({ success: true, data: result.rows[0] });
 }));
 
-app.post('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res) => {
+app.post('/api/admin/services', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   let { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
   if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
   const paxLimit = parsePositiveInteger(max_pax, 1);
-  // Sanitize HTML fields
   description = description ? sanitizeHtml(description, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } }) : null;
   itinerary = itinerary ? sanitizeHtml(itinerary, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } }) : null;
   const result = await pool.query(
@@ -946,7 +1066,7 @@ app.post('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res)
   res.status(201).json({ success: true, message: 'Destination added!', data: result.rows[0] });
 }));
 
-app.put('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+app.put('/api/admin/services/:id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   let { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
   if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
@@ -962,7 +1082,7 @@ app.put('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, r
   res.json({ success: true, message: 'Updated!', data: result.rows[0] });
 }));
 
-app.delete('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+app.delete('/api/admin/services/:id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const check = await pool.query('SELECT COUNT(*) FROM bookings WHERE service_id = $1', [id]);
   if (parseInt(check.rows[0].count) > 0) {
@@ -1034,7 +1154,7 @@ app.get('/api/contact', authenticateAdmin, asyncHandler(async (req, res) => {
   res.json({ success: true, data: dataRes.rows, pagination: { currentPage: page, totalPages: Math.ceil(total / limit), totalItems: total, limit: limit } });
 }));
 
-// BLOGS (with sanitization)
+// BLOGS (with sanitization and CSRF protection for write operations)
 app.get('/api/blogs/authors', authenticateAdmin, asyncHandler(async (req, res) => {
   const result = await pool.query('SELECT DISTINCT author FROM blogs WHERE author IS NOT NULL ORDER BY author');
   res.json({ success: true, authors: result.rows.map(r => r.author) });
@@ -1088,17 +1208,16 @@ app.get('/api/blogs/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data: result.rows[0] });
 }));
 
-app.post('/api/blogs', authenticateAdmin, asyncHandler(async (req, res) => {
+app.post('/api/blogs', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   let { title, author, content, image_url } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required.' });
-  // Sanitize content
   content = sanitizeHtml(content, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } });
   const slug = await generateUniqueSlug(title);
   const result = await pool.query(`INSERT INTO blogs (title, slug, author, content, image_url) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [title, slug, author, content, image_url]);
   res.status(201).json({ success: true, message: 'Published!', data: result.rows[0] });
 }));
 
-app.put('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+app.put('/api/blogs/:id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   let { title, author, content, image_url } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required.' });
@@ -1109,7 +1228,7 @@ app.put('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Updated!', data: result.rows[0] });
 }));
 
-app.delete('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) => {
+app.delete('/api/blogs/:id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const result = await pool.query('DELETE FROM blogs WHERE id=$1 RETURNING *', [id]);
   if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
@@ -1154,7 +1273,7 @@ app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
   });
 }));
 
-app.post('/api/reviews', authenticateCustomer, asyncHandler(async (req, res) => {
+app.post('/api/reviews', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const { service_id, rating, comment } = req.body;
   if (!service_id || !rating || rating < 1 || rating > 5) {
     return res.status(400).json({ success: false, message: 'Service ID and rating (1-5) required.' });
@@ -1219,7 +1338,7 @@ app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandle
   res.json({ success: true, canReview: !alreadyReviewed, alreadyReviewed });
 }));
 
-app.delete('/api/reviews/:review_id', authenticateAdmin, asyncHandler(async (req, res) => {
+app.delete('/api/reviews/:review_id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
   const { review_id } = req.params;
   await pool.query('DELETE FROM reviews WHERE review_id = $1', [review_id]);
   res.json({ success: true, message: 'Review deleted.' });
@@ -1262,7 +1381,6 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   const cleanReturnDate = returnDate ? String(returnDate).trim() : null;
   const cleanMpesaPhone = mpesaPhone ? String(mpesaPhone).trim() : null;
 
-  // Validation
   if (paxCount === null) return res.status(400).json({ success: false, message: 'Invalid number of guests.' });
   if (serviceId === null) return res.status(400).json({ success: false, message: 'Invalid package selection.' });
   if (!cleanFirstName || !cleanLastName || !cleanEmail || !cleanPhone || !cleanTravelDate || !cleanPaymentMethod) {
@@ -1275,8 +1393,6 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   if (cleanReturnDate && !/^\d{4}-\d{2}-\d{2}$/.test(cleanReturnDate)) return res.status(400).json({ success: false, message: 'Invalid return date.' });
   if (cleanReturnDate && cleanReturnDate < cleanTravelDate) return res.status(400).json({ success: false, message: 'Return date cannot be before travel date.' });
   if (paxCount > 10) return res.status(400).json({ success: false, message: 'Please contact us for bookings above 10 guests.' });
-  
-  // Payment method enum validation
   if (!['card', 'mpesa'].includes(cleanPaymentMethod)) return res.status(400).json({ success: false, message: 'Invalid payment method.' });
   if (cleanPaymentMethod === 'mpesa' && !cleanMpesaPhone) return res.status(400).json({ success: false, message: 'M-Pesa phone number is required.' });
 
@@ -1285,11 +1401,10 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
     await client.query('BEGIN');
 
     let tokenUser = null;
-    const token = getBearerToken(req);
+    const token = req.cookies.token || getBearerToken(req);
     if (token) {
       try {
         tokenUser = jwt.verify(token, JWT_SECRET);
-        // Verify that the user still exists in the database
         const userCheck = await client.query('SELECT user_id FROM users WHERE user_id = $1', [tokenUser.userId]);
         if (userCheck.rows.length === 0) {
           await client.query('ROLLBACK');
@@ -1380,7 +1495,7 @@ app.get('/api/services/paginated', asyncHandler(async (req, res) => {
 
 // CRON ENDPOINT (using header instead of query param for secret)
 app.get('/api/cron/complete-bookings', (req, res) => {
-  const secret = req.headers['x-cron-secret'] || req.query.secret; // fallback for backwards compatibility
+  const secret = req.headers['x-cron-secret'] || req.query.secret;
   const expectedSecret = process.env.CRON_SECRET;
   if (!expectedSecret || secret !== expectedSecret) {
     return res.status(403).json({ success: false, message: 'Unauthorized' });

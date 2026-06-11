@@ -1,4 +1,5 @@
 // ui.js - Centralised helper functions and UI components
+// Now uses httpOnly cookies for authentication + CSRF token
 
 // ========== SHARED HELPERS ==========
 function escapeHtml(str) {
@@ -87,7 +88,7 @@ function showAlert(element, msg, kind = "error") {
   if (kind === "success") setTimeout(() => { element.innerHTML = ""; }, 6000);
 }
 
-// Toast notification (uses .custom-toast CSS – define it in your global styles)
+// Toast notification
 function showToast(message, type = "info") {
   const existing = document.querySelector('.custom-toast');
   if (existing) existing.remove();
@@ -102,37 +103,29 @@ function showToast(message, type = "info") {
   }, 3000);
 }
 
-// ========== CUSTOMER AUTH HELPERS ==========
-const CUSTOMER_TOKEN_KEY = "customerToken";
+// ========== CSRF TOKEN HELPERS ==========
+function getCsrfToken() {
+  const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
+  return match ? match[2] : null;
+}
 
-function getCustomerToken() { return localStorage.getItem(CUSTOMER_TOKEN_KEY) || ""; }
-function setCustomerToken(token) { if (token) localStorage.setItem(CUSTOMER_TOKEN_KEY, token); }
-function clearCustomerToken() { localStorage.removeItem(CUSTOMER_TOKEN_KEY); }
-function isCustomerLoggedIn() { return !!getCustomerToken(); }
-
+// ========== UNIFIED API REQUEST (no token in headers, cookies sent automatically) ==========
 async function apiRequest(path, options = {}) {
-  const headers = { "Content-Type": "application/json" };
-  const token = getCustomerToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const headers = { 'Content-Type': 'application/json' };
+  // For state‑changing methods, add CSRF token
+  const method = (options.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    const csrf = getCsrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  const res = await fetch(`/api${path}`, {
+    ...options,
+    headers: { ...headers, ...options.headers },
+    credentials: 'include'  // send cookies
+  });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Request failed");
+  if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;
-}
-
-// ========== MODAL HELPERS (generic) ==========
-function openModal(modalElement) {
-  if (modalElement) {
-    modalElement.classList.add("open");
-    document.body.style.overflow = "hidden";
-  }
-}
-
-function closeModal(modalElement) {
-  if (modalElement) {
-    modalElement.classList.remove("open");
-    document.body.style.overflow = "";
-  }
 }
 
 // ========== UI INITIALISATION ==========
@@ -220,7 +213,6 @@ function initHeader() {
     toastContainer.className = 'toast-container';
     document.body.appendChild(toastContainer);
   }
-  // Override showToast to use the container (if you prefer the earlier version, comment this out)
   window.showToast = showToast;
 
   // Tooltips

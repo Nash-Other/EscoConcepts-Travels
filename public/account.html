@@ -52,7 +52,6 @@
   .custom-toast.error { background: #b00020; }
   .custom-toast.show { opacity: 1; transform: translateY(0); }
 
-  /* Invoice preview modal */
   .invoice-preview {
     max-width: 650px;
     background: white;
@@ -235,19 +234,27 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic uses global helpers: escapeHtml, fmtPrice, fmtDate, showAlert, showToast, isValidEmail, apiRequest, getCustomerToken, setCustomerToken, clearCustomerToken, isCustomerLoggedIn
-
-  // Token management
-  function getToken() { return getCustomerToken(); }
-  function setToken(token) { setCustomerToken(token); }
-  function clearToken() { clearCustomerToken(); }
-  function isLoggedIn() { return isCustomerLoggedIn(); }
+  // Page‑specific logic uses global helpers from ui.js
+  // No token storage – all auth via cookies + CSRF
 
   const authView = document.getElementById("auth-view");
   const accountView = document.getElementById("account-view");
-  function show(loggedIn) {
+
+  // Helper to check if logged in by attempting to fetch profile
+  async function isLoggedIn() {
+    try {
+      await apiRequest("/auth/me");
+      return true;
+    } catch(e) {
+      return false;
+    }
+  }
+
+  async function updateAuthView() {
+    const loggedIn = await isLoggedIn();
     authView.style.display = loggedIn ? "none" : "block";
     accountView.style.display = loggedIn ? "block" : "none";
+    if (loggedIn) loadAccount();
   }
 
   document.getElementById("tab-login").onclick = () => {
@@ -268,11 +275,8 @@
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
     try {
-      const data = await apiRequest("/auth/login", { method: "POST", body: JSON.stringify(payload) });
-      const t = data.token || data.accessToken || (data.data && data.data.token);
-      if(!t) throw new Error("Login failed");
-      setToken(t);
-      location.reload();
+      await apiRequest("/auth/login", { method: "POST", body: JSON.stringify(payload) });
+      updateAuthView();
     } catch(err) { showAlert(document.getElementById("login-msg"), err.message); }
   });
 
@@ -289,23 +293,26 @@
       password: fd.get("password")
     };
     try {
-      const data = await apiRequest("/auth/signup", { method: "POST", body: JSON.stringify(payload) });
-      const t = data.token || data.accessToken || (data.data && data.data.token);
-      if(t) setToken(t);
-      location.reload();
+      await apiRequest("/auth/signup", { method: "POST", body: JSON.stringify(payload) });
+      updateAuthView();
     } catch(err) { showAlert(document.getElementById("signup-msg"), err.message); }
   });
 
-  document.getElementById("logout").onclick = () => { clearToken(); location.reload(); };
+  document.getElementById("logout").onclick = async () => {
+    try {
+      await apiRequest("/auth/logout", { method: "POST" });
+      updateAuthView();
+    } catch(e) { showToast(e.message, "error"); }
+  };
 
   document.getElementById("profile-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
     try {
-      const data = await apiRequest("/auth/profile", { method: "PUT", body: JSON.stringify(payload) });
-      if(data.token) setToken(data.token);
+      await apiRequest("/auth/profile", { method: "PUT", body: JSON.stringify(payload) });
       showAlert(document.getElementById("profile-msg"), "Profile updated", "success");
+      updateAuthView(); // refresh profile data
     } catch(err) { showAlert(document.getElementById("profile-msg"), err.message); }
   });
 
@@ -353,7 +360,7 @@
     }
   };
 
-  // Invoice preview & PDF generation (rich data)
+  // Invoice preview
   let currentInvoiceData = null;
   const invoiceModal = document.getElementById("invoiceModal");
   const invoicePreviewBody = document.getElementById("invoicePreviewBody");
@@ -371,7 +378,6 @@
         <div class="invoice-row"><strong>Booking Reference:</strong> <span>${escapeHtml(data.ref)}</span></div>
         <div class="invoice-row"><strong>Status:</strong> <span>${escapeHtml(data.status || "Pending")}</span></div>
         <div class="invoice-row"><strong>Booking Date:</strong> <span>${fmtDate(data.bookingDate)}</span></div>
-        
         <div class="invoice-section">
           <div class="section-title">Package Details</div>
           <div class="invoice-row"><strong>Package:</strong> <span>${escapeHtml(data.packageName)}</span></div>
@@ -381,20 +387,17 @@
           <div class="invoice-row"><strong>Number of Guests:</strong> <span>${data.pax}</span></div>
           ${data.specialRequests ? `<div class="invoice-row"><strong>Special Requests:</strong> <span>${escapeHtml(data.specialRequests)}</span></div>` : ''}
         </div>
-
         <div class="invoice-section">
           <div class="section-title">Guest Information</div>
           <div class="invoice-row"><strong>Name:</strong> <span>${escapeHtml(data.guestName)}</span></div>
           <div class="invoice-row"><strong>Email:</strong> <span>${escapeHtml(data.guestEmail)}</span></div>
           <div class="invoice-row"><strong>Phone:</strong> <span>${escapeHtml(data.guestPhone)}</span></div>
         </div>
-
         <div class="invoice-section">
           <div class="section-title">Payment</div>
           <div class="invoice-row"><strong>Total Amount:</strong> <span>${fmtPrice(data.total)}</span></div>
           <div class="invoice-row"><strong>Payment Method:</strong> <span>${escapeHtml(data.paymentMethod || "Not specified")}</span></div>
         </div>
-
         <div class="total">Thank you for choosing EscoConcepts Travels!</div>
       </div>
     `;
@@ -410,10 +413,7 @@
     invoiceModal.style.pointerEvents = "auto";
   }
 
-  function closeInvoiceModal() {
-    invoiceModal.style.display = "none";
-  }
-
+  function closeInvoiceModal() { invoiceModal.style.display = "none"; }
   function printInvoice() {
     const printContent = document.querySelector('#invoicePreviewBody .invoice-preview').cloneNode(true);
     const originalTitle = document.title;
@@ -488,7 +488,7 @@
       f.last_name.value = u.last_name || "";
       f.email.value = u.email || "";
       f.phone.value = u.phone || "";
-    } catch(e) { clearToken(); location.reload(); return; }
+    } catch(e) { updateAuthView(); return; }
 
     const wrap = document.getElementById("bookings");
     try {
@@ -589,8 +589,7 @@
     } catch(e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  if(isLoggedIn()) { show(true); loadAccount(); } else { show(false); }
-
+  updateAuthView();
   document.getElementById("y").textContent = new Date().getFullYear();
 </script>
 </body>
