@@ -6,10 +6,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
-<script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
 </head>
 <body style="background:var(--bg)">
 
@@ -41,7 +38,7 @@
       <button data-tab="services">Destinations</button>
       <button data-tab="contacts">Messages</button>
       <button data-tab="blogs">Blogs</button>
-      <button id="admin-logout" style="margin-top:2rem;color:#e6b422" data-tooltip="Log out of admin panel">Log out</button>
+      <button id="admin-logout" style="margin-top:2rem;color:#e6b422">Log out</button>
     </aside>
     <main class="admin-main">
       <!-- Bookings Tab -->
@@ -83,7 +80,7 @@
         <h2>Contact Messages</h2>
         <div class="toolbar">
           <input id="c-search" placeholder="Search" class="input">
-          <input type="date" id="c-from" class="input"><input type="date" id="c-to" class="input>
+          <input type="date" id="c-from" class="input"><input type="date" id="c-to" class="input">
           <button class="btn btn-outline btn-sm" id="c-apply">Apply</button>
         </div>
         <div id="c-table"><div class="loading">Loading…</div></div>
@@ -115,10 +112,7 @@
       <span class="modal-title" id="serviceModalTitle">Add Destination</span>
       <button class="modal-close" onclick="closeModal('serviceModal')">&times;</button>
     </div>
-    <div class="modal-body" style="position: relative;">
-      <div id="serviceLoadingOverlay" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.8); align-items:center; justify-content:center; z-index:10; border-radius:0.75rem;">
-        <div class="spinner"></div>
-      </div>
+    <div class="modal-body">
       <form id="svc-form">
         <input type="hidden" id="serviceId">
         <div class="form-grid">
@@ -141,24 +135,21 @@
   </div>
 </div>
 
-<!-- Blog Modal (Add/Edit) -->
+<!-- Blog Modal (Add/Edit) – uses simple textarea, no Quill -->
 <div id="blogModal" class="modal-overlay">
   <div class="modal-container" style="max-width: 700px;">
     <div class="modal-header">
       <span class="modal-title" id="blogModalTitle">Add Blog</span>
       <button class="modal-close" onclick="closeModal('blogModal')">&times;</button>
     </div>
-    <div class="modal-body" style="position: relative;">
-      <div id="blogLoadingOverlay" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.8); align-items:center; justify-content:center; z-index:10; border-radius:0.75rem;">
-        <div class="spinner"></div>
-      </div>
+    <div class="modal-body">
       <form id="blog-form">
         <input type="hidden" id="blogId">
         <div class="form-field"><label>Title *</label><input name="title" id="blogTitle" required class="input"></div>
         <div class="form-field"><label>Author</label><input name="author" id="blogAuthor" class="input"></div>
         <div class="form-field"><label>Cover image URL</label><input name="image_url" id="blogImageUrl" class="input"></div>
         <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
-        <div class="form-field"><label>Content</label><div id="editor" style="height:300px;background:#fff"></div></div>
+        <div class="form-field"><label>Content (HTML allowed)</label><textarea name="content" id="blogContent" rows="8" class="textarea"></textarea></div>
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
           <button type="button" class="btn btn-outline" onclick="closeModal('blogModal')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
@@ -177,13 +168,11 @@
   function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
   function showToast(message, type = "info") { if (window.showToast) window.showToast(message, type); else alert(message); }
 
-  // CSRF token helper
   function getCsrfToken() {
     const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
     return match ? match[2] : null;
   }
 
-  // Admin API wrapper
   async function apiRequestAdmin(path, options = {}) {
     const headers = { 'Content-Type': 'application/json' };
     const method = (options.method || 'GET').toUpperCase();
@@ -197,108 +186,15 @@
     return data;
   }
 
-  // Check login status
   async function isAdminLoggedIn() {
     try {
       await apiRequestAdmin('/bookings?page=1&limit=1');
       return true;
-    } catch(e) {
-      return false;
-    }
+    } catch(e) { return false; }
   }
 
   const loginView = document.getElementById("login-view");
   const dash = document.getElementById("dash");
-  let currentQuill = null;
-
-  // Function to open blog modal (edit or new)
-  window.openBlogForm = async function(blogId) {
-    try {
-      // Close any existing modal first
-      closeModal('blogModal');
-      // Reset form
-      document.getElementById("blogId").value = "";
-      document.getElementById("blogTitle").value = "";
-      document.getElementById("blogAuthor").value = "";
-      document.getElementById("blogImageUrl").value = "";
-      document.getElementById("blogExcerpt").value = "";
-      if (currentQuill) {
-        currentQuill.root.innerHTML = "";
-      }
-      if (blogId) {
-        // Fetch existing blog
-        const data = await apiRequestAdmin(`/blogs/${blogId}`);
-        const blog = data.data || data;
-        document.getElementById("blogModalTitle").innerText = "Edit Blog";
-        document.getElementById("blogId").value = blog.id;
-        document.getElementById("blogTitle").value = blog.title || "";
-        document.getElementById("blogAuthor").value = blog.author || "";
-        document.getElementById("blogImageUrl").value = blog.image_url || "";
-        document.getElementById("blogExcerpt").value = blog.excerpt || "";
-        if (currentQuill) {
-          currentQuill.root.innerHTML = blog.content || "";
-        } else {
-          // Will be created after modal opens
-        }
-      } else {
-        document.getElementById("blogModalTitle").innerText = "New Article";
-      }
-      // Ensure Quill is initialized after modal is visible
-      openModal("blogModal");
-      // Slight delay to allow modal to render
-      setTimeout(() => {
-        if (!currentQuill) {
-          currentQuill = new Quill("#editor", { 
-            theme: "snow", 
-            modules: { 
-              toolbar: [
-                [{ header: [2, 3, false] }], 
-                ["bold", "italic", "underline"], 
-                [{ list: "ordered" }, { list: "bullet" }], 
-                ["link", "image"], 
-                ["clean"]
-              ] 
-            } 
-          });
-          // Add image upload handler
-          const toolbar = currentQuill.getModule("toolbar");
-          toolbar.addHandler("image", () => {
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = "image/*";
-            input.onchange = async () => {
-              if (!input.files[0]) return;
-              try {
-                const formData = new FormData();
-                formData.append("image", input.files[0]);
-                const token = getCsrfToken();
-                const headers = {};
-                if (token) headers['X-CSRF-Token'] = token;
-                const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
-                const data = await res.json();
-                if (data.url) {
-                  const range = currentQuill.getSelection(true);
-                  currentQuill.insertEmbed(range.index, "image", data.url);
-                }
-              } catch (e) { showToast(e.message, "error"); }
-            };
-            input.click();
-          });
-        }
-        if (blogId) {
-          // Content already set above
-          const blogContent = document.getElementById("blogId").value ? 
-            (await apiRequestAdmin(`/blogs/${blogId}`)).data?.content : "";
-          if (blogContent) currentQuill.root.innerHTML = blogContent;
-        } else {
-          currentQuill.root.innerHTML = "";
-        }
-      }, 100);
-    } catch (e) {
-      console.error("openBlogForm error:", e);
-      showToast(e.message, "error");
-    }
-  };
 
   async function updateAdminView() {
     const loggedIn = await isAdminLoggedIn();
@@ -352,22 +248,6 @@
 
   // ========== Bookings ==========
   let bPage = 1, bTotalPages = 1;
-  function updateBookingRow(bookingId, newStatus) {
-    const row = document.querySelector(`tr[data-booking-id="${bookingId}"]`);
-    if (row) {
-      const statusCell = row.querySelector(".status-cell");
-      if (statusCell) {
-        const badge = statusCell.querySelector(".status");
-        if (badge) {
-          badge.className = `status ${newStatus.toLowerCase()}`;
-          badge.textContent = newStatus;
-        }
-      }
-      const select = row.querySelector(`.status-sel[data-id="${bookingId}"]`);
-      if (select) select.value = newStatus;
-    }
-  }
-
   async function loadBookings() {
     const wrap = document.getElementById("b-table");
     wrap.innerHTML = `<div class="loading">Loading…</div>`;
@@ -409,22 +289,17 @@
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  // Event delegation for booking update buttons
-  const bTable = document.getElementById("b-table");
-  bTable.addEventListener("click", async (e) => {
-    const updateBtn = e.target.closest(".update-btn");
-    if (updateBtn) {
-      const id = updateBtn.dataset.id;
-      const select = bTable.querySelector(`.status-sel[data-id="${id}"]`);
+  document.getElementById("b-table").addEventListener("click", async (e) => {
+    const btn = e.target.closest(".update-btn");
+    if (btn) {
+      const id = btn.dataset.id;
+      const select = document.querySelector(`.status-sel[data-id="${id}"]`);
       const newStatus = select.value;
-      updateBookingRow(id, newStatus);
       try {
         await apiRequestAdmin(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
         showToast(`Booking status updated to ${newStatus}`, "success");
-      } catch (err) {
-        showToast(err.message, "error");
-        loadBookings(); // revert
-      }
+        loadBookings();
+      } catch (err) { showToast(err.message, "error"); }
     }
   });
 
@@ -452,18 +327,14 @@
         <td>${fmtPrice(s.base_price)}</td>
         <td>${escapeHtml(String(s.max_pax || "—"))}</td>
         <td>${s.is_active === false ? "No" : "Yes"}</td>
-        <td>
-          <button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
-          <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button>
-        </td>
-      </tr>`).join("")}</tbody><tr>`;
+        <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+        <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
+      </tr>`).join("")}</tbody></table>`;
       document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  // Event delegation for service edit/delete
-  const sTable = document.getElementById("s-table");
-  sTable.addEventListener("click", async (e) => {
+  document.getElementById("s-table").addEventListener("click", async (e) => {
     const editBtn = e.target.closest(".edit-svc");
     if (editBtn) {
       const id = editBtn.dataset.id;
@@ -516,12 +387,9 @@
   document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
   document.getElementById("s-next").onclick = () => { if (sPage < sTotalPages) { sPage++; loadServices(); } };
 
-  // Service form submit
   document.getElementById("svc-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("serviceId").value;
-    const overlay = document.getElementById("serviceLoadingOverlay");
-    overlay.style.display = "flex";
     const payload = {
       title: document.getElementById("svcTitle").value,
       destination: document.getElementById("svcDestination").value,
@@ -540,7 +408,6 @@
       loadServices();
       showToast(id ? "Destination updated" : "Destination created", "success");
     } catch (err) { showToast(err.message, "error"); }
-    finally { overlay.style.display = "none"; }
   });
 
   // ========== Contacts ==========
@@ -566,7 +433,7 @@
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
 
-  // ========== Blogs ==========
+  // ========== Blogs (with textarea, no Quill) ==========
   let blPage = 1, blTotalPages = 1;
   async function loadBlogs() {
     const wrap = document.getElementById("bl-table");
@@ -584,10 +451,8 @@
         <td>${escapeHtml(b.title || "")}</td>
         <td>${escapeHtml(b.author || "")}</td>
         <td>${fmtDate(b.created_at)}</td>
-        <td>
-          <button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
-          <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button>
-        </td>
+        <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+        <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
       </tr>`).join("")}</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
@@ -599,7 +464,18 @@
     const editBtn = e.target.closest(".edit-blog");
     if (editBtn) {
       const id = editBtn.dataset.id;
-      await window.openBlogForm(id);
+      try {
+        const data = await apiRequestAdmin(`/blogs/${id}`);
+        const blog = data.data || data;
+        document.getElementById("blogModalTitle").innerText = "Edit Blog";
+        document.getElementById("blogId").value = blog.id;
+        document.getElementById("blogTitle").value = blog.title || "";
+        document.getElementById("blogAuthor").value = blog.author || "";
+        document.getElementById("blogImageUrl").value = blog.image_url || "";
+        document.getElementById("blogExcerpt").value = blog.excerpt || "";
+        document.getElementById("blogContent").value = blog.content || "";
+        openModal("blogModal");
+      } catch (err) { showToast(err.message, "error"); }
       return;
     }
     const delBtn = e.target.closest(".del-blog");
@@ -615,23 +491,26 @@
     }
   });
 
-  document.getElementById("add-blog").onclick = () => window.openBlogForm(null);
-  document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
-  document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
-  document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
+  document.getElementById("add-blog").onclick = () => {
+    document.getElementById("blogModalTitle").innerText = "New Article";
+    document.getElementById("blogId").value = "";
+    document.getElementById("blogTitle").value = "";
+    document.getElementById("blogAuthor").value = "";
+    document.getElementById("blogImageUrl").value = "";
+    document.getElementById("blogExcerpt").value = "";
+    document.getElementById("blogContent").value = "";
+    openModal("blogModal");
+  };
 
-  // Blog form submit
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("blogId").value;
-    const overlay = document.getElementById("blogLoadingOverlay");
-    overlay.style.display = "flex";
     const payload = {
       title: document.getElementById("blogTitle").value,
       author: document.getElementById("blogAuthor").value,
       image_url: document.getElementById("blogImageUrl").value,
       excerpt: document.getElementById("blogExcerpt").value,
-      content: currentQuill ? currentQuill.root.innerHTML : ""
+      content: document.getElementById("blogContent").value
     };
     try {
       if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -640,7 +519,6 @@
       loadBlogs();
       showToast(id ? "Blog updated" : "Blog published", "success");
     } catch (err) { showToast(err.message, "error"); }
-    finally { overlay.style.display = "none"; }
   });
 
   // Image upload for blog cover
@@ -658,6 +536,10 @@
       if (data.url) document.getElementById("blogImageUrl").value = data.url;
     } catch (err) { showToast(err.message, "error"); }
   });
+
+  document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
+  document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
+  document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
 
   function openModal(modalId) {
     const modal = document.getElementById(modalId);
