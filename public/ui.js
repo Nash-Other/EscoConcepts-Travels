@@ -56,12 +56,12 @@ function sanitizeHtml(html) {
 }
 
 function fmtPrice(v) {
-  if (v == null || isNaN(Number(v))) return "—";
+  if (v == null || isNaN(Number(v))) return "-";
   return "KSh " + Number(v).toLocaleString();
 }
 
 function fmtDate(d) {
-  if (!d) return "—";
+  if (!d) return "-";
   try {
     return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   } catch(e) { return d; }
@@ -69,13 +69,13 @@ function fmtDate(d) {
 
 function truncate(str, n = 120) {
   const s = String(str).replace(/<[^>]*>/g, "");
-  return s.length > n ? s.slice(0, n).trim() + "…" : s;
+  return s.length > n ? s.slice(0, n).trim() + "..." : s;
 }
 
 function renderStars(rating) {
   const full = Math.floor(rating);
   const empty = 5 - full;
-  return '<span class="stars">' + '★'.repeat(full) + '☆'.repeat(empty) + '</span>';
+  return '<span class="stars">' + '\u2605'.repeat(full) + '\u2606'.repeat(empty) + '</span>';
 }
 
 function isValidEmail(email) {
@@ -109,7 +109,7 @@ function getCsrfToken() {
   return match ? match[2] : null;
 }
 
-// ========== UNIFIED API REQUEST (CSRF only for state‑changing methods) ==========
+// ========== UNIFIED API REQUEST (CSRF only for state-changing methods) ==========
 async function apiRequest(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const method = (options.method || 'GET').toUpperCase();
@@ -246,7 +246,7 @@ function initHeader() {
   };
 })();
 
-// Auto‑init header and set current year in footer
+// Auto-init header and set current year in footer
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initHeader();
