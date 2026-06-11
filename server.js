@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Resend } = require('resend');
+const sanitizeHtml = require('sanitize-html');
 
 const app = express();
 const port = process.env.PORT || 11037;
@@ -88,7 +89,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 // ==========================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { require: true, rejectUnauthorized: false }
+  ssl: { require: true, rejectUnauthorized: false } // Note: this is still disabled – for production, set to true and ensure valid certs
 });
 
 // ==========================================
@@ -159,7 +160,7 @@ function createRateLimiter({ windowMs, max }) {
 }
 
 // ==========================================
-// DATABASE INITIALIZATION
+// DATABASE INITIALIZATION (idempotent)
 // ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
@@ -186,7 +187,7 @@ async function initializeDatabase() {
       password_hash VARCHAR(255) NOT NULL,
       role VARCHAR(20) DEFAULT 'customer',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      reset_token VARCHAR(255),
+      reset_token_hash VARCHAR(255),
       reset_token_expiry TIMESTAMP,
       is_guest BOOLEAN DEFAULT FALSE
     )`);
@@ -442,10 +443,10 @@ const contactRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 })
 const uploadRateLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
 
 // ==========================================
-// DEFINE ALL ROUTES (using asyncHandler)
+// DEFINE ALL ROUTES
 // ==========================================
 
-// Password reset
+// PASSWORD RESET (with hashed token)
 app.post('/api/auth/forgot-password', authRateLimit, asyncHandler(async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
@@ -454,9 +455,10 @@ app.post('/api/auth/forgot-password', authRateLimit, asyncHandler(async (req, re
     return res.json({ success: true, message: 'If that email is registered, you will receive a reset link.' });
   }
   const resetToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = await bcrypt.hash(resetToken, 10);
   const expiry = new Date();
   expiry.setHours(expiry.getHours() + 1);
-  await pool.query('UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE email = $3', [resetToken, expiry, email]);
+  await pool.query('UPDATE users SET reset_token_hash = $1, reset_token_expiry = $2 WHERE email = $3', [hashedToken, expiry, email]);
   const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
   const html = `
     <h2>Password Reset Request</h2>
@@ -475,21 +477,35 @@ app.post('/api/auth/reset-password', authRateLimit, asyncHandler(async (req, res
   if (!token || !newPassword) {
     return res.status(400).json({ success: false, message: 'Token and new password required.' });
   }
-  const user = await pool.query('SELECT user_id, reset_token_expiry FROM users WHERE reset_token = $1', [token]);
-  if (user.rows.length === 0) {
+  // Enforce password strength (same as signup)
+  if (newPassword.length < 8) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
+  }
+  if (!/[a-zA-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+    return res.status(400).json({ success: false, message: 'Password must contain at least one letter and one number.' });
+  }
+  const user = await pool.query('SELECT user_id, reset_token_hash, reset_token_expiry FROM users WHERE reset_token_hash IS NOT NULL');
+  let foundUser = null;
+  for (const u of user.rows) {
+    if (await bcrypt.compare(token, u.reset_token_hash)) {
+      foundUser = u;
+      break;
+    }
+  }
+  if (!foundUser) {
     return res.status(400).json({ success: false, message: 'Invalid or expired token.' });
   }
-  const expiry = new Date(user.rows[0].reset_token_expiry);
+  const expiry = new Date(foundUser.reset_token_expiry);
   if (expiry < new Date()) {
     return res.status(400).json({ success: false, message: 'Token expired. Request a new reset link.' });
   }
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(newPassword, salt);
-  await pool.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2', [hashedPassword, user.rows[0].user_id]);
+  await pool.query('UPDATE users SET password_hash = $1, reset_token_hash = NULL, reset_token_expiry = NULL WHERE user_id = $2', [hashedPassword, foundUser.user_id]);
   res.json({ success: true, message: 'Password reset successful. You can now log in.' });
 }));
 
-// Customer auth
+// CUSTOMER AUTH
 app.post('/api/auth/signup', authRateLimit, asyncHandler(async (req, res) => {
   const { firstName, lastName, email, phone, password } = req.body;
   if (!firstName || !lastName || !email || !password) {
@@ -585,7 +601,7 @@ app.put('/api/auth/profile', authenticateCustomer, asyncHandler(async (req, res)
   }
 }));
 
-// My bookings
+// MY BOOKINGS
 app.get('/api/bookings/my-bookings', authenticateCustomer, asyncHandler(async (req, res) => {
   const result = await pool.query(`
     SELECT b.booking_id, b.booking_reference, s.title AS package_name, s.service_id,
@@ -682,7 +698,7 @@ app.post('/api/bookings/receipt/:id', authenticateCustomer, asyncHandler(async (
   res.json({ success: true, message: 'Receipt sent to your email.' });
 }));
 
-// Search services
+// SEARCH SERVICES
 app.get('/api/services/search', asyncHandler(async (req, res) => {
   const { location, minPrice, maxPrice, guests } = req.query;
   let query = 'SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE';
@@ -713,7 +729,7 @@ app.get('/api/services/search', asyncHandler(async (req, res) => {
   res.json({ success: true, data: result.rows });
 }));
 
-// Admin login (with stricter rate limit)
+// ADMIN LOGIN
 app.post('/api/admin/login', adminRateLimit, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   const result = await pool.query('SELECT user_id, password_hash, role FROM users WHERE email = $1 AND role = $2', [email, 'admin']);
@@ -725,7 +741,7 @@ app.post('/api/admin/login', adminRateLimit, asyncHandler(async (req, res) => {
   res.json({ success: true, token });
 }));
 
-// Upload (with rate limit and HTTPS enforcement)
+// UPLOAD (with rate limit and HTTPS enforcement)
 app.post('/api/upload', authenticateAdmin, uploadRateLimit, (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' });
@@ -736,7 +752,7 @@ app.post('/api/upload', authenticateAdmin, uploadRateLimit, (req, res) => {
   });
 });
 
-// Bookings (admin)
+// BOOKINGS (admin)
 app.get('/api/bookings', authenticateAdmin, asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
@@ -863,7 +879,7 @@ app.put('/api/bookings/:id', authenticateAdmin, asyncHandler(async (req, res) =>
   }
 }));
 
-// Admin services
+// ADMIN SERVICES (with sanitization)
 app.get('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res) => {
   const { page, limit, offset } = getPagination(req.query, 10, 50);
   const search = req.query.search ? `%${req.query.search.toLowerCase()}%` : null;
@@ -916,26 +932,31 @@ app.get('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, r
 }));
 
 app.post('/api/admin/services', authenticateAdmin, asyncHandler(async (req, res) => {
-  const { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
+  let { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
   if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
   const paxLimit = parsePositiveInteger(max_pax, 1);
+  // Sanitize HTML fields
+  description = description ? sanitizeHtml(description, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } }) : null;
+  itinerary = itinerary ? sanitizeHtml(itinerary, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } }) : null;
   const result = await pool.query(
     `INSERT INTO services (title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [title, destination, base_price, paxLimit, image_url || null, is_active !== undefined ? is_active : true, description || null, itinerary || null, gallery || []]
+    [title, destination, base_price, paxLimit, image_url || null, is_active !== undefined ? is_active : true, description, itinerary, gallery || []]
   );
   res.status(201).json({ success: true, message: 'Destination added!', data: result.rows[0] });
 }));
 
 app.put('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
+  let { title, destination, base_price, max_pax, image_url, is_active, description, itinerary, gallery } = req.body;
   if (!title || !destination || !base_price) return res.status(400).json({ success: false, message: 'Missing fields.' });
   const paxLimit = parsePositiveInteger(max_pax, 1);
+  description = description ? sanitizeHtml(description, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } }) : null;
+  itinerary = itinerary ? sanitizeHtml(itinerary, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } }) : null;
   const result = await pool.query(
     `UPDATE services SET title=$1, destination=$2, base_price=$3, max_pax=$4, image_url=$5, is_active=$6,
      description=$7, itinerary=$8, gallery=$9 WHERE service_id=$10 RETURNING *`,
-    [title, destination, base_price, paxLimit, image_url || null, is_active, description || null, itinerary || null, gallery || [], id]
+    [title, destination, base_price, paxLimit, image_url || null, is_active, description, itinerary, gallery || [], id]
   );
   if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
   res.json({ success: true, message: 'Updated!', data: result.rows[0] });
@@ -952,7 +973,7 @@ app.delete('/api/admin/services/:id', authenticateAdmin, asyncHandler(async (req
   res.json({ success: true, message: 'Deleted!' });
 }));
 
-// Contact messages
+// CONTACT MESSAGES
 app.post('/api/contact', contactRateLimit, asyncHandler(async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
@@ -1013,7 +1034,7 @@ app.get('/api/contact', authenticateAdmin, asyncHandler(async (req, res) => {
   res.json({ success: true, data: dataRes.rows, pagination: { currentPage: page, totalPages: Math.ceil(total / limit), totalItems: total, limit: limit } });
 }));
 
-// Blogs
+// BLOGS (with sanitization)
 app.get('/api/blogs/authors', authenticateAdmin, asyncHandler(async (req, res) => {
   const result = await pool.query('SELECT DISTINCT author FROM blogs WHERE author IS NOT NULL ORDER BY author');
   res.json({ success: true, authors: result.rows.map(r => r.author) });
@@ -1068,8 +1089,10 @@ app.get('/api/blogs/:id', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/blogs', authenticateAdmin, asyncHandler(async (req, res) => {
-  const { title, author, content, image_url } = req.body;
+  let { title, author, content, image_url } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required.' });
+  // Sanitize content
+  content = sanitizeHtml(content, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } });
   const slug = await generateUniqueSlug(title);
   const result = await pool.query(`INSERT INTO blogs (title, slug, author, content, image_url) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [title, slug, author, content, image_url]);
   res.status(201).json({ success: true, message: 'Published!', data: result.rows[0] });
@@ -1077,8 +1100,9 @@ app.post('/api/blogs', authenticateAdmin, asyncHandler(async (req, res) => {
 
 app.put('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, author, content, image_url } = req.body;
+  let { title, author, content, image_url } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, message: 'Title and content are required.' });
+  content = sanitizeHtml(content, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']), allowedAttributes: { img: ['src', 'alt'] } });
   const slug = await generateUniqueSlug(title, id);
   const result = await pool.query(`UPDATE blogs SET title=$1, slug=$2, author=$3, content=$4, image_url=$5, updated_at=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *`, [title, slug, author, content, image_url, id]);
   if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Not found.' });
@@ -1092,10 +1116,7 @@ app.delete('/api/blogs/:id', authenticateAdmin, asyncHandler(async (req, res) =>
   res.json({ success: true, message: 'Deleted!' });
 }));
 
-// ==========================================
 // REVIEW ROUTES (order matters: featured before :service_id)
-// ==========================================
-
 app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
   const reviewResult = await pool.query(`
     SELECT r.review_id, r.rating, r.comment, r.created_at,
@@ -1110,20 +1131,14 @@ app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
     return res.json({ success: true, review: null });
   }
   const review = reviewResult.rows[0];
-
   const bookingCheck = await pool.query(
     `SELECT booking_id FROM bookings 
      WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
     [review.user_id, review.service_id]
   );
   const verified = bookingCheck.rows.length > 0;
-
-  const destResult = await pool.query(
-    `SELECT title FROM services WHERE service_id = $1`,
-    [review.service_id]
-  );
+  const destResult = await pool.query(`SELECT title FROM services WHERE service_id = $1`, [review.service_id]);
   const destination = destResult.rows[0]?.title || 'Safari Package';
-
   res.json({
     success: true,
     review: {
@@ -1152,12 +1167,10 @@ app.post('/api/reviews', authenticateCustomer, asyncHandler(async (req, res) => 
   if (bookingCheck.rows.length === 0) {
     return res.status(403).json({ success: false, message: 'You can only review services after your trip has ended.' });
   }
-
   const existing = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
   if (existing.rows.length > 0) {
     return res.status(400).json({ success: false, message: 'You have already reviewed this destination.' });
   }
-
   await pool.query('INSERT INTO reviews (service_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)', [service_id, req.user.userId, rating, comment || null]);
   res.status(201).json({ success: true, message: 'Review submitted.' });
 }));
@@ -1171,19 +1184,14 @@ app.get('/api/reviews/:service_id', asyncHandler(async (req, res) => {
     WHERE r.service_id = $1
     ORDER BY r.created_at DESC
   `, [service_id]);
-
   const reviewsWithVerified = await Promise.all(reviews.rows.map(async (review) => {
     const bookingCheck = await pool.query(
       `SELECT booking_id FROM bookings 
        WHERE user_id = $1 AND service_id = $2 AND status = 'Completed'`,
       [review.user_id, service_id]
     );
-    return {
-      ...review,
-      verified: bookingCheck.rows.length > 0
-    };
+    return { ...review, verified: bookingCheck.rows.length > 0 };
   }));
-
   const avgResult = await pool.query('SELECT AVG(rating) as average FROM reviews WHERE service_id = $1', [service_id]);
   const average = avgResult.rows[0].average ? parseFloat(avgResult.rows[0].average).toFixed(1) : null;
   res.json({ success: true, reviews: reviewsWithVerified, average: average });
@@ -1206,10 +1214,7 @@ app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandle
   if (!hasCompleted) {
     return res.json({ success: true, canReview: false, reason: 'No completed booking' });
   }
-  const reviewCheck = await pool.query(
-    'SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2',
-    [service_id, req.user.userId]
-  );
+  const reviewCheck = await pool.query('SELECT review_id FROM reviews WHERE service_id = $1 AND user_id = $2', [service_id, req.user.userId]);
   const alreadyReviewed = reviewCheck.rows.length > 0;
   res.json({ success: true, canReview: !alreadyReviewed, alreadyReviewed });
 }));
@@ -1233,7 +1238,7 @@ app.get('/api/admin/reviews', authenticateAdmin, asyncHandler(async (req, res) =
   res.json({ success: true, data: result.rows });
 }));
 
-// Checkout
+// CHECKOUT (with user existence verification and payment method validation)
 async function generateBookingReference(client) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = `ECT-${crypto.randomInt(100000, 1000000)}`;
@@ -1257,38 +1262,23 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   const cleanReturnDate = returnDate ? String(returnDate).trim() : null;
   const cleanMpesaPhone = mpesaPhone ? String(mpesaPhone).trim() : null;
 
-  if (paxCount === null) {
-    return res.status(400).json({ success: false, message: 'Invalid number of guests.' });
-  }
-  if (serviceId === null) {
-    return res.status(400).json({ success: false, message: 'Invalid package selection.' });
-  }
-
+  // Validation
+  if (paxCount === null) return res.status(400).json({ success: false, message: 'Invalid number of guests.' });
+  if (serviceId === null) return res.status(400).json({ success: false, message: 'Invalid package selection.' });
   if (!cleanFirstName || !cleanLastName || !cleanEmail || !cleanPhone || !cleanTravelDate || !cleanPaymentMethod) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
   }
-  if (!isValidEmail(cleanEmail)) {
-    return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanTravelDate)) {
-    return res.status(400).json({ success: false, message: 'Invalid travel date.' });
-  }
+  if (!isValidEmail(cleanEmail)) return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanTravelDate)) return res.status(400).json({ success: false, message: 'Invalid travel date.' });
   const today = new Date().toISOString().slice(0,10);
-  if (cleanTravelDate < today) {
-    return res.status(400).json({ success: false, message: 'Travel date cannot be in the past.' });
-  }
-  if (cleanReturnDate && !/^\d{4}-\d{2}-\d{2}$/.test(cleanReturnDate)) {
-    return res.status(400).json({ success: false, message: 'Invalid return date.' });
-  }
-  if (cleanReturnDate && cleanReturnDate < cleanTravelDate) {
-    return res.status(400).json({ success: false, message: 'Return date cannot be before travel date.' });
-  }
-  if (paxCount > 10) {
-    return res.status(400).json({ success: false, message: 'Please contact us for bookings above 10 guests.' });
-  }
-  if (cleanPaymentMethod === 'mpesa' && !cleanMpesaPhone) {
-    return res.status(400).json({ success: false, message: 'M-Pesa phone number is required.' });
-  }
+  if (cleanTravelDate < today) return res.status(400).json({ success: false, message: 'Travel date cannot be in the past.' });
+  if (cleanReturnDate && !/^\d{4}-\d{2}-\d{2}$/.test(cleanReturnDate)) return res.status(400).json({ success: false, message: 'Invalid return date.' });
+  if (cleanReturnDate && cleanReturnDate < cleanTravelDate) return res.status(400).json({ success: false, message: 'Return date cannot be before travel date.' });
+  if (paxCount > 10) return res.status(400).json({ success: false, message: 'Please contact us for bookings above 10 guests.' });
+  
+  // Payment method enum validation
+  if (!['card', 'mpesa'].includes(cleanPaymentMethod)) return res.status(400).json({ success: false, message: 'Invalid payment method.' });
+  if (cleanPaymentMethod === 'mpesa' && !cleanMpesaPhone) return res.status(400).json({ success: false, message: 'M-Pesa phone number is required.' });
 
   const client = await pool.connect();
   try {
@@ -1299,6 +1289,12 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
     if (token) {
       try {
         tokenUser = jwt.verify(token, JWT_SECRET);
+        // Verify that the user still exists in the database
+        const userCheck = await client.query('SELECT user_id FROM users WHERE user_id = $1', [tokenUser.userId]);
+        if (userCheck.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(401).json({ success: false, message: 'User no longer exists.' });
+        }
       } catch (err) {
         await client.query('ROLLBACK');
         return res.status(403).json({ success: false, message: 'Invalid token.' });
@@ -1342,7 +1338,6 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
       [bookingRef, finalUserId, serviceId, cleanTravelDate, cleanReturnDate || null, paxCount, totalAmount, cleanSpecialRequests, cleanFirstName, cleanLastName, cleanEmail, cleanPhone]
     );
     const bookingId = insertBooking.rows[0].booking_id;
-    // Store payment phone for M-Pesa
     await client.query(
       `INSERT INTO payments (booking_id, payment_method, amount, payment_status, payment_phone) 
        VALUES ($1, $2, $3, 'Pending', $4)`,
@@ -1358,7 +1353,7 @@ app.post('/api/checkout', asyncHandler(async (req, res) => {
   }
 }));
 
-// Public services
+// PUBLIC SERVICES
 app.get('/api/services', asyncHandler(async (req, res) => {
   const result = await pool.query('SELECT service_id, title, destination, base_price, max_pax, image_url, description, itinerary, gallery FROM services WHERE is_active = TRUE ORDER BY service_id');
   res.json({ success: true, data: result.rows });
@@ -1383,9 +1378,9 @@ app.get('/api/services/paginated', asyncHandler(async (req, res) => {
   res.json({ success: true, data: result.rows, pagination: { currentPage: page, totalPages: totalPages, totalItems: totalDestinations, limit: limit } });
 }));
 
-// Cron endpoint – returns less data
+// CRON ENDPOINT (using header instead of query param for secret)
 app.get('/api/cron/complete-bookings', (req, res) => {
-  const secret = req.query.secret;
+  const secret = req.headers['x-cron-secret'] || req.query.secret; // fallback for backwards compatibility
   const expectedSecret = process.env.CRON_SECRET;
   if (!expectedSecret || secret !== expectedSecret) {
     return res.status(403).json({ success: false, message: 'Unauthorized' });
@@ -1408,9 +1403,17 @@ app.get('/api/cron/complete-bookings', (req, res) => {
   })();
 });
 
-// Admin panel route
+// ADMIN PANEL ROUTE
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// ==========================================
+// ERROR HANDLING MIDDLEWARE
+// ==========================================
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
 // ==========================================
