@@ -1,5 +1,5 @@
 // ui.js - Centralised helper functions and UI components
-// Now uses httpOnly cookies for authentication + CSRF token
+// Uses httpOnly cookies for authentication + CSRF token (only for state‑changing methods)
 
 // ========== SHARED HELPERS ==========
 function escapeHtml(str) {
@@ -109,15 +109,17 @@ function getCsrfToken() {
   return match ? match[2] : null;
 }
 
-// ========== UNIFIED API REQUEST (no token in headers, cookies sent automatically) ==========
+// ========== UNIFIED API REQUEST (CSRF only for state‑changing methods) ==========
 async function apiRequest(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  // For state‑changing methods, add CSRF token
   const method = (options.method || 'GET').toUpperCase();
+  
+  // Only add CSRF token for POST, PUT, DELETE, PATCH
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
     const csrf = getCsrfToken();
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
+  
   const res = await fetch(`/api${path}`, {
     ...options,
     headers: { ...headers, ...options.headers },
