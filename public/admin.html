@@ -135,7 +135,7 @@
   </div>
 </div>
 
-<!-- Blog Modal (Add/Edit) – uses simple textarea, no Quill -->
+<!-- Blog Modal (Add/Edit) – uses simple textarea -->
 <div id="blogModal" class="modal-overlay">
   <div class="modal-container" style="max-width: 700px;">
     <div class="modal-header">
@@ -284,7 +284,7 @@
             <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
           </td>
         </tr>`;
-      }).join("")}</tbody></table>`;
+      }).join("")}</tbody></td>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
@@ -433,8 +433,38 @@
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
 
-  // ========== Blogs (with textarea, no Quill) ==========
+  // ========== Blogs ==========
   let blPage = 1, blTotalPages = 1;
+
+  async function openBlogForm(blogId) {
+    console.log("openBlogForm called with id:", blogId);
+    try {
+      if (blogId) {
+        const data = await apiRequestAdmin(`/blogs/${blogId}`);
+        const blog = data.data || data;
+        document.getElementById("blogModalTitle").innerText = "Edit Blog";
+        document.getElementById("blogId").value = blog.id;
+        document.getElementById("blogTitle").value = blog.title || "";
+        document.getElementById("blogAuthor").value = blog.author || "";
+        document.getElementById("blogImageUrl").value = blog.image_url || "";
+        document.getElementById("blogExcerpt").value = blog.excerpt || "";
+        document.getElementById("blogContent").value = blog.content || "";
+      } else {
+        document.getElementById("blogModalTitle").innerText = "New Article";
+        document.getElementById("blogId").value = "";
+        document.getElementById("blogTitle").value = "";
+        document.getElementById("blogAuthor").value = "";
+        document.getElementById("blogImageUrl").value = "";
+        document.getElementById("blogExcerpt").value = "";
+        document.getElementById("blogContent").value = "";
+      }
+      openModal("blogModal");
+    } catch (err) {
+      console.error("openBlogForm error:", err);
+      showToast(err.message, "error");
+    }
+  }
+
   async function loadBlogs() {
     const wrap = document.getElementById("bl-table");
     wrap.innerHTML = `<div class="loading">Loading…</div>`;
@@ -451,31 +481,21 @@
         <td>${escapeHtml(b.title || "")}</td>
         <td>${escapeHtml(b.author || "")}</td>
         <td>${fmtDate(b.created_at)}</td>
-        <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
-        <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
+        <td>
+          <button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+          <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button>
+        </td>
       </tr>`).join("")}</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  // Event delegation for blog edit/delete
-  const blTable = document.getElementById("bl-table");
-  blTable.addEventListener("click", async (e) => {
+  // Direct click handlers for blogs
+  document.getElementById("bl-table").addEventListener("click", async (e) => {
     const editBtn = e.target.closest(".edit-blog");
     if (editBtn) {
       const id = editBtn.dataset.id;
-      try {
-        const data = await apiRequestAdmin(`/blogs/${id}`);
-        const blog = data.data || data;
-        document.getElementById("blogModalTitle").innerText = "Edit Blog";
-        document.getElementById("blogId").value = blog.id;
-        document.getElementById("blogTitle").value = blog.title || "";
-        document.getElementById("blogAuthor").value = blog.author || "";
-        document.getElementById("blogImageUrl").value = blog.image_url || "";
-        document.getElementById("blogExcerpt").value = blog.excerpt || "";
-        document.getElementById("blogContent").value = blog.content || "";
-        openModal("blogModal");
-      } catch (err) { showToast(err.message, "error"); }
+      if (id) await openBlogForm(id);
       return;
     }
     const delBtn = e.target.closest(".del-blog");
@@ -491,17 +511,12 @@
     }
   });
 
-  document.getElementById("add-blog").onclick = () => {
-    document.getElementById("blogModalTitle").innerText = "New Article";
-    document.getElementById("blogId").value = "";
-    document.getElementById("blogTitle").value = "";
-    document.getElementById("blogAuthor").value = "";
-    document.getElementById("blogImageUrl").value = "";
-    document.getElementById("blogExcerpt").value = "";
-    document.getElementById("blogContent").value = "";
-    openModal("blogModal");
-  };
+  document.getElementById("add-blog").onclick = () => openBlogForm(null);
+  document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
+  document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
+  document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
 
+  // Blog form submit
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("blogId").value;
@@ -537,13 +552,14 @@
     } catch (err) { showToast(err.message, "error"); }
   });
 
-  document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
-  document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
-  document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
-
   function openModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) modal.style.display = "flex";
+    if (modal) {
+      modal.style.display = "flex";
+      console.log("Modal opened:", modalId);
+    } else {
+      console.error("Modal not found:", modalId);
+    }
   }
   function closeModal(modalId) {
     const modal = document.getElementById(modalId);
