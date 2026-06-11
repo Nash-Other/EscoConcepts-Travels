@@ -284,7 +284,7 @@
             <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
           </td>
         </tr>`;
-      }).join("")}</tbody></td>`;
+      }).join("")}</tbody></table>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
@@ -352,7 +352,7 @@
         document.getElementById("svcItinerary").value = svc.itinerary || "";
         document.getElementById("svcGallery").value = (svc.gallery || []).join(", ");
         document.getElementById("svcActive").checked = svc.is_active !== false;
-        openModal("serviceModal");
+        openModal('serviceModal');
       } catch (err) { showToast(err.message, "error"); }
       return;
     }
@@ -381,7 +381,7 @@
     document.getElementById("svcItinerary").value = "";
     document.getElementById("svcGallery").value = "";
     document.getElementById("svcActive").checked = true;
-    openModal("serviceModal");
+    openModal('serviceModal');
   };
   document.getElementById("s-apply").onclick = () => { sPage = 1; loadServices(); };
   document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
@@ -404,7 +404,7 @@
     try {
       if (id) await apiRequestAdmin(`/admin/services/${id}`, { method: "PUT", body: JSON.stringify(payload) });
       else await apiRequestAdmin("/admin/services", { method: "POST", body: JSON.stringify(payload) });
-      closeModal("serviceModal");
+      closeModal('serviceModal');
       loadServices();
       showToast(id ? "Destination updated" : "Destination created", "success");
     } catch (err) { showToast(err.message, "error"); }
@@ -458,7 +458,7 @@
         document.getElementById("blogExcerpt").value = "";
         document.getElementById("blogContent").value = "";
       }
-      openModal("blogModal");
+      openModal('blogModal');
     } catch (err) {
       console.error("openBlogForm error:", err);
       showToast(err.message, "error");
@@ -490,7 +490,6 @@
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  // Direct click handlers for blogs
   document.getElementById("bl-table").addEventListener("click", async (e) => {
     const editBtn = e.target.closest(".edit-blog");
     if (editBtn) {
@@ -516,7 +515,6 @@
   document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
   document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
 
-  // Blog form submit
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("blogId").value;
@@ -530,13 +528,12 @@
     try {
       if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
       else await apiRequestAdmin("/blogs", { method: "POST", body: JSON.stringify(payload) });
-      closeModal("blogModal");
+      closeModal('blogModal');
       loadBlogs();
       showToast(id ? "Blog updated" : "Blog published", "success");
     } catch (err) { showToast(err.message, "error"); }
   });
 
-  // Image upload for blog cover
   document.getElementById("blogImageUrl")?.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -552,18 +549,24 @@
     } catch (err) { showToast(err.message, "error"); }
   });
 
+  // Correct modal functions: use 'open' class on backdrop
   function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
-      modal.style.display = "flex";
-      console.log("Modal opened:", modalId);
+      modal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      console.log("Modal opened (class added):", modalId);
     } else {
       console.error("Modal not found:", modalId);
     }
   }
+
   function closeModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) modal.style.display = "none";
+    if (modal) {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+    }
   }
 
   updateAdminView();
