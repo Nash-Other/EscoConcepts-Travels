@@ -109,7 +109,7 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic uses global helpers: safeUrl, sanitizeHtml, fmtPrice, truncate, fmtDate, renderStars, escapeHtml, showToast, apiRequest, isCustomerLoggedIn, getCustomerToken, setCustomerToken
+  // Page‑specific logic uses global helpers: safeUrl, sanitizeHtml, fmtPrice, truncate, fmtDate, renderStars, escapeHtml, showToast, apiRequest
 
   async function fetchFullService(serviceId) {
     const res = await fetch(`/api/services`);
@@ -138,12 +138,12 @@
 
     let canReview = false;
     let alreadyReviewed = false;
-    if (isCustomerLoggedIn()) {
-      try {
-        const check = await apiRequest(`/reviews/can-review/${serviceIdNum}`);
-        canReview = check.canReview === true;
-        alreadyReviewed = check.alreadyReviewed === true;
-      } catch(e) { console.log(e); }
+    try {
+      const check = await apiRequest(`/reviews/can-review/${serviceIdNum}`);
+      canReview = check.canReview === true;
+      alreadyReviewed = check.alreadyReviewed === true;
+    } catch(e) { 
+      console.log(e);
     }
 
     let reviewsHtml = `<div class="reviews-section"><h4>Customer Reviews</h4>`;
@@ -189,8 +189,6 @@
           <button id="submitModalReviewBtn" class="btn btn-sm btn-gold">Submit Review</button>
         </div>
       `;
-    } else if (isCustomerLoggedIn() && !alreadyReviewed) {
-      reviewFormHtml = `<p class="empty" style="margin-top:1rem;">You can only review this destination after completing your trip.</p>`;
     } else if (alreadyReviewed) {
       reviewFormHtml = `<p class="empty" style="margin-top:1rem;">You have already reviewed this destination.</p>`;
     } else {
