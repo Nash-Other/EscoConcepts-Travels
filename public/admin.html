@@ -83,7 +83,7 @@
         <h2>Contact Messages</h2>
         <div class="toolbar">
           <input id="c-search" placeholder="Search" class="input">
-          <input type="date" id="c-from" class="input"><input type="date" id="c-to" class="input">
+          <input type="date" id="c-from" class="input"><input type="date" id="c-to" class="input>
           <button class="btn btn-outline btn-sm" id="c-apply">Apply</button>
         </div>
         <div id="c-table"><div class="loading">Loading…</div></div>
@@ -177,13 +177,13 @@
   function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
   function showToast(message, type = "info") { if (window.showToast) window.showToast(message, type); else alert(message); }
 
-  // CSRF token helper (same as in ui.js)
+  // CSRF token helper
   function getCsrfToken() {
     const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
     return match ? match[2] : null;
   }
 
-  // Admin API wrapper (uses credentials and adds CSRF for state-changing methods)
+  // Admin API wrapper
   async function apiRequestAdmin(path, options = {}) {
     const headers = { 'Content-Type': 'application/json' };
     const method = (options.method || 'GET').toUpperCase();
@@ -210,6 +210,95 @@
   const loginView = document.getElementById("login-view");
   const dash = document.getElementById("dash");
   let currentQuill = null;
+
+  // Function to open blog modal (edit or new)
+  window.openBlogForm = async function(blogId) {
+    try {
+      // Close any existing modal first
+      closeModal('blogModal');
+      // Reset form
+      document.getElementById("blogId").value = "";
+      document.getElementById("blogTitle").value = "";
+      document.getElementById("blogAuthor").value = "";
+      document.getElementById("blogImageUrl").value = "";
+      document.getElementById("blogExcerpt").value = "";
+      if (currentQuill) {
+        currentQuill.root.innerHTML = "";
+      }
+      if (blogId) {
+        // Fetch existing blog
+        const data = await apiRequestAdmin(`/blogs/${blogId}`);
+        const blog = data.data || data;
+        document.getElementById("blogModalTitle").innerText = "Edit Blog";
+        document.getElementById("blogId").value = blog.id;
+        document.getElementById("blogTitle").value = blog.title || "";
+        document.getElementById("blogAuthor").value = blog.author || "";
+        document.getElementById("blogImageUrl").value = blog.image_url || "";
+        document.getElementById("blogExcerpt").value = blog.excerpt || "";
+        if (currentQuill) {
+          currentQuill.root.innerHTML = blog.content || "";
+        } else {
+          // Will be created after modal opens
+        }
+      } else {
+        document.getElementById("blogModalTitle").innerText = "New Article";
+      }
+      // Ensure Quill is initialized after modal is visible
+      openModal("blogModal");
+      // Slight delay to allow modal to render
+      setTimeout(() => {
+        if (!currentQuill) {
+          currentQuill = new Quill("#editor", { 
+            theme: "snow", 
+            modules: { 
+              toolbar: [
+                [{ header: [2, 3, false] }], 
+                ["bold", "italic", "underline"], 
+                [{ list: "ordered" }, { list: "bullet" }], 
+                ["link", "image"], 
+                ["clean"]
+              ] 
+            } 
+          });
+          // Add image upload handler
+          const toolbar = currentQuill.getModule("toolbar");
+          toolbar.addHandler("image", () => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
+            input.onchange = async () => {
+              if (!input.files[0]) return;
+              try {
+                const formData = new FormData();
+                formData.append("image", input.files[0]);
+                const token = getCsrfToken();
+                const headers = {};
+                if (token) headers['X-CSRF-Token'] = token;
+                const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
+                const data = await res.json();
+                if (data.url) {
+                  const range = currentQuill.getSelection(true);
+                  currentQuill.insertEmbed(range.index, "image", data.url);
+                }
+              } catch (e) { showToast(e.message, "error"); }
+            };
+            input.click();
+          });
+        }
+        if (blogId) {
+          // Content already set above
+          const blogContent = document.getElementById("blogId").value ? 
+            (await apiRequestAdmin(`/blogs/${blogId}`)).data?.content : "";
+          if (blogContent) currentQuill.root.innerHTML = blogContent;
+        } else {
+          currentQuill.root.innerHTML = "";
+        }
+      }, 100);
+    } catch (e) {
+      console.error("openBlogForm error:", e);
+      showToast(e.message, "error");
+    }
+  };
 
   async function updateAdminView() {
     const loggedIn = await isAdminLoggedIn();
@@ -263,7 +352,6 @@
 
   // ========== Bookings ==========
   let bPage = 1, bTotalPages = 1;
-  
   function updateBookingRow(bookingId, newStatus) {
     const row = document.querySelector(`tr[data-booking-id="${bookingId}"]`);
     if (row) {
@@ -297,45 +385,49 @@
       wrap.innerHTML = `<table class="data"><thead><tr><th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>${list.map(b => {
         const status = (b.status || "pending").toLowerCase();
         return `<tr data-booking-id="${b.booking_id}">
-            <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
-            <td>${escapeHtml(b.guest_name||"")}</td>
-            <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
-            <td>${escapeHtml(b.package_booked||"")}</td>
-            <td>${fmtDate(b.travel_date)}</td>
-            <td>${fmtDate(b.return_date)}</td>
-            <td>${b.total_guests || b.pax || ""}</td>
-            <td>${fmtPrice(b.total_amount)}</td>
-            <td class="status-cell"><span class="status ${status}">${status}</span></td>
-            <td>
-              <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
-                <option ${status === "pending" ? "selected" : ""}>Pending</option>
-                <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
-                <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
-                <option ${status === "completed" ? "selected" : ""}>Completed</option>
-              </select>
-              <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
-            </td>
-          </tr>`;
+          <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
+          <td>${escapeHtml(b.guest_name||"")}</td>
+          <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
+          <td>${escapeHtml(b.package_booked||"")}</td>
+          <td>${fmtDate(b.travel_date)}</td>
+          <td>${fmtDate(b.return_date)}</td>
+          <td>${b.total_guests || b.pax || ""}</td>
+          <td>${fmtPrice(b.total_amount)}</td>
+          <td class="status-cell"><span class="status ${status}">${status}</span></td>
+          <td>
+            <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
+              <option ${status === "pending" ? "selected" : ""}>Pending</option>
+              <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
+              <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
+              <option ${status === "completed" ? "selected" : ""}>Completed</option>
+            </select>
+            <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
+          </td>
+        </tr>`;
       }).join("")}</tbody></table>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
-      
-      wrap.querySelectorAll(".update-btn").forEach(btn => {
-        btn.onclick = async () => {
-          const id = btn.dataset.id;
-          const select = wrap.querySelector(`.status-sel[data-id="${id}"]`);
-          const newStatus = select.value;
-          updateBookingRow(id, newStatus);
-          try {
-            await apiRequestAdmin(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
-            showToast(`Booking status updated to ${newStatus}`, "success");
-          } catch (e) {
-            showToast(e.message, "error");
-            loadBookings();
-          }
-        };
-      });
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
+
+  // Event delegation for booking update buttons
+  const bTable = document.getElementById("b-table");
+  bTable.addEventListener("click", async (e) => {
+    const updateBtn = e.target.closest(".update-btn");
+    if (updateBtn) {
+      const id = updateBtn.dataset.id;
+      const select = bTable.querySelector(`.status-sel[data-id="${id}"]`);
+      const newStatus = select.value;
+      updateBookingRow(id, newStatus);
+      try {
+        await apiRequestAdmin(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
+        showToast(`Booking status updated to ${newStatus}`, "success");
+      } catch (err) {
+        showToast(err.message, "error");
+        loadBookings(); // revert
+      }
+    }
+  });
+
   document.getElementById("b-apply").onclick = () => { bPage = 1; loadBookings(); };
   document.getElementById("b-prev").onclick = () => { if (bPage > 1) { bPage--; loadBookings(); } };
   document.getElementById("b-next").onclick = () => { if (bPage < bTotalPages) { bPage++; loadBookings(); } };
@@ -355,50 +447,57 @@
       sTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th></tr></thead><tbody>${list.map(s => `<tr>
-          <td>${escapeHtml(s.title || "")}</td>
-          <td>${escapeHtml(s.destination || "")}</td>
-          <td>${fmtPrice(s.base_price)}</td>
-          <td>${escapeHtml(String(s.max_pax || "—"))}</td>
-          <td>${s.is_active === false ? "No" : "Yes"}</td>
-          <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
-          <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
-        </tr>`).join("")}</tbody></table>`;
+        <td>${escapeHtml(s.title || "")}</td>
+        <td>${escapeHtml(s.destination || "")}</td>
+        <td>${fmtPrice(s.base_price)}</td>
+        <td>${escapeHtml(String(s.max_pax || "—"))}</td>
+        <td>${s.is_active === false ? "No" : "Yes"}</td>
+        <td>
+          <button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+          <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button>
+        </td>
+      </tr>`).join("")}</tbody><tr>`;
       document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
-      // Use event delegation for edit/delete buttons (they are static after load)
-      wrap.querySelectorAll(".edit-svc").forEach(b => b.onclick = () => editService(b.dataset.id));
-      wrap.querySelectorAll(".del-svc").forEach(b => b.onclick = async () => {
-        if (confirm("Delete this destination permanently?")) {
-          try {
-            await apiRequestAdmin(`/admin/services/${b.dataset.id}`, { method: "DELETE" });
-            loadServices();
-            showToast("Destination deleted", "success");
-          } catch (e) { showToast(e.message, "error"); }
-        }
-      });
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
-  document.getElementById("s-apply").onclick = () => { sPage = 1; loadServices(); };
-  document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
-  document.getElementById("s-next").onclick = () => { if (sPage < sTotalPages) { sPage++; loadServices(); } };
 
-  async function editService(id) {
-    try {
-      const data = await apiRequestAdmin(`/admin/services/${id}`);
-      const svc = data.data || data;
-      document.getElementById("serviceModalTitle").innerText = "Edit Destination";
-      document.getElementById("serviceId").value = svc.service_id;
-      document.getElementById("svcTitle").value = svc.title || "";
-      document.getElementById("svcDestination").value = svc.destination || "";
-      document.getElementById("svcPrice").value = svc.base_price || "";
-      document.getElementById("svcMaxPax").value = svc.max_pax || 10;
-      document.getElementById("svcImageUrl").value = svc.image_url || "";
-      document.getElementById("svcDescription").value = svc.description || "";
-      document.getElementById("svcItinerary").value = svc.itinerary || "";
-      document.getElementById("svcGallery").value = (svc.gallery || []).join(", ");
-      document.getElementById("svcActive").checked = svc.is_active !== false;
-      openModal("serviceModal");
-    } catch (e) { showToast(e.message, "error"); }
-  }
+  // Event delegation for service edit/delete
+  const sTable = document.getElementById("s-table");
+  sTable.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest(".edit-svc");
+    if (editBtn) {
+      const id = editBtn.dataset.id;
+      try {
+        const data = await apiRequestAdmin(`/admin/services/${id}`);
+        const svc = data.data || data;
+        document.getElementById("serviceModalTitle").innerText = "Edit Destination";
+        document.getElementById("serviceId").value = svc.service_id;
+        document.getElementById("svcTitle").value = svc.title || "";
+        document.getElementById("svcDestination").value = svc.destination || "";
+        document.getElementById("svcPrice").value = svc.base_price || "";
+        document.getElementById("svcMaxPax").value = svc.max_pax || 10;
+        document.getElementById("svcImageUrl").value = svc.image_url || "";
+        document.getElementById("svcDescription").value = svc.description || "";
+        document.getElementById("svcItinerary").value = svc.itinerary || "";
+        document.getElementById("svcGallery").value = (svc.gallery || []).join(", ");
+        document.getElementById("svcActive").checked = svc.is_active !== false;
+        openModal("serviceModal");
+      } catch (err) { showToast(err.message, "error"); }
+      return;
+    }
+    const delBtn = e.target.closest(".del-svc");
+    if (delBtn) {
+      if (confirm("Delete this destination permanently?")) {
+        const id = delBtn.dataset.id;
+        try {
+          await apiRequestAdmin(`/admin/services/${id}`, { method: "DELETE" });
+          loadServices();
+          showToast("Destination deleted", "success");
+        } catch (err) { showToast(err.message, "error"); }
+      }
+    }
+  });
+
   document.getElementById("add-svc").onclick = () => {
     document.getElementById("serviceModalTitle").innerText = "Add Destination";
     document.getElementById("serviceId").value = "";
@@ -413,6 +512,11 @@
     document.getElementById("svcActive").checked = true;
     openModal("serviceModal");
   };
+  document.getElementById("s-apply").onclick = () => { sPage = 1; loadServices(); };
+  document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
+  document.getElementById("s-next").onclick = () => { if (sPage < sTotalPages) { sPage++; loadServices(); } };
+
+  // Service form submit
   document.getElementById("svc-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("serviceId").value;
@@ -462,47 +566,8 @@
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
 
-  // ========== Blogs (with event delegation for edit/delete) ==========
+  // ========== Blogs ==========
   let blPage = 1, blTotalPages = 1;
-
-  // Global function to open blog form (used by delegation)
-  window.openBlogForm = async function(blogId) {
-    try {
-      const d = await apiRequestAdmin(`/blogs/${blogId}`);
-      const blog = d.data || d;
-      document.getElementById("blogModalTitle").innerText = blog.id ? "Edit Blog" : "New Article";
-      document.getElementById("blogId").value = blog.id || "";
-      document.getElementById("blogTitle").value = blog.title || "";
-      document.getElementById("blogAuthor").value = blog.author || "";
-      document.getElementById("blogImageUrl").value = blog.image_url || "";
-      document.getElementById("blogExcerpt").value = blog.excerpt || "";
-      if (currentQuill) currentQuill.root.innerHTML = blog.content || "";
-      else {
-        currentQuill = new Quill("#editor", { theme: "snow", modules: { toolbar: [
-          [{ header: [2, 3, false] }], ["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link", "image"], ["clean"]
-        ] } });
-        if (blog.content) currentQuill.root.innerHTML = blog.content;
-        currentQuill.getModule("toolbar").addHandler("image", () => {
-          const input = document.createElement("input"); input.type = "file"; input.accept = "image/*";
-          input.onchange = async () => {
-            if (!input.files[0]) return;
-            try {
-              const formData = new FormData(); formData.append("image", input.files[0]);
-              const token = getCsrfToken();
-              const headers = {};
-              if (token) headers['X-CSRF-Token'] = token;
-              const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
-              const data = await res.json();
-              if (data.url) currentQuill.insertEmbed(currentQuill.getSelection(true).index, "image", data.url);
-            } catch (e) { showToast(e.message, "error"); }
-          };
-          input.click();
-        });
-      }
-      openModal("blogModal");
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
   async function loadBlogs() {
     const wrap = document.getElementById("bl-table");
     wrap.innerHTML = `<div class="loading">Loading…</div>`;
@@ -516,23 +581,25 @@
       blTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No articles.</div>`; return; }
       wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${list.map(b => `<tr>
-          <td>${escapeHtml(b.title || "")}</td>
-          <td>${escapeHtml(b.author || "")}</td>
-          <td>${fmtDate(b.created_at)}</td>
-          <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
-          <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
-        </tr>`).join("")}</tbody></table>`;
+        <td>${escapeHtml(b.title || "")}</td>
+        <td>${escapeHtml(b.author || "")}</td>
+        <td>${fmtDate(b.created_at)}</td>
+        <td>
+          <button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+          <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button>
+        </td>
+      </tr>`).join("")}</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  // Event delegation for blog edit/delete buttons (attached to the table container)
-  const blTableContainer = document.getElementById("bl-table");
-  blTableContainer.addEventListener("click", async (e) => {
+  // Event delegation for blog edit/delete
+  const blTable = document.getElementById("bl-table");
+  blTable.addEventListener("click", async (e) => {
     const editBtn = e.target.closest(".edit-blog");
     if (editBtn) {
       const id = editBtn.dataset.id;
-      if (id) window.openBlogForm(id);
+      await window.openBlogForm(id);
       return;
     }
     const delBtn = e.target.closest(".del-blog");
@@ -543,16 +610,15 @@
           await apiRequestAdmin(`/blogs/${id}`, { method: "DELETE" });
           loadBlogs();
           showToast("Blog deleted", "success");
-        } catch (e) { showToast(e.message, "error"); }
+        } catch (err) { showToast(err.message, "error"); }
       }
-      return;
     }
   });
 
+  document.getElementById("add-blog").onclick = () => window.openBlogForm(null);
   document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
   document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
   document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
-  document.getElementById("add-blog").onclick = () => window.openBlogForm(null);
 
   // Blog form submit
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
@@ -565,7 +631,7 @@
       author: document.getElementById("blogAuthor").value,
       image_url: document.getElementById("blogImageUrl").value,
       excerpt: document.getElementById("blogExcerpt").value,
-      content: currentQuill.root.innerHTML
+      content: currentQuill ? currentQuill.root.innerHTML : ""
     };
     try {
       if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -582,7 +648,8 @@
     const file = e.target.files[0];
     if (!file) return;
     try {
-      const formData = new FormData(); formData.append("image", file);
+      const formData = new FormData();
+      formData.append("image", file);
       const token = getCsrfToken();
       const headers = {};
       if (token) headers['X-CSRF-Token'] = token;
