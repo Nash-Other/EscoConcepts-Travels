@@ -177,8 +177,13 @@
   function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
   function showToast(message, type = "info") { if (window.showToast) window.showToast(message, type); else alert(message); }
 
-  // No localStorage token – use cookies + CSRF via apiRequest
+  // CSRF token helper (same as in ui.js)
+  function getCsrfToken() {
+    const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
+    return match ? match[2] : null;
+  }
 
+  // Admin API wrapper (uses credentials and adds CSRF for state-changing methods)
   async function apiRequestAdmin(path, options = {}) {
     const headers = { 'Content-Type': 'application/json' };
     const method = (options.method || 'GET').toUpperCase();
@@ -195,7 +200,6 @@
   // Check login status
   async function isAdminLoggedIn() {
     try {
-      // Try to fetch any admin-only resource – /api/bookings requires admin auth
       await apiRequestAdmin('/bookings?page=1&limit=1');
       return true;
     } catch(e) {
@@ -211,7 +215,12 @@
     const loggedIn = await isAdminLoggedIn();
     loginView.style.display = loggedIn ? "none" : "flex";
     dash.style.display = loggedIn ? "block" : "none";
-    if (loggedIn) loadBookings();
+    if (loggedIn) {
+      loadBookings();
+      loadServices();
+      loadContacts();
+      loadBlogs();
+    }
   }
 
   // ========== Login / Logout ==========
@@ -355,6 +364,7 @@
           <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
         </tr>`).join("")}</tbody></table>`;
       document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
+      // Use event delegation for edit/delete buttons (they are static after load)
       wrap.querySelectorAll(".edit-svc").forEach(b => b.onclick = () => editService(b.dataset.id));
       wrap.querySelectorAll(".del-svc").forEach(b => b.onclick = async () => {
         if (confirm("Delete this destination permanently?")) {
@@ -452,8 +462,47 @@
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
 
-  // ========== Blogs ==========
+  // ========== Blogs (with event delegation for edit/delete) ==========
   let blPage = 1, blTotalPages = 1;
+
+  // Global function to open blog form (used by delegation)
+  window.openBlogForm = async function(blogId) {
+    try {
+      const d = await apiRequestAdmin(`/blogs/${blogId}`);
+      const blog = d.data || d;
+      document.getElementById("blogModalTitle").innerText = blog.id ? "Edit Blog" : "New Article";
+      document.getElementById("blogId").value = blog.id || "";
+      document.getElementById("blogTitle").value = blog.title || "";
+      document.getElementById("blogAuthor").value = blog.author || "";
+      document.getElementById("blogImageUrl").value = blog.image_url || "";
+      document.getElementById("blogExcerpt").value = blog.excerpt || "";
+      if (currentQuill) currentQuill.root.innerHTML = blog.content || "";
+      else {
+        currentQuill = new Quill("#editor", { theme: "snow", modules: { toolbar: [
+          [{ header: [2, 3, false] }], ["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link", "image"], ["clean"]
+        ] } });
+        if (blog.content) currentQuill.root.innerHTML = blog.content;
+        currentQuill.getModule("toolbar").addHandler("image", () => {
+          const input = document.createElement("input"); input.type = "file"; input.accept = "image/*";
+          input.onchange = async () => {
+            if (!input.files[0]) return;
+            try {
+              const formData = new FormData(); formData.append("image", input.files[0]);
+              const token = getCsrfToken();
+              const headers = {};
+              if (token) headers['X-CSRF-Token'] = token;
+              const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
+              const data = await res.json();
+              if (data.url) currentQuill.insertEmbed(currentQuill.getSelection(true).index, "image", data.url);
+            } catch (e) { showToast(e.message, "error"); }
+          };
+          input.click();
+        });
+      }
+      openModal("blogModal");
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
   async function loadBlogs() {
     const wrap = document.getElementById("bl-table");
     wrap.innerHTML = `<div class="loading">Loading…</div>`;
@@ -474,53 +523,38 @@
           <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
         </tr>`).join("")}</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
-      wrap.querySelectorAll(".edit-blog").forEach(btn => btn.onclick = async () => {
-        try { const d = await apiRequestAdmin(`/blogs/${btn.dataset.id}`); openBlogForm(d.data || d); } catch (e) { showToast(e.message, "error"); }
-      });
-      wrap.querySelectorAll(".del-blog").forEach(btn => btn.onclick = async () => {
-        if (confirm("Delete this blog?")) {
-          try { await apiRequestAdmin(`/blogs/${btn.dataset.id}`, { method: "DELETE" }); loadBlogs(); showToast("Blog deleted", "success"); } catch (e) { showToast(e.message, "error"); }
-        }
-      });
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
+
+  // Event delegation for blog edit/delete buttons (attached to the table container)
+  const blTableContainer = document.getElementById("bl-table");
+  blTableContainer.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest(".edit-blog");
+    if (editBtn) {
+      const id = editBtn.dataset.id;
+      if (id) window.openBlogForm(id);
+      return;
+    }
+    const delBtn = e.target.closest(".del-blog");
+    if (delBtn) {
+      if (confirm("Delete this blog?")) {
+        const id = delBtn.dataset.id;
+        try {
+          await apiRequestAdmin(`/blogs/${id}`, { method: "DELETE" });
+          loadBlogs();
+          showToast("Blog deleted", "success");
+        } catch (e) { showToast(e.message, "error"); }
+      }
+      return;
+    }
+  });
+
   document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
   document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
   document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
-  document.getElementById("add-blog").onclick = () => openBlogForm();
+  document.getElementById("add-blog").onclick = () => window.openBlogForm(null);
 
-  function openBlogForm(blog = {}) {
-    document.getElementById("blogModalTitle").innerText = blog.id ? "Edit Blog" : "New Article";
-    document.getElementById("blogId").value = blog.id || "";
-    document.getElementById("blogTitle").value = blog.title || "";
-    document.getElementById("blogAuthor").value = blog.author || "";
-    document.getElementById("blogImageUrl").value = blog.image_url || "";
-    document.getElementById("blogExcerpt").value = blog.excerpt || "";
-    if (currentQuill) currentQuill.root.innerHTML = blog.content || "";
-    else {
-      currentQuill = new Quill("#editor", { theme: "snow", modules: { toolbar: [
-        [{ header: [2, 3, false] }], ["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link", "image"], ["clean"]
-      ] } });
-      if (blog.content) currentQuill.root.innerHTML = blog.content;
-      currentQuill.getModule("toolbar").addHandler("image", () => {
-        const input = document.createElement("input"); input.type = "file"; input.accept = "image/*";
-        input.onchange = async () => {
-          if (!input.files[0]) return;
-          try {
-            const formData = new FormData(); formData.append("image", input.files[0]);
-            const token = getCsrfToken(); // we need to send CSRF for upload
-            const headers = {};
-            if (token) headers['X-CSRF-Token'] = token;
-            const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
-            const data = await res.json();
-            if (data.url) currentQuill.insertEmbed(currentQuill.getSelection(true).index, "image", data.url);
-          } catch (e) { showToast(e.message, "error"); }
-        };
-        input.click();
-      });
-    }
-    openModal("blogModal");
-  }
+  // Blog form submit
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("blogId").value;
@@ -543,6 +577,7 @@
     finally { overlay.style.display = "none"; }
   });
 
+  // Image upload for blog cover
   document.getElementById("blogImageUrl")?.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
