@@ -110,7 +110,7 @@
   <div class="modal-container" style="max-width: 700px;">
     <div class="modal-header">
       <span class="modal-title" id="serviceModalTitle">Add Destination</span>
-      <button class="modal-close" onclick="closeModal('serviceModal')">&times;</button>
+      <button class="modal-close" onclick="window.closeModal('serviceModal')">&times;</button>
     </div>
     <div class="modal-body">
       <form id="svc-form">
@@ -127,7 +127,7 @@
           <div class="form-field"><label><input type="checkbox" id="svcActive" checked> Active</label></div>
         </div>
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
-          <button type="button" class="btn btn-outline" onclick="closeModal('serviceModal')">Cancel</button>
+          <button type="button" class="btn btn-outline" onclick="window.closeModal('serviceModal')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="svcSubmitBtn">Save</button>
         </div>
       </form>
@@ -140,7 +140,7 @@
   <div class="modal-container" style="max-width: 700px;">
     <div class="modal-header">
       <span class="modal-title" id="blogModalTitle">Add Blog</span>
-      <button class="modal-close" onclick="closeModal('blogModal')">&times;</button>
+      <button class="modal-close" onclick="window.closeModal('blogModal')">&times;</button>
     </div>
     <div class="modal-body">
       <form id="blog-form">
@@ -151,7 +151,7 @@
         <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
         <div class="form-field"><label>Content (HTML allowed)</label><textarea name="content" id="blogContent" rows="8" class="textarea"></textarea></div>
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
-          <button type="button" class="btn btn-outline" onclick="closeModal('blogModal')">Cancel</button>
+          <button type="button" class="btn btn-outline" onclick="window.closeModal('blogModal')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
         </div>
       </form>
@@ -284,7 +284,7 @@
             <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
           </td>
         </tr>`;
-      }).join("")}</tbody></table>`;
+      }).join("")}</tbody></tr>`;
       document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
@@ -352,7 +352,7 @@
         document.getElementById("svcItinerary").value = svc.itinerary || "";
         document.getElementById("svcGallery").value = (svc.gallery || []).join(", ");
         document.getElementById("svcActive").checked = svc.is_active !== false;
-        openModal('serviceModal');
+        window.openModal("serviceModal");
       } catch (err) { showToast(err.message, "error"); }
       return;
     }
@@ -381,7 +381,7 @@
     document.getElementById("svcItinerary").value = "";
     document.getElementById("svcGallery").value = "";
     document.getElementById("svcActive").checked = true;
-    openModal('serviceModal');
+    window.openModal("serviceModal");
   };
   document.getElementById("s-apply").onclick = () => { sPage = 1; loadServices(); };
   document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
@@ -404,7 +404,7 @@
     try {
       if (id) await apiRequestAdmin(`/admin/services/${id}`, { method: "PUT", body: JSON.stringify(payload) });
       else await apiRequestAdmin("/admin/services", { method: "POST", body: JSON.stringify(payload) });
-      closeModal('serviceModal');
+      window.closeModal("serviceModal");
       loadServices();
       showToast(id ? "Destination updated" : "Destination created", "success");
     } catch (err) { showToast(err.message, "error"); }
@@ -458,7 +458,7 @@
         document.getElementById("blogExcerpt").value = "";
         document.getElementById("blogContent").value = "";
       }
-      openModal('blogModal');
+      window.openModal("blogModal");
     } catch (err) {
       console.error("openBlogForm error:", err);
       showToast(err.message, "error");
@@ -490,11 +490,12 @@
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
+  // Event delegation for blog edit/delete
   document.getElementById("bl-table").addEventListener("click", async (e) => {
     const editBtn = e.target.closest(".edit-blog");
     if (editBtn) {
       const id = editBtn.dataset.id;
-      if (id) await openBlogForm(id);
+      await openBlogForm(id);
       return;
     }
     const delBtn = e.target.closest(".del-blog");
@@ -515,6 +516,7 @@
   document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
   document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
 
+  // Blog form submit
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("blogId").value;
@@ -528,12 +530,13 @@
     try {
       if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
       else await apiRequestAdmin("/blogs", { method: "POST", body: JSON.stringify(payload) });
-      closeModal('blogModal');
+      window.closeModal("blogModal");
       loadBlogs();
       showToast(id ? "Blog updated" : "Blog published", "success");
     } catch (err) { showToast(err.message, "error"); }
   });
 
+  // Image upload for blog cover
   document.getElementById("blogImageUrl")?.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -548,26 +551,6 @@
       if (data.url) document.getElementById("blogImageUrl").value = data.url;
     } catch (err) { showToast(err.message, "error"); }
   });
-
-  // Correct modal functions: use 'open' class on backdrop
-  function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.add('open');
-      document.body.style.overflow = 'hidden';
-      console.log("Modal opened (class added):", modalId);
-    } else {
-      console.error("Modal not found:", modalId);
-    }
-  }
-
-  function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.remove('open');
-      document.body.style.overflow = '';
-    }
-  }
 
   updateAdminView();
 </script>
