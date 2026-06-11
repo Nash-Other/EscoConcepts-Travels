@@ -246,9 +246,15 @@ function initHeader() {
   };
 })();
 
-// Auto‑init header
+// Auto‑init header and set current year in footer
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initHeader);
+  document.addEventListener('DOMContentLoaded', () => {
+    initHeader();
+    const yearSpan = document.getElementById('year');
+    if (yearSpan) yearSpan.textContent = new Date().getFullYear();
+  });
 } else {
   initHeader();
+  const yearSpan = document.getElementById('year');
+  if (yearSpan) yearSpan.textContent = new Date().getFullYear();
 }
