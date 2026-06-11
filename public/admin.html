@@ -110,7 +110,7 @@
   <div class="modal-container" style="max-width: 700px;">
     <div class="modal-header">
       <span class="modal-title" id="serviceModalTitle">Add Destination</span>
-      <button class="modal-close" onclick="window.closeModal('serviceModal')">&times;</button>
+      <button class="modal-close" id="closeServiceModalBtn">&times;</button>
     </div>
     <div class="modal-body">
       <form id="svc-form">
@@ -127,7 +127,7 @@
           <div class="form-field"><label><input type="checkbox" id="svcActive" checked> Active</label></div>
         </div>
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
-          <button type="button" class="btn btn-outline" onclick="window.closeModal('serviceModal')">Cancel</button>
+          <button type="button" class="btn btn-outline" id="cancelServiceBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="svcSubmitBtn">Save</button>
         </div>
       </form>
@@ -140,7 +140,7 @@
   <div class="modal-container" style="max-width: 700px;">
     <div class="modal-header">
       <span class="modal-title" id="blogModalTitle">Add Blog</span>
-      <button class="modal-close" onclick="window.closeModal('blogModal')">&times;</button>
+      <button class="modal-close" id="closeBlogModalBtn">&times;</button>
     </div>
     <div class="modal-body">
       <form id="blog-form">
@@ -151,7 +151,7 @@
         <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
         <div class="form-field"><label>Content (HTML allowed)</label><textarea name="content" id="blogContent" rows="8" class="textarea"></textarea></div>
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
-          <button type="button" class="btn btn-outline" onclick="window.closeModal('blogModal')">Cancel</button>
+          <button type="button" class="btn btn-outline" id="cancelBlogBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
         </div>
       </form>
@@ -466,7 +466,7 @@
         <td>${fmtDate(b.created_at)}</td>
         <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
         <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
-      </td>`).join("")}</tbody></table>`;
+      </tr>`).join("")}</tbody></table>`;
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
@@ -524,6 +524,12 @@
       if (data.url) document.getElementById("blogImageUrl").value = data.url;
     } catch (err) { window.showToast(err.message, "error"); }
   });
+
+  // Attach modal close event listeners (no inline onclick)
+  document.getElementById("closeServiceModalBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
+  document.getElementById("cancelServiceBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
+  document.getElementById("closeBlogModalBtn")?.addEventListener("click", () => window.closeModal("blogModal"));
+  document.getElementById("cancelBlogBtn")?.addEventListener("click", () => window.closeModal("blogModal"));
 
   updateAdminView();
 </script>
