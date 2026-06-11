@@ -114,19 +114,12 @@ const RICH_TEXT_SANITIZE_OPTIONS = {
 };
 
 // ==========================================
-// DATABASE POOL
+// DATABASE POOL (original working SSL config)
 // ==========================================
-const poolConfig = {
-  connectionString: process.env.DATABASE_URL
-};
-
-if (isProduction || process.env.DB_SSL === 'true') {
-  poolConfig.ssl = {
-    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' ? false : true
-  };
-}
-
-const pool = new Pool(poolConfig);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { require: true, rejectUnauthorized: false }
+});
 
 // ==========================================
 // RATE LIMITER (database backed)
