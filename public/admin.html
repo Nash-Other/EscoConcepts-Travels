@@ -6,6 +6,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 </head>
 <body style="background:var(--bg)">
@@ -135,9 +136,9 @@
   </div>
 </div>
 
-<!-- Blog Modal (Add/Edit) – uses simple textarea -->
+<!-- Blog Modal (Add/Edit) – uses Quill rich text editor -->
 <div id="blogModal" class="modal-overlay">
-  <div class="modal-container" style="max-width: 700px;">
+  <div class="modal-container" style="max-width: 900px;">
     <div class="modal-header">
       <span class="modal-title" id="blogModalTitle">Add Blog</span>
       <button class="modal-close" id="closeBlogModalBtn">&times;</button>
@@ -149,7 +150,10 @@
         <div class="form-field"><label>Author</label><input name="author" id="blogAuthor" class="input"></div>
         <div class="form-field"><label>Cover image URL</label><input name="image_url" id="blogImageUrl" class="input"></div>
         <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
-        <div class="form-field"><label>Content (HTML allowed)</label><textarea name="content" id="blogContent" rows="8" class="textarea"></textarea></div>
+        <div class="form-field"><label>Content (rich text)</label>
+          <div id="editor" style="height: 400px; background: white;"></div>
+          <textarea name="content" id="blogContent" style="display:none;"></textarea>
+        </div>
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
           <button type="button" class="btn btn-outline" id="cancelBlogBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
@@ -159,6 +163,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
 <script src="ui.js"></script>
 <script>
   // ========== Helper functions ==========
@@ -240,7 +245,7 @@
     });
   });
 
-  // ========== Bookings ==========
+  // ========== Bookings (unchanged, uses existing loadBookings) ==========
   let bPage = 1, bTotalPages = 1;
   async function loadBookings() {
     const wrap = document.getElementById("b-table");
@@ -299,7 +304,7 @@
   document.getElementById("b-prev").onclick = () => { if (bPage > 1) { bPage--; loadBookings(); } };
   document.getElementById("b-next").onclick = () => { if (bPage < bTotalPages) { bPage++; loadBookings(); } };
 
-  // ========== Services ==========
+  // ========== Services (unchanged) ==========
   let sPage = 1, sTotalPages = 1;
   async function loadServices() {
     const wrap = document.getElementById("s-table");
@@ -313,7 +318,7 @@
       const pagination = data.pagination || { totalPages: 1, currentPage: sPage };
       sTotalPages = pagination.totalPages;
       if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
-      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th></tr></thead><tbody>${list.map(s => `<tr>
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th><tr></thead><tbody>${list.map(s => `<tr>
         <td>${escapeHtml(s.title || "")}</td>
         <td>${escapeHtml(s.destination || "")}</td>
         <td>${fmtPrice(s.base_price)}</td>
@@ -399,7 +404,7 @@
     } catch (err) { window.showToast(err.message, "error"); }
   });
 
-  // ========== Contacts ==========
+  // ========== Contacts (unchanged) ==========
   let cPage = 1, cTotalPages = 1;
   async function loadContacts() {
     const wrap = document.getElementById("c-table");
@@ -422,8 +427,57 @@
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
 
-  // ========== Blogs ==========
+  // ========== Blogs with Quill ==========
   let blPage = 1, blTotalPages = 1;
+  let quillEditor = null;
+
+  async function initQuill(content) {
+    if (quillEditor) {
+      quillEditor.root.innerHTML = content || "";
+      return;
+    }
+    quillEditor = new Quill('#editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, 3, 4, 5, 6, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ color: [] }, { background: [] }],
+          [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+          ['link', 'image', 'video'],
+          ['clean']
+        ]
+      },
+      placeholder: 'Write your blog content here...'
+    });
+    if (content) quillEditor.root.innerHTML = content;
+    // Add custom image upload handler (optional – uses default base64, but you can replace with server upload)
+    const toolbar = quillEditor.getModule('toolbar');
+    toolbar.addHandler('image', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        try {
+          const formData = new FormData();
+          formData.append('image', file);
+          const token = getCsrfToken();
+          const headers = {};
+          if (token) headers['X-CSRF-Token'] = token;
+          const res = await fetch('/api/upload', { method: 'POST', headers, body: formData, credentials: 'include' });
+          const data = await res.json();
+          if (data.url) {
+            const range = quillEditor.getSelection(true);
+            quillEditor.insertEmbed(range.index, 'image', data.url);
+          }
+        } catch (err) { window.showToast(err.message, 'error'); }
+      };
+      input.click();
+    });
+  }
+
   async function openBlogForm(blogId) {
     try {
       if (blogId) {
@@ -435,7 +489,7 @@
         document.getElementById("blogAuthor").value = blog.author || "";
         document.getElementById("blogImageUrl").value = blog.image_url || "";
         document.getElementById("blogExcerpt").value = blog.excerpt || "";
-        document.getElementById("blogContent").value = blog.content || "";
+        await initQuill(blog.content || "");
       } else {
         document.getElementById("blogModalTitle").innerText = "New Article";
         document.getElementById("blogId").value = "";
@@ -443,11 +497,12 @@
         document.getElementById("blogAuthor").value = "";
         document.getElementById("blogImageUrl").value = "";
         document.getElementById("blogExcerpt").value = "";
-        document.getElementById("blogContent").value = "";
+        await initQuill("");
       }
       window.openModal("blogModal");
     } catch (err) { window.showToast(err.message, "error"); }
   }
+
   async function loadBlogs() {
     const wrap = document.getElementById("bl-table");
     wrap.innerHTML = `<div class="loading">Loading…</div>`;
@@ -470,6 +525,7 @@
       document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
+
   document.getElementById("bl-table").addEventListener("click", async (e) => {
     const editBtn = e.target.closest(".edit-blog");
     if (editBtn) {
@@ -488,6 +544,7 @@
       }
     }
   });
+
   document.getElementById("add-blog").onclick = () => openBlogForm(null);
   document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
   document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
@@ -495,12 +552,13 @@
   document.getElementById("blog-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("blogId").value;
+    const content = quillEditor ? quillEditor.root.innerHTML : "";
     const payload = {
       title: document.getElementById("blogTitle").value,
       author: document.getElementById("blogAuthor").value,
       image_url: document.getElementById("blogImageUrl").value,
       excerpt: document.getElementById("blogExcerpt").value,
-      content: document.getElementById("blogContent").value
+      content: content
     };
     try {
       if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -525,7 +583,7 @@
     } catch (err) { window.showToast(err.message, "error"); }
   });
 
-  // Attach modal close event listeners (no inline onclick)
+  // Modal close buttons
   document.getElementById("closeServiceModalBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
   document.getElementById("cancelServiceBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
   document.getElementById("closeBlogModalBtn")?.addEventListener("click", () => window.closeModal("blogModal"));
