@@ -1,5 +1,5 @@
 // ui.js - Centralised helper functions and UI components
-// Uses httpOnly cookies for authentication + CSRF token (only for state‑changing methods)
+// Now ensures window.openModal and window.closeModal are defined.
 
 // ========== SHARED HELPERS ==========
 function escapeHtml(str) {
@@ -88,7 +88,7 @@ function showAlert(element, msg, kind = "error") {
   if (kind === "success") setTimeout(() => { element.innerHTML = ""; }, 6000);
 }
 
-// Toast notification
+// Simple toast that does not recursively call itself
 function showToast(message, type = "info") {
   const existing = document.querySelector('.custom-toast');
   if (existing) existing.remove();
@@ -113,22 +113,41 @@ function getCsrfToken() {
 async function apiRequest(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const method = (options.method || 'GET').toUpperCase();
-  
-  // Only add CSRF token for POST, PUT, DELETE, PATCH
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
     const csrf = getCsrfToken();
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
-  
   const res = await fetch(`/api${path}`, {
     ...options,
     headers: { ...headers, ...options.headers },
-    credentials: 'include'  // send cookies
+    credentials: 'include'
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;
 }
+
+// ========== MODAL HELPERS ==========
+function openModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (modal) {
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (modal) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+}
+
+// Make them global
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.showToast = showToast;
 
 // ========== UI INITIALISATION ==========
 function initHeader() {
@@ -207,15 +226,6 @@ function initHeader() {
       if (!dropdown.contains(e.target)) menu.classList.remove('open');
     });
   });
-
-  // Toasts container (global)
-  let toastContainer = document.querySelector('.toast-container');
-  if (!toastContainer) {
-    toastContainer = document.createElement('div');
-    toastContainer.className = 'toast-container';
-    document.body.appendChild(toastContainer);
-  }
-  window.showToast = showToast;
 
   // Tooltips
   document.querySelectorAll('[data-tooltip]').forEach(el => {
