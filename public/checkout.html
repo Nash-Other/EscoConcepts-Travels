@@ -85,6 +85,27 @@
           <input type="tel" name="mpesaPhone" id="mpesaPhone" placeholder="0712345678" class="input">
           <small style="display:block; margin-top:0.25rem; color:var(--ink-soft);">You will receive an STK push to this number to complete payment.</small>
         </div>
+
+        <!-- INJECTED LIVE PRICE CALCULATION SECTION -->
+        <div id="price-calc-wrap" class="form-field full" style="display: none; background: #fcfaf7; border: 2px solid var(--gold, #d4af37); padding: 1.5rem; border-radius: 0.75rem; margin-top: 1rem;">
+          <h4 style="margin: 0 0 1rem 0; color: var(--ink); font-size: 1.1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
+            <span>Investment Summary</span>
+            <span style="font-size: 0.9rem; font-weight: 400; color: var(--ink-soft);">Guaranteed Rate</span>
+          </h4>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--ink-soft);">
+            <span>Base Rate (per person):</span>
+            <span id="calc-base" style="font-weight: 600; color: var(--ink);">KES 0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; color: var(--ink-soft);">
+            <span>Guests Selected:</span>
+            <span id="calc-pax" style="font-weight: 600; color: var(--ink);">1 Guest</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--line); padding-top: 0.75rem; font-size: 1.25rem; font-weight: 700;">
+            <span style="color: var(--ink);">Total Safari Investment:</span>
+            <span id="calc-total" style="color: var(--gold-dark, #b8860b);">KES 0</span>
+          </div>
+        </div>
+
       </div>
       <div id="form-msg"></div>
       <button class="btn btn-gold btn-block" type="submit" id="submit-btn">Confirm Booking</button>
@@ -103,8 +124,6 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic uses global helpers: escapeHtml, safeUrl, fmtPrice, showAlert, isValidEmail, apiRequest, isCustomerLoggedIn, getCustomerToken, setCustomerToken
-
   const pkgId = new URLSearchParams(window.location.search).get("package");
   const summary = document.getElementById("pkg-summary");
   const paxSel = document.getElementById("pax");
@@ -112,7 +131,6 @@
   const msg = document.getElementById("form-msg");
   let pkg = null;
 
-  // Payment method toggle
   const paymentMethodSelect = document.getElementById("paymentMethod");
   const cardFields = document.getElementById("card-fields");
   const mpesaFields = document.getElementById("mpesa-fields");
@@ -149,7 +167,6 @@
   }
   function closeModal() { const b = document.getElementById("checkoutModal"); if (b) { b.classList.remove("open"); document.body.style.overflow = ""; } }
 
-  // Pre-fill user data if logged in
   async function prefillUserData() {
     if (!isCustomerLoggedIn()) return;
     try {
@@ -164,6 +181,22 @@
     }
   }
 
+  // INJECTED: Dynamic total math handler
+  function updateLiveCalculation() {
+    if (!pkg) return;
+    const baseRate = Number(pkg.base_price) || 0;
+    const guestCount = Number(paxSel.value) || 1;
+    const totalInvestment = baseRate * guestCount;
+
+    document.getElementById("calc-base").textContent = fmtPrice(baseRate);
+    document.getElementById("calc-pax").textContent = guestCount + (guestCount === 1 ? " Guest" : " Guests");
+    document.getElementById("calc-total").textContent = fmtPrice(totalInvestment);
+    document.getElementById("price-calc-wrap").style.display = "block";
+  }
+
+  // Hook listener to dropdown
+  paxSel.addEventListener("change", updateLiveCalculation);
+
   async function loadPkg() {
     if (!pkgId) { summary.innerHTML = `<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display = "none"; return; }
     try {
@@ -174,7 +207,7 @@
       if (!pkg) throw new Error("Package not found");
       const img = safeUrl(pkg.image_url) || "";
       summary.innerHTML = `<div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:.75rem">` : ""}<div style="flex:1;min-width:200px"><span class="eyebrow">${escapeHtml(pkg.destination||"Kenya")}</span><h3 style="margin:.25rem 0">${escapeHtml(pkg.title)}</h3><div style="color:var(--gold-dark);font-weight:700">${fmtPrice(pkg.base_price)} per person</div></div></div>`;
-      // Cap guest dropdown at 10, even if max_pax is larger
+      
       const maxAllowed = Math.min(Number(pkg.max_pax) || 10, 10);
       paxSel.innerHTML = Array.from({ length: maxAllowed }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join("");
       if (maxAllowed < (pkg.max_pax || 0)) {
@@ -185,6 +218,7 @@
         note.innerHTML = `This package can accommodate up to ${pkg.max_pax} guests, but for online bookings we only accept up to 10. <a href="contact.html">Contact us</a> for larger groups.`;
         paxSel.parentNode.appendChild(note);
       }
+      
       const travelDateInput = document.getElementById("travelDate");
       const returnDateInput = document.getElementById("returnDate");
       const today = new Date().toISOString().slice(0,10);
@@ -195,10 +229,13 @@
           if (returnDateInput.value && returnDateInput.value < travelDateInput.value) returnDateInput.value = travelDateInput.value;
         }
       });
+
+      // Trigger calculation instantly on load lock-in
+      updateLiveCalculation();
+
     } catch(e) { summary.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; form.style.display = "none"; }
   }
 
-  // Load package, then prefill user data
   loadPkg().then(() => prefillUserData()).then(() => togglePaymentFields());
 
   form.addEventListener("submit", async (e) => {
@@ -208,19 +245,21 @@
     const payload = Object.fromEntries(fd.entries());
     payload.pax = Number(payload.pax);
     payload.service_id = pkg.service_id;
+    
+    // Explicitly lock the live calculated math into the outgoing request payload
+    payload.total_amount = (Number(pkg.base_price) || 0) * payload.pax;
+
     if (!isValidEmail(payload.email)) return showAlert(msg, "Please enter a valid email.");
     if (payload.pax > 10) return showAlert(msg, "For groups larger than 10, please contact us directly.");
     if (payload.pax > Number(pkg.max_pax||99)) return showAlert(msg, `This package allows up to ${pkg.max_pax} guests.`);
     if (payload.travelDate && payload.returnDate && payload.returnDate < payload.travelDate) {
       return showAlert(msg, "Return date cannot be before travel date.");
     }
-    // Validate payment method specific fields
     if (payload.paymentMethod === "mpesa") {
       const mpesaPhone = payload.mpesaPhone;
       if (!mpesaPhone || !/^[0-9]{9,12}$/.test(mpesaPhone.replace(/\D/g, ''))) {
         return showAlert(msg, "Please enter a valid M-Pesa phone number (e.g., 0712345678).");
       }
-      // Normalize phone number to a standard format (optional)
       payload.mpesaPhone = mpesaPhone.replace(/\D/g, '');
     }
     const btn = document.getElementById("submit-btn"); btn.disabled = true; btn.textContent = "Submitting…";
@@ -232,13 +271,14 @@
       const ref = data.bookingReference || data.reference || data.booking_reference || "—";
       openModal(`<div class="modal-body" style="text-align:center"><h2>Booking received!</h2><p>Thank you, ${escapeHtml(payload.firstName)}. We'll be in touch shortly to confirm your safari.</p><p>Your booking reference:</p><div style="font-family:monospace;font-size:1.3rem;background:var(--bg-soft);padding:1rem;border-radius:.5rem;margin:1rem 0">${escapeHtml(String(ref))}</div><a href="account.html" class="btn btn-gold">View My Bookings</a></div>`);
       form.reset();
-      // Reset conditional fields visibility
       togglePaymentFields();
+      updateLiveCalculation(); // reset live calc box
     } catch(err) { showAlert(msg, err.message); }
     finally { btn.disabled = false; btn.textContent = "Confirm Booking"; }
   });
 
-  document.getElementById("y").textContent = new Date().getFullYear();
+  // Fixed footer year ID selector
+  document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 </body>
 </html>

@@ -478,6 +478,9 @@ const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+// ==========================================
+// RESTORED: Explicit R2 Console Log Confirmation
+// ==========================================
 let s3;
 if (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
   s3 = new S3Client({
@@ -488,6 +491,9 @@ if (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     },
   });
+  console.log('Cloudflare R2 S3Client configured successfully.'); // <-- RESTORED HEARTBEAT
+} else {
+  console.warn('Cloudflare R2 credentials missing. Uploads fall back to local disk storage.');
 }
 
 const fileFilter = (req, file, cb) => {
@@ -627,8 +633,6 @@ app.put('/api/bookings/cancel/:id', authenticateCustomer, csrfProtection, asyncH
 // ==========================================
 // SECURED CUSTOMER REVIEW MANAGEMENT
 // ==========================================
-
-// 1. Check eligibility (Strict 'Completed' status check)
 app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
   const serviceId = parseRouteId(req.params.service_id);
   const check = await pool.query(
@@ -638,7 +642,6 @@ app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandle
   res.json({ success: true, canReview: check.rows.length > 0 });
 }));
 
-// 2. Fetch all existing reviews written by this specific customer
 app.get('/api/reviews/my-reviews', authenticateCustomer, asyncHandler(async (req, res) => {
   const result = await pool.query(`
     SELECT r.*, s.title AS service_title, s.image_url 
@@ -650,7 +653,6 @@ app.get('/api/reviews/my-reviews', authenticateCustomer, asyncHandler(async (req
   res.json({ success: true, reviews: result.rows });
 }));
 
-// 3. Create or Upsert Review (Backend Gatekeeper enforced)
 app.post('/api/reviews', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const { service_id, rating, comment } = req.body;
   const parsedServiceId = parseRouteId(service_id);
@@ -660,7 +662,6 @@ app.post('/api/reviews', authenticateCustomer, csrfProtection, asyncHandler(asyn
     return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
   }
 
-  // Gatekeeper: Reject if they haven't officially completed this trip
   const check = await pool.query(
     `SELECT booking_id FROM bookings WHERE user_id = $1 AND service_id = $2 AND status = 'Completed' LIMIT 1`,
     [req.user.userId, parsedServiceId]
@@ -682,7 +683,6 @@ app.post('/api/reviews', authenticateCustomer, csrfProtection, asyncHandler(asyn
   res.json({ success: true, review: result.rows[0] });
 }));
 
-// 4. Secured PUT update for an existing review
 app.put('/api/reviews/my-reviews/:review_id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const { rating, comment } = req.body;
   const reviewId = parseRouteId(req.params.review_id);
@@ -708,7 +708,6 @@ app.put('/api/reviews/my-reviews/:review_id', authenticateCustomer, csrfProtecti
   res.json({ success: true, review: result.rows[0] });
 }));
 
-// 5. Secured Customer-scoped Delete
 app.delete('/api/reviews/my-reviews/:review_id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
   const reviewId = parseRouteId(req.params.review_id);
   const result = await pool.query(
@@ -723,7 +722,6 @@ app.delete('/api/reviews/my-reviews/:review_id', authenticateCustomer, csrfProte
   res.json({ success: true });
 }));
 
-// Public review helpers
 app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
   const result = await pool.query('SELECT r.*, u.first_name, u.last_name FROM reviews r JOIN users u ON r.user_id=u.user_id ORDER BY RANDOM() LIMIT 1');
   res.json({ success: true, review: result.rows[0] || null });
