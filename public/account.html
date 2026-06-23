@@ -131,7 +131,6 @@
 
 <section>
   <div class="container">
-    <!-- Auth View -->
     <div id="auth-view" style="display:none">
       <div class="auth-card">
         <div class="auth-toggle">
@@ -158,7 +157,6 @@
         </form>
       </div>
     </div>
-    <!-- Profile + Bookings View -->
     <div id="account-view" style="display:none">
       <div class="profile-grid">
         <div class="profile-card">
@@ -178,15 +176,21 @@
           <div id="bookings"><div class="loading">Loading…</div></div>
         </div>
       </div>
+      <div class="reviews-section" style="margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 2rem;">
+        <h3>My Verified Reviews</h3>
+        <p style="color: var(--ink-soft); font-size: 0.95rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">
+          Manage your published safari dispatches and ratings. Only completed safaris are eligible for review.
+        </p>
+        <div id="my-reviews"><div class="loading">Loading reviews…</div></div>
+      </div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- Modal for writing a review -->
 <div id="reviewModal" class="modal-overlay" style="display: none;">
   <div class="modal-container" style="max-width: 500px;">
     <div class="modal-header">
-      <span class="modal-title">Write a Review</span>
+      <span class="modal-title" id="reviewModalTitle">Write a Review</span>
       <button class="modal-close" id="closeReviewModalBtn">&times;</button>
     </div>
     <div class="modal-body">
@@ -214,7 +218,6 @@
   </div>
 </div>
 
-<!-- Modal for invoice preview -->
 <div id="invoiceModal" class="modal-overlay" style="display: none;">
   <div class="modal-container" style="max-width: 750px;">
     <div class="modal-header">
@@ -243,13 +246,9 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic uses global helpers from ui.js
-  // No token storage – all auth via cookies + CSRF
-
   const authView = document.getElementById("auth-view");
   const accountView = document.getElementById("account-view");
 
-  // Helper to check if logged in by attempting to fetch profile
   async function isLoggedIn() {
     try {
       await apiRequest("/auth/me");
@@ -321,27 +320,50 @@
     try {
       await apiRequest("/auth/profile", { method: "PUT", body: JSON.stringify(payload) });
       showAlert(document.getElementById("profile-msg"), "Profile updated", "success");
-      updateAuthView(); // refresh profile data
+      updateAuthView();
     } catch(err) { showAlert(document.getElementById("profile-msg"), err.message); }
   });
 
+  // Upgraded Smart Review Modal Drivers
   let currentReviewBooking = null;
+  let currentEditingReviewId = null;
   const reviewModal = document.getElementById("reviewModal");
+
   function openReviewModal(booking) {
     if (!reviewModal) {
       showToast("Modal not found. Please refresh.", "error");
       return;
     }
     currentReviewBooking = booking;
+    currentEditingReviewId = null;
+    document.getElementById("reviewModalTitle").innerText = "Write a Review";
     document.getElementById("reviewPackageName").innerText = `"${escapeHtml(booking.package_name || 'Safari Package')}"`;
     document.getElementById("reviewRating").value = "5";
     document.getElementById("reviewComment").value = "";
     document.getElementById("reviewMsg").innerHTML = "";
+    document.getElementById("submitReviewBtn").innerText = "Submit Review";
     reviewModal.style.display = "flex";
     reviewModal.style.opacity = "1";
     reviewModal.style.visibility = "visible";
     reviewModal.style.pointerEvents = "auto";
   }
+
+  function openEditReviewModal(reviewObj) {
+    if (!reviewModal) return;
+    currentReviewBooking = { service_id: reviewObj.service_id, package_name: reviewObj.service_title || "Safari Package" };
+    currentEditingReviewId = reviewObj.review_id;
+    document.getElementById("reviewModalTitle").innerText = "Edit Verified Review";
+    document.getElementById("reviewPackageName").innerText = `"${escapeHtml(currentReviewBooking.package_name)}"`;
+    document.getElementById("reviewRating").value = String(reviewObj.rating || 5);
+    document.getElementById("reviewComment").value = reviewObj.comment || "";
+    document.getElementById("reviewMsg").innerHTML = "";
+    document.getElementById("submitReviewBtn").innerText = "Update Review";
+    reviewModal.style.display = "flex";
+    reviewModal.style.opacity = "1";
+    reviewModal.style.visibility = "visible";
+    reviewModal.style.pointerEvents = "auto";
+  }
+
   function closeReviewModal() { if (reviewModal) reviewModal.style.display = "none"; }
   const closeBtn = document.getElementById("closeReviewModalBtn");
   const cancelBtn = document.getElementById("cancelReviewBtn");
@@ -350,6 +372,7 @@
   if (reviewModal) {
     reviewModal.addEventListener("click", (e) => { if(e.target === reviewModal) closeReviewModal(); });
   }
+
   document.getElementById("submitReviewBtn").onclick = async () => {
     if (!currentReviewBooking) return;
     const rating = parseInt(document.getElementById("reviewRating").value);
@@ -357,13 +380,21 @@
     const msgDiv = document.getElementById("reviewMsg");
     msgDiv.innerHTML = "";
     try {
-      await apiRequest("/reviews", {
-        method: "POST",
-        body: JSON.stringify({ service_id: currentReviewBooking.service_id, rating, comment })
-      });
-      showToast("Thank you for your review!", "success");
+      if (currentEditingReviewId) {
+        await apiRequest(`/reviews/my-reviews/${currentEditingReviewId}`, {
+          method: "PUT",
+          body: JSON.stringify({ rating, comment })
+        });
+        showToast("Review updated successfully!", "success");
+      } else {
+        await apiRequest("/reviews", {
+          method: "POST",
+          body: JSON.stringify({ service_id: currentReviewBooking.service_id, rating, comment })
+        });
+        showToast("Thank you for your review!", "success");
+      }
       closeReviewModal();
-      loadAccount();
+      loadAccount(); // Refresh both bookings and reviews grid
     } catch (err) {
       msgDiv.innerHTML = `<div class="alert error">${escapeHtml(err.message)}</div>`;
     }
@@ -488,6 +519,60 @@
     invoiceModal.addEventListener("click", (e) => { if (e.target === invoiceModal) closeInvoiceModal(); });
   }
 
+  // Active Review Ledger Cache
+  let myCurrentReviewsList = [];
+
+  async function loadMyReviews() {
+    const wrap = document.getElementById("my-reviews");
+    if (!wrap) return;
+    try {
+      const data = await apiRequest("/reviews/my-reviews");
+      myCurrentReviewsList = data.reviews || [];
+      if (!myCurrentReviewsList.length) {
+        wrap.innerHTML = `<div class="empty">No verified reviews published yet. Complete a safari booking to share your experience!</div>`;
+        return;
+      }
+      wrap.innerHTML = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">` + myCurrentReviewsList.map(r => `
+        <div class="card" style="padding: 1.5rem; background: var(--card, #fff); border: 1px solid var(--line, #e2e8f0); border-radius: var(--radius-sm, 8px); box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <span style="color: var(--gold, #d4af37); font-size: 1.25rem;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+              <small style="color: var(--ink-soft, #718096); font-size: 0.85rem;">${fmtDate(r.created_at)}</small>
+            </div>
+            <h4 style="margin: 0 0 0.5rem 0; color: var(--ink, #1a202c); font-weight: 700; font-size: 1.05rem;">${escapeHtml(r.service_title || "Safari Package")}</h4>
+            <p style="margin: 0; color: var(--ink-soft, #4a5568); font-size: 0.95rem; line-height: 1.5; font-style: italic;">"${escapeHtml(r.comment)}"</p>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem; border-top: 1px solid var(--line, #e2e8f0); padding-top: 1rem;">
+            <button class="btn btn-sm btn-outline edit-review-btn" data-id="${r.review_id}">Edit</button>
+            <button class="btn btn-sm del-review-btn" data-id="${r.review_id}" style="background: #b00020; color: #fff; border: none;">Delete</button>
+          </div>
+        </div>
+      `).join("") + `</div>`;
+
+      wrap.querySelectorAll(".edit-review-btn").forEach(btn => {
+        btn.onclick = () => {
+          const targetRev = myCurrentReviewsList.find(item => item.review_id == btn.dataset.id);
+          if (targetRev) openEditReviewModal(targetRev);
+        };
+      });
+
+      wrap.querySelectorAll(".del-review-btn").forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm("Permanently delete this verified review?")) return;
+          try {
+            await apiRequest(`/reviews/my-reviews/${btn.dataset.id}`, { method: "DELETE" });
+            showToast("Review deleted successfully", "success");
+            loadAccount();
+          } catch(err) {
+            showToast(err.message, "error");
+          }
+        };
+      });
+    } catch(e) {
+      wrap.innerHTML = `<div class="empty" style="color: #b00020;">Failed to load reviews: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
   async function loadAccount() {
     try {
       const me = await apiRequest("/auth/me");
@@ -498,6 +583,8 @@
       f.email.value = u.email || "";
       f.phone.value = u.phone || "";
     } catch(e) { updateAuthView(); return; }
+
+    await loadMyReviews(); // Populate verified reviews grid
 
     const wrap = document.getElementById("bookings");
     try {
@@ -521,7 +608,9 @@
         const total = b.total_amount || "";
         const guestName = (b.guest_first_name||"") + " " + (b.guest_last_name||"");
         const alreadyReviewed = reviewedStatus[b.service_id] || false;
-        const showReviewButton = (status === "completed") && !alreadyReviewed && b.service_id;
+        const showWriteButton = (status === "completed") && !alreadyReviewed && b.service_id;
+        const showManageButton = (status === "completed") && alreadyReviewed && b.service_id;
+
         return `
           <div class="booking-item" data-id="${b.booking_id}" 
                data-ref="${escapeHtml(String(ref))}" 
@@ -547,7 +636,8 @@
               ${status==="pending" ? `<button class="btn btn-sm cancel-btn">Cancel Booking</button>` : ""}
               <button class="btn btn-sm btn-ghost pdf-btn">Preview & Download Invoice</button>
               <button class="btn btn-sm btn-ghost email-btn">Email Receipt</button>
-              ${showReviewButton ? `<button class="btn btn-sm btn-primary review-btn">Write a Review</button>` : (status==="completed" && alreadyReviewed ? `<span class="badge badge-outline">Reviewed</span>` : "")}
+              ${showWriteButton ? `<button class="btn btn-sm btn-primary review-btn">Write a Review</button>` : ""}
+              ${showManageButton ? `<button class="btn btn-sm btn-outline manage-booking-review-btn">★ Manage Review</button>` : ""}
             </div>
           </div>`;
       }).join("");
@@ -594,12 +684,20 @@
             if(booking) openReviewModal(booking);
           };
         }
+        const manageBtn = el.querySelector(".manage-booking-review-btn");
+        if(manageBtn) {
+          manageBtn.onclick = () => {
+            const serviceId = el.dataset.serviceId;
+            const existingRev = myCurrentReviewsList.find(r => r.service_id == serviceId);
+            if (existingRev) openEditReviewModal(existingRev);
+          };
+        }
       });
     } catch(e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
   updateAuthView();
-  document.getElementById("y").textContent = new Date().getFullYear();
+  document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 </body>
 </html>

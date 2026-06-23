@@ -1,4 +1,4 @@
-require('dotenv').config(); // <-- THE MISSING SKELETON KEY
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
@@ -23,7 +23,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// Helmet with relaxed CSP to allow external images, R2 storage, and Quill CDN
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -69,7 +68,6 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
-// Serve local uploads as fallback
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, filePath) => {
     res.set('X-Content-Type-Options', 'nosniff');
@@ -116,17 +114,11 @@ const RICH_TEXT_SANITIZE_OPTIONS = {
   }
 };
 
-// ==========================================
-// DATABASE POOL (Working SSL config)
-// ==========================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { require: true, rejectUnauthorized: false }
 });
 
-// ==========================================
-// RATE LIMITER (Database backed)
-// ==========================================
 function createRateLimiter({ windowMs, max }) {
   return async function rateLimiterMiddleware(req, res, next) {
     const key = `${req.ip}:${req.path}`;
@@ -194,9 +186,6 @@ function createRateLimiter({ windowMs, max }) {
   };
 }
 
-// ==========================================
-// DATABASE INITIALIZATION
-// ==========================================
 async function initializeDatabase() {
   const client = await pool.connect();
   try {
@@ -342,9 +331,6 @@ async function initializeDatabase() {
   }
 }
 
-// ==========================================
-// HELPER FUNCTIONS
-// ==========================================
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -385,42 +371,6 @@ function parseRouteId(value) {
   return parsePositiveInteger(value);
 }
 
-function parseBoolean(value, fallback = false) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
-  }
-  return fallback;
-}
-
-function isValidIsoDateString(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day;
-}
-
-function cleanOptionalUrl(value) {
-  const text = String(value || '').trim();
-  if (!text) return null;
-  try {
-    const url = new URL(text, APP_URL);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
-    return text.startsWith('/') ? `${url.pathname}${url.search}${url.hash}` : url.href;
-  } catch (err) {
-    return null;
-  }
-}
-
-function cleanGallery(value) {
-  if (!Array.isArray(value)) return [];
-  return value.map(cleanOptionalUrl).filter(Boolean).slice(0, 25);
-}
-
 function sanitizeRichText(value) {
   return sanitizeHtml(String(value || ''), RICH_TEXT_SANITIZE_OPTIONS).trim();
 }
@@ -442,7 +392,7 @@ function getPagination(query, defaultLimit = 10, maxLimit = 50) {
 }
 
 async function sendEmail(to, subject, html) {
-  if (!process.env.RESEND_API_KEY) return;
+  if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.startsWith('re_local')) return;
   try {
     await resend.emails.send({
       from: FROM_EMAIL,
@@ -475,9 +425,6 @@ async function generateUniqueSlug(baseTitle, currentId = null) {
   return unique;
 }
 
-// ==========================================
-// CSRF PROTECTION
-// ==========================================
 function generateCsrfToken() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -507,9 +454,6 @@ function csrfProtection(req, res, next) {
   next();
 }
 
-// ==========================================
-// AUTHENTICATION MIDDLEWARE
-// ==========================================
 function authenticateCustomer(req, res, next) {
   let token = req.cookies.token || getBearerToken(req);
   if (!token) return res.status(401).json({ success: false, message: 'No token.' });
@@ -534,9 +478,6 @@ const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-// ==========================================
-// CLOUDFLARE R2 / MULTER SETUP
-// ==========================================
 let s3;
 if (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
   s3 = new S3Client({
@@ -547,9 +488,6 @@ if (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     },
   });
-  console.log('Cloudflare R2 S3Client configured successfully.');
-} else {
-  console.warn('Cloudflare R2 credentials missing. Uploads will fall back to local disk storage.');
 }
 
 const fileFilter = (req, file, cb) => {
@@ -564,7 +502,6 @@ const fileFilter = (req, file, cb) => {
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-// Hybrid stream: Uses R2 if credentials exist, otherwise falls back to local uploads/ directory
 const storage = s3 ? multerS3({
   s3: s3,
   bucket: process.env.R2_BUCKET_NAME || 'escoconcepts-travels',
@@ -585,9 +522,6 @@ const storage = s3 ? multerS3({
 
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter });
 
-// ==========================================
-// RATE LIMITER INSTANCES
-// ==========================================
 const authRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
 const adminRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 const contactRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5 });
@@ -595,7 +529,7 @@ const checkoutRateLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 10 
 const uploadRateLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
 
 // ==========================================
-// ROUTES
+// AUTH & USER ROUTES
 // ==========================================
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('token', getAuthCookieOptions(0));
@@ -690,12 +624,132 @@ app.put('/api/bookings/cancel/:id', authenticateCustomer, csrfProtection, asyncH
   res.json({ success: true });
 }));
 
-app.post('/api/bookings/receipt/:id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
+// ==========================================
+// SECURED CUSTOMER REVIEW MANAGEMENT
+// ==========================================
+
+// 1. Check eligibility (Strict 'Completed' status check)
+app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
+  const serviceId = parseRouteId(req.params.service_id);
+  const check = await pool.query(
+    `SELECT booking_id FROM bookings WHERE user_id = $1 AND service_id = $2 AND status = 'Completed' LIMIT 1`,
+    [req.user.userId, serviceId]
+  );
+  res.json({ success: true, canReview: check.rows.length > 0 });
+}));
+
+// 2. Fetch all existing reviews written by this specific customer
+app.get('/api/reviews/my-reviews', authenticateCustomer, asyncHandler(async (req, res) => {
+  const result = await pool.query(`
+    SELECT r.*, s.title AS service_title, s.image_url 
+    FROM reviews r 
+    JOIN services s ON r.service_id = s.service_id 
+    WHERE r.user_id = $1 
+    ORDER BY r.created_at DESC
+  `, [req.user.userId]);
+  res.json({ success: true, reviews: result.rows });
+}));
+
+// 3. Create or Upsert Review (Backend Gatekeeper enforced)
+app.post('/api/reviews', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
+  const { service_id, rating, comment } = req.body;
+  const parsedServiceId = parseRouteId(service_id);
+  const parsedRating = parsePositiveInteger(rating);
+
+  if (!parsedRating || parsedRating < 1 || parsedRating > 5) {
+    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
+  }
+
+  // Gatekeeper: Reject if they haven't officially completed this trip
+  const check = await pool.query(
+    `SELECT booking_id FROM bookings WHERE user_id = $1 AND service_id = $2 AND status = 'Completed' LIMIT 1`,
+    [req.user.userId, parsedServiceId]
+  );
+  if (check.rows.length === 0) {
+    return res.status(403).json({ success: false, message: 'Reviews are reserved strictly for completed safaris.' });
+  }
+
+  const cleanComment = sanitizeHtml(comment || '', RICH_TEXT_SANITIZE_OPTIONS);
+
+  const result = await pool.query(`
+    INSERT INTO reviews (service_id, user_id, rating, comment) 
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (service_id, user_id) 
+    DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `, [parsedServiceId, req.user.userId, parsedRating, cleanComment]);
+
+  res.json({ success: true, review: result.rows[0] });
+}));
+
+// 4. Secured PUT update for an existing review
+app.put('/api/reviews/my-reviews/:review_id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
+  const { rating, comment } = req.body;
+  const reviewId = parseRouteId(req.params.review_id);
+  const parsedRating = parsePositiveInteger(rating);
+
+  if (!parsedRating || parsedRating < 1 || parsedRating > 5) {
+    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
+  }
+
+  const cleanComment = sanitizeHtml(comment || '', RICH_TEXT_SANITIZE_OPTIONS);
+
+  const result = await pool.query(`
+    UPDATE reviews 
+    SET rating = $1, comment = $2, created_at = CURRENT_TIMESTAMP 
+    WHERE review_id = $3 AND user_id = $4 
+    RETURNING *
+  `, [parsedRating, cleanComment, reviewId, req.user.userId]);
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ success: false, message: 'Review not found or unauthorized.' });
+  }
+
+  res.json({ success: true, review: result.rows[0] });
+}));
+
+// 5. Secured Customer-scoped Delete
+app.delete('/api/reviews/my-reviews/:review_id', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
+  const reviewId = parseRouteId(req.params.review_id);
+  const result = await pool.query(
+    `DELETE FROM reviews WHERE review_id = $1 AND user_id = $2 RETURNING review_id`,
+    [reviewId, req.user.userId]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ success: false, message: 'Review not found or unauthorized.' });
+  }
+
   res.json({ success: true });
 }));
 
-app.get('/api/services/search', asyncHandler(async (req, res) => {
-  res.json({ success: true, data: [] });
+// Public review helpers
+app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT r.*, u.first_name, u.last_name FROM reviews r JOIN users u ON r.user_id=u.user_id ORDER BY RANDOM() LIMIT 1');
+  res.json({ success: true, review: result.rows[0] || null });
+}));
+
+app.get('/api/reviews/:service_id', asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT r.*, u.first_name, u.last_name FROM reviews r JOIN users u ON r.user_id=u.user_id WHERE r.service_id=$1', [parseRouteId(req.params.service_id)]);
+  res.json({ success: true, reviews: result.rows });
+}));
+
+app.get('/api/reviews/check/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT review_id FROM reviews WHERE service_id=$1 AND user_id=$2', [parseRouteId(req.params.service_id), req.user.userId]);
+  res.json({ success: true, reviewed: result.rows.length > 0 });
+}));
+
+// ==========================================
+// ADMIN & CORE ROUTES
+// ==========================================
+app.delete('/api/reviews/:review_id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
+  await pool.query('DELETE FROM reviews WHERE review_id=$1', [parseRouteId(req.params.review_id)]);
+  res.json({ success: true });
+}));
+
+app.get('/api/admin/reviews', authenticateAdmin, asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT * FROM reviews');
+  res.json({ success: true, data: result.rows });
 }));
 
 app.post('/api/admin/login', adminRateLimit, asyncHandler(async (req, res) => {
@@ -710,7 +764,6 @@ app.post('/api/admin/login', adminRateLimit, asyncHandler(async (req, res) => {
   res.json({ success: true, token });
 }));
 
-// Upgraded Upload Route handling public R2 URLs cleanly
 app.post('/api/upload', authenticateAdmin, csrfProtection, uploadRateLimit, (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || 'Upload failed.' });
@@ -733,7 +786,7 @@ app.post('/api/upload', authenticateAdmin, csrfProtection, uploadRateLimit, (req
 });
 
 app.get('/api/bookings', authenticateAdmin, asyncHandler(async (req, res) => {
-  const { limit, offset } = getPagination(req.query, 10, 50);
+  const { limit, offset } = getPagination(req.query, 15, 50);
   const result = await pool.query('SELECT b.*, s.title AS package_booked, u.email AS booked_by FROM bookings b JOIN services s ON b.service_id=s.service_id JOIN users u ON b.user_id=u.user_id ORDER BY b.booking_date DESC LIMIT $1 OFFSET $2', [limit, offset]);
   res.json({ success: true, data: result.rows, pagination: { currentPage: 1, totalPages: 1 } });
 }));
@@ -813,40 +866,6 @@ app.delete('/api/blogs/:id', authenticateAdmin, csrfProtection, asyncHandler(asy
   res.json({ success: true });
 }));
 
-app.get('/api/reviews/featured', asyncHandler(async (req, res) => {
-  const result = await pool.query('SELECT r.*, u.first_name, u.last_name FROM reviews r JOIN users u ON r.user_id=u.user_id ORDER BY RANDOM() LIMIT 1');
-  res.json({ success: true, review: result.rows[0] || null });
-}));
-
-app.post('/api/reviews', authenticateCustomer, csrfProtection, asyncHandler(async (req, res) => {
-  await pool.query('INSERT INTO reviews (service_id, user_id, rating, comment) VALUES ($1,$2,$3,$4)', [req.body.service_id, req.user.userId, req.body.rating, req.body.comment]);
-  res.json({ success: true });
-}));
-
-app.get('/api/reviews/:service_id', asyncHandler(async (req, res) => {
-  const result = await pool.query('SELECT r.*, u.first_name, u.last_name FROM reviews r JOIN users u ON r.user_id=u.user_id WHERE r.service_id=$1', [parseRouteId(req.params.service_id)]);
-  res.json({ success: true, reviews: result.rows });
-}));
-
-app.get('/api/reviews/check/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
-  const result = await pool.query('SELECT review_id FROM reviews WHERE service_id=$1 AND user_id=$2', [parseRouteId(req.params.service_id), req.user.userId]);
-  res.json({ success: true, reviewed: result.rows.length > 0 });
-}));
-
-app.get('/api/reviews/can-review/:service_id', authenticateCustomer, asyncHandler(async (req, res) => {
-  res.json({ success: true, canReview: true });
-}));
-
-app.delete('/api/reviews/:review_id', authenticateAdmin, csrfProtection, asyncHandler(async (req, res) => {
-  await pool.query('DELETE FROM reviews WHERE review_id=$1', [parseRouteId(req.params.review_id)]);
-  res.json({ success: true });
-}));
-
-app.get('/api/admin/reviews', authenticateAdmin, asyncHandler(async (req, res) => {
-  const result = await pool.query('SELECT * FROM reviews');
-  res.json({ success: true, data: result.rows });
-}));
-
 app.post('/api/checkout', checkoutRateLimit, asyncHandler(async (req, res) => {
   const ref = `ECT-${crypto.randomInt(100000, 1000000)}`;
   const { firstName, lastName, email, phone, travelDate, pax, total_amount, service_id } = req.body;
@@ -874,11 +893,6 @@ app.get('/api/services/paginated', asyncHandler(async (req, res) => {
   const { limit, offset } = getPagination(req.query, 6, 50);
   const result = await pool.query('SELECT * FROM services WHERE is_active=TRUE ORDER BY service_id LIMIT $1 OFFSET $2', [limit, offset]);
   res.json({ success: true, data: result.rows, pagination: { currentPage: 1, totalPages: 1 } });
-}));
-
-app.get('/api/cron/complete-bookings', asyncHandler(async (req, res) => {
-  await pool.query('UPDATE bookings SET status=\'Completed\' WHERE status=\'Confirmed\' AND travel_date <= CURRENT_DATE');
-  res.json({ success: true });
 }));
 
 app.get('/admin', (req, res) => {
