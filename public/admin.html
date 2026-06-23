@@ -1,541 +1,630 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard — EscoConcepts Travels</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="ui.css">
-  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
-  <style>
-    .admin-container { max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
-    .admin-nav { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid var(--line); padding-bottom: 1rem; }
-    .admin-nav button { background: none; border: none; font-size: 1.1rem; font-weight: 600; color: var(--ink-soft); cursor: pointer; padding: 0.5rem 1rem; border-radius: var(--radius-sm); }
-    .admin-nav button.active { color: var(--ink); background: var(--gold); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-    .admin-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--shadow); }
-    .admin-table th, .admin-table td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--line); }
-    .admin-table th { background: var(--bg-soft); font-weight: 600; }
-    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
-    .modal-content { background: var(--card); width: 100%; max-width: 800px; border-radius: var(--radius); padding: 2rem; max-height: 90vh; overflow-y: auto; position: relative; }
-    .modal-close { position: absolute; top: 1.5rem; right: 1.5rem; font-size: 1.5rem; cursor: pointer; border: none; background: none; }
-    .upload-group { display: flex; gap: 0.5rem; align-items: center; }
-    .upload-group input[type="file"] { flex: 1; padding: 0.5rem; background: var(--bg-soft); border-radius: var(--radius-sm); border: 1px solid var(--line); }
-    .upload-group input[type="text"] { flex: 2; background: #f0ece1; cursor: not-allowed; }
-  </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — EscoConcepts Travels</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="ui.css">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 </head>
-<body>
+<body style="background:var(--bg)">
 
-<!-- LOGIN VIEW -->
-<div id="login-view" style="display:none; min-height:100vh; display:flex; align-items:center; justify-content:center;">
-  <div class="card" style="max-width: 400px; width: 100%; padding: 2rem; box-shadow: var(--shadow-lg);">
-    <h2 style="text-align:center; margin-bottom:1.5rem;">Admin Access</h2>
-    <form id="admin-login-form">
-      <div class="form-field">
-        <label>Admin Email</label>
-        <input type="email" id="login-email" required class="input" placeholder="admin@escoconcepts.com">
+<!-- Login View -->
+<div id="login-view" style="display:none;min-height:100vh;display:flex;align-items:center">
+  <div class="container">
+    <div class="card" style="max-width: 460px; margin: 0 auto;">
+      <div class="card-header">
+        <h2 class="card-title" style="text-align:center">Admin Login</h2>
       </div>
-      <div class="form-field">
-        <label>Password</label>
-        <input type="password" id="login-password" required class="input" placeholder="••••••••">
+      <div class="card-content">
+        <form id="admin-login">
+          <div class="form-field"><label>Email</label><input type="email" name="email" required class="input"></div>
+          <div class="form-field"><label>Password</label><input type="password" name="password" required class="input"></div>
+          <div id="login-msg"></div>
+          <button class="btn btn-primary btn-block" type="submit">Log in</button>
+        </form>
       </div>
-      <button type="submit" class="btn btn-gold" style="width:100%; margin-top:1rem;">Authenticate</button>
-    </form>
-  </div>
-</div>
-
-<!-- MAIN ADMIN VIEW -->
-<div id="admin-view" style="display:none;">
-  <header style="background:var(--card); box-shadow:var(--shadow); padding:1rem 0;">
-    <div class="admin-container" style="margin:0 auto; display:flex; justify-content:space-between; align-items:center;">
-      <h1 style="font-size:1.5rem; margin:0;">EscoConcepts <span style="color:var(--gold);">Command Center</span></h1>
-      <button onclick="logoutAdmin()" class="btn btn-sm" style="background:var(--destructive); color:#fff;">Secure Logout</button>
     </div>
-  </header>
-
-  <div class="admin-container">
-    <nav class="admin-nav">
-      <button onclick="switchTab('bookings')" class="tab-btn active" data-tab="bookings">Bookings Ledger</button>
-      <button onclick="switchTab('destinations')" class="tab-btn" data-tab="destinations">Destinations</button>
-      <button onclick="switchTab('messages')" class="tab-btn" data-tab="messages">Inquiries</button>
-      <button onclick="switchTab('blogs')" class="tab-btn" data-tab="blogs">Safari Dispatch (Blog)</button>
-    </nav>
-
-    <!-- BOOKINGS TAB -->
-    <section id="tab-bookings" class="tab-panel active">
-      <h2>Active Safari Bookings</h2>
-      <table class="admin-table">
-        <thead><tr><th>Ref</th><th>Client</th><th>Package</th><th>Travel Date</th><th>Pax</th><th>Total (KES)</th><th>Status</th></tr></thead>
-        <tbody id="bookings-tbody"><tr><td colspan="7" style="text-align:center;">Loading ledger...</td></tr></tbody>
-      </table>
-    </section>
-
-    <!-- DESTINATIONS TAB -->
-    <section id="tab-destinations" class="tab-panel">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h2>Safari Packages & Destinations</h2>
-        <button onclick="openDestinationModal()" class="btn btn-gold">+ New Destination</button>
-      </div>
-      <table class="admin-table">
-        <thead><tr><th>ID</th><th>Title</th><th>Location</th><th>Base Price</th><th>Max Pax</th><th>Actions</th></tr></thead>
-        <tbody id="destinations-tbody"><tr><td colspan="6" style="text-align:center;">Loading destinations...</td></tr></tbody>
-      </table>
-    </section>
-
-    <!-- MESSAGES TAB -->
-    <section id="tab-messages" class="tab-panel">
-      <h2>Client Inquiries & Contact Submissions</h2>
-      <table class="admin-table">
-        <thead><tr><th>Date</th><th>Client Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead>
-        <tbody id="messages-tbody"><tr><td colspan="5" style="text-align:center;">Loading messages...</td></tr></tbody>
-      </table>
-    </section>
-
-    <!-- BLOGS TAB -->
-    <section id="tab-blogs" class="tab-panel">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h2>Safari Dispatches & Articles</h2>
-        <button onclick="openBlogModal()" class="btn btn-gold">+ Draft New Article</button>
-      </div>
-      <table class="admin-table">
-        <thead><tr><th>Published</th><th>Title</th><th>Author</th><th>Slug</th><th>Actions</th></tr></thead>
-        <tbody id="blogs-tbody"><tr><td colspan="5" style="text-align:center;">Loading dispatches...</td></tr></tbody>
-      </table>
-    </section>
   </div>
 </div>
 
-<!-- CREATE / EDIT BLOG MODAL -->
-<div id="blogModal" class="modal">
-  <div class="modal-content">
-    <button onclick="closeModal('blogModal')" class="modal-close">&times;</button>
-    <h2 id="blogModalTitle" style="margin-top:0;">Draft Safari Dispatch</h2>
-    <form id="blog-form" onsubmit="saveBlog(event)">
-      <input type="hidden" id="blog-id">
-      
-      <div class="form-field">
-        <label>Article Title</label>
-        <input type="text" id="blog-title" required class="input" placeholder="e.g., The Great Migration: What Nobody Tells You">
-      </div>
-
-      <div class="form-field">
-        <label>Author</label>
-        <input type="text" id="blog-author" required class="input" value="EscoConcepts Travels">
-      </div>
-
-      <div class="form-field">
-        <label>Cover Photo (Cloudflare R2 Storage)</label>
-        <div class="upload-group">
-          <input type="file" id="blog-image-file" accept="image/*">
-          <input type="text" id="blog-image-url" readonly class="input" placeholder="Cloudflare R2 URL will appear here">
+<!-- Dashboard -->
+<div id="dash" style="display:none">
+  <div class="admin-shell">
+    <aside class="admin-sidebar">
+      <span class="logo">Esco<span style="color:var(--gold)">Concepts</span> Admin</span>
+      <button data-tab="bookings" class="active">Bookings</button>
+      <button data-tab="services">Destinations</button>
+      <button data-tab="contacts">Messages</button>
+      <button data-tab="blogs">Blogs</button>
+      <button id="admin-logout" style="margin-top:2rem;color:#e6b422">Log out</button>
+    </aside>
+    <main class="admin-main">
+      <!-- Bookings Tab -->
+      <section id="tab-bookings">
+        <h2>Bookings</h2>
+        <div class="toolbar">
+          <input id="b-search" placeholder="Search reference, guest name, email" class="input">
+          <select id="b-status" class="select">
+            <option value="">All statuses</option>
+            <option>Pending</option>
+            <option>Confirmed</option>
+            <option>Cancelled</option>
+            <option>Completed</option>
+          </select>
+          <input type="date" id="b-from" class="input"><input type="date" id="b-to" class="input">
+          <button class="btn btn-outline btn-sm" id="b-apply">Apply</button>
         </div>
-      </div>
+        <div id="b-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="b-prev" class="btn btn-outline btn-sm">←</button><span id="b-info" class="page-info">Page 1</span><button id="b-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
 
-      <div class="form-field" style="margin-top:1.5rem;">
-        <label>Article Body</label>
-        <div id="editor" style="height: 350px; background: #fff; border-bottom-left-radius:var(--radius-sm); border-bottom-right-radius:var(--radius-sm);"></div>
-      </div>
+      <!-- Services Tab -->
+      <section id="tab-services" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h2 style="margin:0">Destinations</h2>
+          <button class="btn btn-primary btn-sm" id="add-svc">+ Add Destination</button>
+        </div>
+        <div class="toolbar">
+          <input id="s-search" placeholder="Search title" class="input">
+          <select id="s-active" class="select"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select>
+          <button class="btn btn-outline btn-sm" id="s-apply">Apply</button>
+        </div>
+        <div id="s-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="s-prev" class="btn btn-outline btn-sm">←</button><span id="s-info" class="page-info">Page 1</span><button id="s-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
 
-      <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
-        <button type="button" onclick="closeModal('blogModal')" class="btn" style="background:var(--line);">Cancel</button>
-        <button type="submit" class="btn btn-gold" id="save-blog-btn">Publish Dispatch</button>
-      </div>
-    </form>
+      <!-- Contacts Tab -->
+      <section id="tab-contacts" style="display:none">
+        <h2>Contact Messages</h2>
+        <div class="toolbar">
+          <input id="c-search" placeholder="Search" class="input">
+          <input type="date" id="c-from" class="input"><input type="date" id="c-to" class="input">
+          <button class="btn btn-outline btn-sm" id="c-apply">Apply</button>
+        </div>
+        <div id="c-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="c-prev" class="btn btn-outline btn-sm">←</button><span id="c-info" class="page-info">Page 1</span><button id="c-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
+
+      <!-- Blogs Tab -->
+      <section id="tab-blogs" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h2 style="margin:0">Blogs</h2>
+          <button class="btn btn-primary btn-sm" id="add-blog">+ New Article</button>
+        </div>
+        <div class="toolbar">
+          <input id="bl-search" placeholder="Search title" class="input">
+          <input id="bl-author" placeholder="Author" class="input">
+          <button class="btn btn-outline btn-sm" id="bl-apply">Apply</button>
+        </div>
+        <div id="bl-table"><div class="loading">Loading…</div></div>
+        <div class="pagination"><button id="bl-prev" class="btn btn-outline btn-sm">←</button><span id="bl-info" class="page-info">Page 1</span><button id="bl-next" class="btn btn-outline btn-sm">→</button></div>
+      </section>
+    </main>
   </div>
 </div>
 
-<!-- CREATE / EDIT DESTINATION MODAL -->
-<div id="destinationModal" class="modal">
-  <div class="modal-content" style="max-width:500px;">
-    <button onclick="closeModal('destinationModal')" class="modal-close">&times;</button>
-    <h2 id="destModalTitle" style="margin-top:0;">Configure Destination</h2>
-    <form id="dest-form" onsubmit="saveDestination(event)">
-      <input type="hidden" id="dest-id">
-      <div class="form-field"><label>Package Title</label><input type="text" id="dest-title" required class="input"></div>
-      <div class="form-field"><label>Location</label><input type="text" id="dest-location" required class="input" placeholder="e.g., Maasai Mara"></div>
-      <div class="form-field"><label>Base Price (KES)</label><input type="number" id="dest-price" required class="input" min="1"></div>
-      <div class="form-field"><label>Max Guests (Pax)</label><input type="number" id="dest-pax" required class="input" min="1" max="50" value="10"></div>
-      <button type="submit" class="btn btn-gold" style="width:100%; margin-top:1.5rem;">Save Destination</button>
-    </form>
+<!-- Service Modal (Add/Edit Destination) -->
+<div id="serviceModal" class="modal-overlay">
+  <div class="modal-container" style="max-width: 700px;">
+    <div class="modal-header">
+      <span class="modal-title" id="serviceModalTitle">Add Destination</span>
+      <button class="modal-close" id="closeServiceModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="svc-form">
+        <input type="hidden" id="serviceId">
+        <div class="form-grid">
+          <div class="form-field"><label>Title *</label><input name="title" id="svcTitle" required class="input"></div>
+          <div class="form-field"><label>Destination *</label><input name="destination" id="svcDestination" required class="input"></div>
+          <div class="form-field"><label>Base price *</label><input type="number" name="base_price" id="svcPrice" required class="input"></div>
+          <div class="form-field"><label>Max pax *</label><input type="number" name="max_pax" id="svcMaxPax" required class="input"></div>
+          <div class="form-field full"><label>Image URL</label><input name="image_url" id="svcImageUrl" class="input"></div>
+          <div class="form-field full"><label>Gallery (comma-separated URLs)</label><textarea name="gallery" id="svcGallery" rows="2" class="textarea"></textarea></div>
+          <div class="form-field full"><label>Description (HTML allowed)</label><textarea name="description" id="svcDescription" rows="3" class="textarea"></textarea></div>
+          <div class="form-field full"><label>Itinerary (HTML allowed)</label><textarea name="itinerary" id="svcItinerary" rows="3" class="textarea"></textarea></div>
+          <div class="form-field"><label><input type="checkbox" id="svcActive" checked> Active</label></div>
+        </div>
+        <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-outline" id="cancelServiceBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="svcSubmitBtn">Save</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<!-- Blog Modal (Add/Edit) – uses Quill rich text editor -->
+<div id="blogModal" class="modal-overlay">
+  <div class="modal-container" style="max-width: 900px;">
+    <div class="modal-header">
+      <span class="modal-title" id="blogModalTitle">Add Blog</span>
+      <button class="modal-close" id="closeBlogModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="blog-form">
+        <input type="hidden" id="blogId">
+        <div class="form-field"><label>Title *</label><input name="title" id="blogTitle" required class="input"></div>
+        <div class="form-field"><label>Author</label><input name="author" id="blogAuthor" class="input"></div>
+        
+        <!-- UPGRADED: Cover Image row with paired local File Picker and R2 URL Box -->
+        <div class="form-field">
+          <label>Cover Photo (Upload to Cloudflare R2 or paste URL)</label>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="file" id="blogImageFile" accept="image/*" class="input" style="flex:1; padding:0.35rem;">
+            <input name="image_url" id="blogImageUrl" class="input" placeholder="https://pub-..." style="flex:2;">
+          </div>
+        </div>
+
+        <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
+        <div class="form-field"><label>Content (rich text)</label>
+          <div id="editor" style="height: 400px; background: white;"></div>
+          <textarea name="content" id="blogContent" style="display:none;"></textarea>
+        </div>
+        <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-outline" id="cancelBlogBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
 <script src="ui.js"></script>
-
 <script>
-let quill;
+  // ========== Helper functions ==========
+  function escapeHtml(str) { if (!str) return ""; return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch(e) { return d; } }
+  function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
+  function showAlert(el, msg, kind = "error") { if (!el) return; el.innerHTML = `<div class="alert ${kind}">${escapeHtml(msg)}</div>`; if (kind === "success") setTimeout(() => { el.innerHTML = ""; }, 6000); }
 
-function getCsrfToken() {
-  const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
-  return match ? match[2] : '';
-}
-
-function toast(msg, type = 'info') {
-  if (window.showToast) return window.showToast(msg, type);
-  alert(`[${type.toUpperCase()}] ${msg}`);
-}
-
-// FIXED: True network verification bypassing client-side httpOnly blindness
-async function verifyAdminSession() {
-  try {
-    const res = await fetch("/api/bookings?limit=1");
-    return res.ok;
-  } catch (e) {
-    return false;
+  function getCsrfToken() {
+    const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
+    return match ? match[2] : null;
   }
-}
 
-// Check Auth state via backend handshake on mount
-document.addEventListener("DOMContentLoaded", async () => {
-  const isAuth = await verifyAdminSession();
-  if (!isAuth) {
-    document.getElementById("login-view").style.display = "flex";
-    document.getElementById("admin-view").style.display = "none";
-  } else {
-    document.getElementById("login-view").style.display = "none";
-    document.getElementById("admin-view").style.display = "block";
-    initQuill();
-    loadBookings();
-    loadDestinations();
-    loadMessages();
-    loadBlogs();
-  }
-});
-
-// Admin Login Handler
-document.getElementById("admin-login-form")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = document.getElementById("login-email").value;
-  const password = document.getElementById("login-password").value;
-  try {
-    const res = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
+  async function apiRequestAdmin(path, options = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    const method = (options.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      const csrf = getCsrfToken();
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    }
+    const res = await fetch(`/api${path}`, { ...options, headers, credentials: 'include' });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Authentication failed");
-    toast("Welcome to Command Center", "success");
-    location.reload();
-  } catch (err) { toast(err.message, "error"); }
-});
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
 
-function logoutAdmin() {
-  fetch("/api/auth/logout", { method: "POST" }).then(() => location.reload());
-}
+  // Restored: True network verification bypassing client-side httpOnly blindness
+  async function isAdminLoggedIn() {
+    try { await apiRequestAdmin('/bookings?page=1&limit=1'); return true; } catch(e) { return false; }
+  }
 
-function switchTab(tabName) {
-  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
-  document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.remove("active"));
-  document.querySelector(`[data-tab="${tabName}"]`).classList.add("active");
-  document.getElementById(`tab-${tabName}`).classList.add("active");
-}
+  const loginView = document.getElementById("login-view");
+  const dash = document.getElementById("dash");
 
-function openModal(modalId) {
-  document.getElementById(modalId).style.display = "flex";
-}
-function closeModal(modalId) {
-  document.getElementById(modalId).style.display = "none";
-}
+  async function updateAdminView() {
+    const loggedIn = await isAdminLoggedIn();
+    loginView.style.display = loggedIn ? "none" : "flex";
+    dash.style.display = loggedIn ? "block" : "none";
+    if (loggedIn) {
+      loadBookings();
+      loadServices();
+      loadContacts();
+      loadBlogs();
+    }
+  }
 
-// ==========================================
-// RICH TEXT EDITOR & R2 UPLOAD LOGIC
-// ==========================================
-function initQuill() {
-  quill = new Quill('#editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link', 'image', 'video'],
-        ['clean']
-      ]
+  // ========== Login / Logout ==========
+  document.getElementById("admin-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    try {
+      await apiRequestAdmin("/admin/login", { method: "POST", body: JSON.stringify(payload) });
+      updateAdminView();
+    } catch (err) { showAlert(document.getElementById("login-msg"), err.message); }
+  });
+
+  document.getElementById("admin-logout").onclick = async () => {
+    if (confirm("Log out?")) {
+      try {
+        await apiRequestAdmin("/auth/logout", { method: "POST" });
+        updateAdminView();
+        window.showToast("Logged out", "success");
+      } catch(e) { window.showToast(e.message, "error"); }
+    }
+  };
+
+  // ========== Restored: Exact Native Tab Logic ==========
+  document.querySelectorAll(".admin-sidebar [data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".admin-sidebar [data-tab]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const t = btn.dataset.tab;
+      ["bookings", "services", "contacts", "blogs"].forEach(k => {
+        document.getElementById("tab-" + k).style.display = k === t ? "block" : "none";
+      });
+      if (t === "bookings") loadBookings();
+      if (t === "services") loadServices();
+      if (t === "contacts") loadContacts();
+      if (t === "blogs") loadBlogs();
+    });
+  });
+
+  // ========== Bookings ==========
+  let bPage = 1, bTotalPages = 1;
+  async function loadBookings() {
+    const wrap = document.getElementById("b-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: bPage, limit: 15 });
+    const q = document.getElementById("b-search").value.trim(); if (q) params.set("search", q);
+    const st = document.getElementById("b-status").value; if (st) params.set("status", st);
+    const from = document.getElementById("b-from").value; if (from) params.set("dateFrom", from);
+    const to = document.getElementById("b-to").value; if (to) params.set("dateTo", to);
+    try {
+      const data = await apiRequestAdmin(`/bookings?${params.toString()}`);
+      const list = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: bPage };
+      bTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No bookings.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Ref</th><th>Guest Name</th><th>Email / Phone / Special</th><th>Package</th><th>Travel Date</th><th>Return Date</th><th>Pax</th><th>Total</th><th>Status</th><th>Action</th></tr></thead><tbody>${list.map(b => {
+        const status = (b.status || "pending").toLowerCase();
+        return `<tr data-booking-id="${b.booking_id}">
+          <td><span class="booking-ref">${escapeHtml(String(b.booking_reference||b.id))}</span></td>
+          <td>${escapeHtml(b.guest_name||"")}</td>
+          <td>${escapeHtml(b.guest_email||"")}<br>${escapeHtml(b.guest_phone||"")}<br><small>${escapeHtml(b.special_requests||"")}</small></td>
+          <td>${escapeHtml(b.package_booked||"")}</td>
+          <td>${fmtDate(b.travel_date)}</td>
+          <td>${fmtDate(b.return_date)}</td>
+          <td>${b.total_guests || b.pax || ""}</td>
+          <td>${fmtPrice(b.total_amount)}</td>
+          <td class="status-cell"><span class="status ${status}">${status}</span></td>
+          <td>
+            <select data-id="${b.booking_id}" class="status-sel select" style="width:auto; display:inline-block;">
+              <option ${status === "pending" ? "selected" : ""}>Pending</option>
+              <option ${status === "confirmed" ? "selected" : ""}>Confirmed</option>
+              <option ${status === "cancelled" ? "selected" : ""}>Cancelled</option>
+              <option ${status === "completed" ? "selected" : ""}>Completed</option>
+            </select>
+            <button class="btn btn-sm btn-outline update-btn" data-id="${b.booking_id}">Update</button>
+          </td>
+        </tr>`;
+      }).join("")}</tbody></table>`;
+      document.getElementById("b-info").textContent = `Page ${pagination.currentPage} of ${bTotalPages}`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("b-table").addEventListener("click", async (e) => {
+    const btn = e.target.closest(".update-btn");
+    if (btn) {
+      const id = btn.dataset.id;
+      const select = document.querySelector(`.status-sel[data-id="${id}"]`);
+      const newStatus = select.value;
+      try {
+        await apiRequestAdmin(`/bookings/${id}`, { method: "PUT", body: JSON.stringify({ status: newStatus }) });
+        window.showToast(`Booking status updated to ${newStatus}`, "success");
+        loadBookings();
+      } catch (err) { window.showToast(err.message, "error"); }
+    }
+  });
+  document.getElementById("b-apply").onclick = () => { bPage = 1; loadBookings(); };
+  document.getElementById("b-prev").onclick = () => { if (bPage > 1) { bPage--; loadBookings(); } };
+  document.getElementById("b-next").onclick = () => { if (bPage < bTotalPages) { bPage++; loadBookings(); } };
+
+  // ========== Services ==========
+  let sPage = 1, sTotalPages = 1;
+  async function loadServices() {
+    const wrap = document.getElementById("s-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: sPage, limit: 15 });
+    const q = document.getElementById("s-search").value.trim(); if (q) params.set("search", q);
+    const a = document.getElementById("s-active").value; if (a) params.set("is_active", a);
+    try {
+      const data = await apiRequestAdmin(`/admin/services?${params.toString()}`);
+      const list = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: sPage };
+      sTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No destinations.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Destination</th><th>Price</th><th>Max Pax</th><th>Active</th><th>Actions</th><tr></thead><tbody>${list.map(s => `<tr>
+        <td>${escapeHtml(s.title || "")}</td>
+        <td>${escapeHtml(s.destination || "")}</td>
+        <td>${fmtPrice(s.base_price)}</td>
+        <td>${escapeHtml(String(s.max_pax || "—"))}</td>
+        <td>${s.is_active === false ? "No" : "Yes"}</td>
+        <td><button class="btn btn-sm btn-outline edit-svc" data-id="${s.service_id}">Edit</button>
+        <button class="btn btn-sm btn-outline del-svc" data-id="${s.service_id}">Delete</button></td>
+      </tr>`).join("")}</tbody></table>`;
+      document.getElementById("s-info").textContent = `Page ${pagination.currentPage} of ${sTotalPages}`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("s-table").addEventListener("click", async (e) => {
+    const editBtn = e.target.closest(".edit-svc");
+    if (editBtn) {
+      const id = editBtn.dataset.id;
+      try {
+        const data = await apiRequestAdmin(`/admin/services/${id}`);
+        const svc = data.data || data;
+        document.getElementById("serviceModalTitle").innerText = "Edit Destination";
+        document.getElementById("serviceId").value = svc.service_id;
+        document.getElementById("svcTitle").value = svc.title || "";
+        document.getElementById("svcDestination").value = svc.destination || "";
+        document.getElementById("svcPrice").value = svc.base_price || "";
+        document.getElementById("svcMaxPax").value = svc.max_pax || 10;
+        document.getElementById("svcImageUrl").value = svc.image_url || "";
+        document.getElementById("svcDescription").value = svc.description || "";
+        document.getElementById("svcItinerary").value = svc.itinerary || "";
+        document.getElementById("svcGallery").value = (svc.gallery || []).join(", ");
+        document.getElementById("svcActive").checked = svc.is_active !== false;
+        window.openModal("serviceModal");
+      } catch (err) { window.showToast(err.message, "error"); }
+      return;
+    }
+    const delBtn = e.target.closest(".del-svc");
+    if (delBtn) {
+      if (confirm("Delete this destination permanently?")) {
+        const id = delBtn.dataset.id;
+        try {
+          await apiRequestAdmin(`/admin/services/${id}`, { method: "DELETE" });
+          loadServices();
+          window.showToast("Destination deleted", "success");
+        } catch (err) { window.showToast(err.message, "error"); }
+      }
+    }
+  });
+  document.getElementById("add-svc").onclick = () => {
+    document.getElementById("serviceModalTitle").innerText = "Add Destination";
+    document.getElementById("serviceId").value = "";
+    document.getElementById("svcTitle").value = "";
+    document.getElementById("svcDestination").value = "";
+    document.getElementById("svcPrice").value = "";
+    document.getElementById("svcMaxPax").value = "10";
+    document.getElementById("svcImageUrl").value = "";
+    document.getElementById("svcDescription").value = "";
+    document.getElementById("svcItinerary").value = "";
+    document.getElementById("svcGallery").value = "";
+    document.getElementById("svcActive").checked = true;
+    window.openModal("serviceModal");
+  };
+  document.getElementById("s-apply").onclick = () => { sPage = 1; loadServices(); };
+  document.getElementById("s-prev").onclick = () => { if (sPage > 1) { sPage--; loadServices(); } };
+  document.getElementById("s-next").onclick = () => { if (sPage < sTotalPages) { sPage++; loadServices(); } };
+  document.getElementById("svc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("serviceId").value;
+    const payload = {
+      title: document.getElementById("svcTitle").value,
+      destination: document.getElementById("svcDestination").value,
+      base_price: parseFloat(document.getElementById("svcPrice").value),
+      max_pax: parseInt(document.getElementById("svcMaxPax").value),
+      image_url: document.getElementById("svcImageUrl").value,
+      description: document.getElementById("svcDescription").value,
+      itinerary: document.getElementById("svcItinerary").value,
+      gallery: document.getElementById("svcGallery").value.split(",").map(s => s.trim()).filter(Boolean),
+      is_active: document.getElementById("svcActive").checked
+    };
+    try {
+      if (id) await apiRequestAdmin(`/admin/services/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await apiRequestAdmin("/admin/services", { method: "POST", body: JSON.stringify(payload) });
+      window.closeModal("serviceModal");
+      loadServices();
+      window.showToast(id ? "Destination updated" : "Destination created", "success");
+    } catch (err) { window.showToast(err.message, "error"); }
+  });
+
+  // ========== Contacts ==========
+  let cPage = 1, cTotalPages = 1;
+  async function loadContacts() {
+    const wrap = document.getElementById("c-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: cPage, limit: 15 });
+    const q = document.getElementById("c-search").value.trim(); if (q) params.set("search", q);
+    const from = document.getElementById("c-from").value; if (from) params.set("dateFrom", from);
+    const to = document.getElementById("c-to").value; if (to) params.set("dateTo", to);
+    try {
+      const data = await apiRequestAdmin(`/contact?${params.toString()}`);
+      const list = data.data || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: cPage };
+      cTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No messages.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th></tr></thead><tbody>${list.map(c => `<tr><td>${fmtDate(c.created_at)}</td><td>${escapeHtml(c.name || "")}</td><td>${escapeHtml(c.email || "")}</td><td>${escapeHtml(c.subject || "")}</td><td>${escapeHtml(c.message || "")}</td></tr>`).join("")}</tbody></table>`;
+      document.getElementById("c-info").textContent = `Page ${pagination.currentPage} of ${cTotalPages}`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+  document.getElementById("c-apply").onclick = () => { cPage = 1; loadContacts(); };
+  document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
+  document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
+
+  // ========== Upgraded: R2 Cover Photo Picker Handler ==========
+  document.getElementById("blogImageFile")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const urlInput = document.getElementById("blogImageUrl");
+    urlInput.value = "Uploading buffer to Cloudflare R2...";
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const token = getCsrfToken();
+      const headers = {};
+      if (token) headers['X-CSRF-Token'] = token;
+      const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Upload failed");
+      urlInput.value = data.url;
+      window.showToast("Cover photo securely locked into R2!", "success");
+    } catch (err) {
+      urlInput.value = "";
+      window.showToast(err.message, "error");
+    } finally {
+      e.target.value = "";
     }
   });
 
-  quill.getModule('toolbar').addHandler('image', () => {
-    const fileInput = document.createElement('input');
-    fileInput.setAttribute('type', 'file');
-    fileInput.setAttribute('accept', 'image/*');
-    fileInput.click();
+  // ========== Blogs with Quill ==========
+  let blPage = 1, blTotalPages = 1;
+  let quillEditor = null;
 
-    fileInput.onchange = async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      toast("Uploading image buffer to Cloudflare R2...", "info");
-      try {
-        const formData = new FormData();
-        formData.append('image', file);
-        
-        const headers = {};
-        const csrf = getCsrfToken();
-        if (csrf) headers['X-CSRF-Token'] = csrf;
-
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers,
-          body: formData,
-          credentials: 'include'
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || "Upload failed");
-
-        const range = quill.getSelection(true);
-        quill.insertEmbed(range.index, 'image', data.url);
-        quill.setSelection(range.index + 1);
-        toast("Image embedded securely!", "success");
-      } catch (err) { toast("Quill Upload Error: " + err.message, "error"); }
-    };
-  });
-}
-
-document.getElementById("blog-image-file")?.addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const urlInput = document.getElementById("blog-image-url");
-  urlInput.value = "Uploading to Cloudflare R2...";
-  toast("Transmitting cover photo...", "info");
-
-  try {
-    const formData = new FormData();
-    formData.append("image", file);
-
-    const headers = {};
-    const csrf = getCsrfToken();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      headers,
-      body: formData,
-      credentials: "include"
+  async function initQuill(content) {
+    if (quillEditor) {
+      quillEditor.root.innerHTML = content || "";
+      return;
+    }
+    quillEditor = new Quill('#editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, 3, 4, 5, 6, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ color: [] }, { background: [] }],
+          [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+          ['link', 'image', 'video'],
+          ['clean']
+        ]
+      },
+      placeholder: 'Write your blog content here...'
     });
-    const data = await res.json();
+    if (content) quillEditor.root.innerHTML = content;
 
-    if (!res.ok) throw new Error(data.message || "Failed to upload cover");
-    
-    urlInput.value = data.url;
-    toast("Cover photo locked into R2 Bucket!", "success");
-  } catch (err) {
-    urlInput.value = "";
-    document.getElementById("blog-image-file").value = "";
-    toast(err.message, "error");
+    // Upgraded: Securely mounted body input preventing sandboxed .click() failures
+    const toolbar = quillEditor.getModule('toolbar');
+    toolbar.addHandler('image', () => {
+      let input = document.getElementById('quill-r2-input');
+      if (!input) {
+        input = document.createElement('input');
+        input.id = 'quill-r2-input';
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+      }
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        try {
+          window.showToast("Streaming image buffer to Cloudflare R2...", "info");
+          const formData = new FormData();
+          formData.append('image', file);
+          const token = getCsrfToken();
+          const headers = {};
+          if (token) headers['X-CSRF-Token'] = token;
+          const res = await fetch('/api/upload', { method: 'POST', headers, body: formData, credentials: 'include' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || "Upload failed");
+          if (data.url) {
+            const range = quillEditor.getSelection(true);
+            quillEditor.insertEmbed(range.index, 'image', data.url);
+            window.showToast("Image embedded straight from cloud!", "success");
+          }
+        } catch (err) { 
+          window.showToast(err.message, 'error'); 
+        } finally {
+          input.value = "";
+        }
+      };
+      input.click();
+    });
   }
-});
 
-// ==========================================
-// CRUD FETCH DRIVERS
-// ==========================================
-async function loadBookings() {
-  const tbody = document.getElementById("bookings-tbody");
-  try {
-    const res = await fetch("/api/bookings");
-    const data = await res.json();
-    const list = data.data || [];
-    tbody.innerHTML = list.length ? list.map(b => `
-      <tr>
-        <td style="font-family:monospace; font-weight:600;">${escapeHtml(b.booking_reference)}</td>
-        <td>${escapeHtml(b.booked_by || 'Guest')}</td>
-        <td>${escapeHtml(b.package_booked || `Service #${b.service_id}`)}</td>
-        <td>${b.travel_date ? b.travel_date.split('T')[0] : '—'}</td>
-        <td>${b.pax}</td>
-        <td>${Number(b.total_amount).toLocaleString()}</td>
-        <td>
-          <select onchange="updateBookingStatus(${b.booking_id}, this.value)" style="padding:.25rem; border-radius:4px;">
-            <option value="Pending" ${b.status==='Pending'?'selected':''}>Pending</option>
-            <option value="Confirmed" ${b.status==='Confirmed'?'selected':''}>Confirmed</option>
-            <option value="Completed" ${b.status==='Completed'?'selected':''}>Completed</option>
-            <option value="Cancelled" ${b.status==='Cancelled'?'selected':''}>Cancelled</option>
-          </select>
-        </td>
-      </tr>
-    `).join('') : `<tr><td colspan="7" style="text-align:center;">No bookings recorded.</td></tr>`;
-  } catch (err) { tbody.innerHTML = `<tr><td colspan="7" style="color:red;">Error loading ledger.</td></tr>`; }
-}
+  async function openBlogForm(blogId) {
+    try {
+      if (blogId) {
+        const data = await apiRequestAdmin(`/blogs/${blogId}`);
+        const blog = data.data || data.blog || data;
+        document.getElementById("blogModalTitle").innerText = "Edit Blog";
+        document.getElementById("blogId").value = blog.id;
+        document.getElementById("blogTitle").value = blog.title || "";
+        document.getElementById("blogAuthor").value = blog.author || "";
+        document.getElementById("blogImageUrl").value = blog.image_url || "";
+        document.getElementById("blogExcerpt").value = blog.excerpt || "";
+        await initQuill(blog.content || "");
+      } else {
+        document.getElementById("blogModalTitle").innerText = "New Article";
+        document.getElementById("blogId").value = "";
+        document.getElementById("blogTitle").value = "";
+        document.getElementById("blogAuthor").value = "";
+        document.getElementById("blogImageUrl").value = "";
+        document.getElementById("blogExcerpt").value = "";
+        await initQuill("");
+      }
+      window.openModal("blogModal");
+    } catch (err) { window.showToast(err.message, "error"); }
+  }
 
-async function updateBookingStatus(id, status) {
-  try {
-    const headers = { "Content-Type": "application/json" };
-    const csrf = getCsrfToken();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-    const res = await fetch(`/api/bookings/${id}`, { method: "PUT", headers, body: JSON.stringify({ status }) });
-    if (!res.ok) throw new Error("Status update failed");
-    toast("Status updated successfully", "success");
-  } catch(e) { toast(e.message, "error"); loadBookings(); }
-}
+  async function loadBlogs() {
+    const wrap = document.getElementById("bl-table");
+    wrap.innerHTML = `<div class="loading">Loading…</div>`;
+    const params = new URLSearchParams({ page: blPage, limit: 15 });
+    const q = document.getElementById("bl-search").value.trim(); if (q) params.set("search", q);
+    const a = document.getElementById("bl-author").value.trim(); if (a) params.set("author", a);
+    try {
+      const data = await apiRequestAdmin(`/blogs?${params.toString()}`);
+      const list = data.blogs || [];
+      const pagination = data.pagination || { totalPages: 1, currentPage: blPage };
+      blTotalPages = pagination.totalPages;
+      if (!list.length) { wrap.innerHTML = `<div class="empty">No articles.</div>`; return; }
+      wrap.innerHTML = `<table class="data"><thead><tr><th>Title</th><th>Author</th><th>Date</th><th>Actions</th></tr></thead><tbody>${list.map(b => `<tr>
+        <td>${escapeHtml(b.title || "")}</td>
+        <td>${escapeHtml(b.author || "")}</td>
+        <td>${fmtDate(b.created_at)}</td>
+        <td><button class="btn btn-sm btn-outline edit-blog" data-id="${b.id}">Edit</button>
+        <button class="btn btn-sm btn-outline del-blog" data-id="${b.id}">Delete</button></td>
+      </tr>`).join("")}</tbody></table>`;
+      document.getElementById("bl-info").textContent = `Page ${pagination.currentPage} of ${blTotalPages}`;
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
 
-async function loadDestinations() {
-  const tbody = document.getElementById("destinations-tbody");
-  try {
-    const res = await fetch("/api/admin/services");
-    const data = await res.json();
-    const list = data.data || [];
-    tbody.innerHTML = list.length ? list.map(d => `
-      <tr>
-        <td>#${d.service_id}</td>
-        <td style="font-weight:600;">${escapeHtml(d.title)}</td>
-        <td>${escapeHtml(d.destination || 'Kenya')}</td>
-        <td>${Number(d.base_price).toLocaleString()}</td>
-        <td>${d.max_pax}</td>
-        <td>
-          <button onclick="deleteDestination(${d.service_id})" class="btn btn-sm" style="background:var(--destructive); color:#fff;">Delete</button>
-        </td>
-      </tr>
-    `).join('') : `<tr><td colspan="6" style="text-align:center;">No destinations configured.</td></tr>`;
-  } catch(e) {}
-}
+  document.getElementById("bl-table").addEventListener("click", async (e) => {
+    const editBtn = e.target.closest(".edit-blog");
+    if (editBtn) {
+      await openBlogForm(editBtn.dataset.id);
+      return;
+    }
+    const delBtn = e.target.closest(".del-blog");
+    if (delBtn) {
+      if (confirm("Delete this blog?")) {
+        const id = delBtn.dataset.id;
+        try {
+          await apiRequestAdmin(`/blogs/${id}`, { method: "DELETE" });
+          loadBlogs();
+          window.showToast("Blog deleted", "success");
+        } catch (err) { window.showToast(err.message, "error"); }
+      }
+    }
+  });
 
-function openDestinationModal() {
-  document.getElementById("dest-form").reset();
-  document.getElementById("dest-id").value = "";
-  openModal("destinationModal");
-}
+  document.getElementById("add-blog").onclick = () => openBlogForm(null);
+  document.getElementById("bl-apply").onclick = () => { blPage = 1; loadBlogs(); };
+  document.getElementById("bl-prev").onclick = () => { if (blPage > 1) { blPage--; loadBlogs(); } };
+  document.getElementById("bl-next").onclick = () => { if (blPage < blTotalPages) { blPage++; loadBlogs(); } };
+  document.getElementById("blog-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("blogId").value;
+    const content = quillEditor ? quillEditor.root.innerHTML : "";
+    const payload = {
+      title: document.getElementById("blogTitle").value,
+      author: document.getElementById("blogAuthor").value,
+      image_url: document.getElementById("blogImageUrl").value,
+      excerpt: document.getElementById("blogExcerpt").value,
+      content: content
+    };
+    try {
+      if (id) await apiRequestAdmin(`/blogs/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      else await apiRequestAdmin("/blogs", { method: "POST", body: JSON.stringify(payload) });
+      window.closeModal("blogModal");
+      loadBlogs();
+      window.showToast(id ? "Blog updated" : "Blog published", "success");
+    } catch (err) { window.showToast(err.message, "error"); }
+  });
 
-async function saveDestination(e) {
-  e.preventDefault();
-  const id = document.getElementById("dest-id").value;
-  const payload = {
-    title: document.getElementById("dest-title").value,
-    destination: document.getElementById("dest-location").value,
-    base_price: document.getElementById("dest-price").value,
-    max_pax: document.getElementById("dest-pax").value
-  };
-  try {
-    const headers = { "Content-Type": "application/json" };
-    const csrf = getCsrfToken();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-    const res = await fetch(id ? `/api/admin/services/${id}` : "/api/admin/services", {
-      method: id ? "PUT" : "POST",
-      headers,
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error("Save failed");
-    closeModal("destinationModal");
-    loadDestinations();
-    toast("Destination saved!", "success");
-  } catch(err) { toast(err.message, "error"); }
-}
+  // Modal close buttons
+  document.getElementById("closeServiceModalBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
+  document.getElementById("cancelServiceBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
+  document.getElementById("closeBlogModalBtn")?.addEventListener("click", () => window.closeModal("blogModal"));
+  document.getElementById("cancelBlogBtn")?.addEventListener("click", () => window.closeModal("blogModal"));
 
-async function deleteDestination(id) {
-  if (!confirm("Delete this destination? Existing bookings tied to it may trigger foreign key restrictions.")) return;
-  try {
-    const headers = {};
-    const csrf = getCsrfToken();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-    await fetch(`/api/admin/services/${id}`, { method: "DELETE", headers });
-    loadDestinations();
-    toast("Destination removed", "success");
-  } catch(e) { toast("Cannot delete active destination.", "error"); }
-}
-
-async function loadMessages() {
-  const tbody = document.getElementById("messages-tbody");
-  try {
-    const res = await fetch("/api/contact");
-    const data = await res.json();
-    const list = data.data || [];
-    tbody.innerHTML = list.length ? list.map(m => `
-      <tr>
-        <td style="white-space:nowrap;">${m.created_at ? m.created_at.split('T')[0] : ''}</td>
-        <td style="font-weight:600;">${escapeHtml(m.name)}</td>
-        <td><a href="mailto:${escapeHtml(m.email)}" style="color:var(--gold); underline:true;">${escapeHtml(m.email)}</a></td>
-        <td>${escapeHtml(m.subject || 'General Inquiry')}</td>
-        <td>${escapeHtml(m.message)}</td>
-      </tr>
-    `).join('') : `<tr><td colspan="5" style="text-align:center;">Inbox is empty.</td></tr>`;
-  } catch(e) {}
-}
-
-async function loadBlogs() {
-  const tbody = document.getElementById("blogs-tbody");
-  try {
-    const res = await fetch("/api/blogs");
-    const data = await res.json();
-    const list = data.blogs || [];
-    tbody.innerHTML = list.length ? list.map(b => `
-      <tr>
-        <td>${b.created_at ? b.created_at.split('T')[0] : '—'}</td>
-        <td style="font-weight:600;">${escapeHtml(b.title)}</td>
-        <td>${escapeHtml(b.author)}</td>
-        <td style="font-family:monospace; font-size:0.9rem;">${escapeHtml(b.slug)}</td>
-        <td>
-          <button onclick="editBlog(${b.id})" class="btn btn-sm" style="background:var(--bg-soft);">Edit</button>
-          <button onclick="deleteBlog(${b.id})" class="btn btn-sm" style="background:var(--destructive); color:#fff;">Delete</button>
-        </td>
-      </tr>
-    `).join('') : `<tr><td colspan="5" style="text-align:center;">No dispatches published.</td></tr>`;
-  } catch(e) {}
-}
-
-function openBlogModal() {
-  document.getElementById("blog-form").reset();
-  document.getElementById("blog-id").value = "";
-  document.getElementById("blog-image-url").value = "";
-  quill.root.innerHTML = "";
-  document.getElementById("blogModalTitle").innerText = "Draft Safari Dispatch";
-  openModal("blogModal");
-}
-
-async function editBlog(id) {
-  try {
-    const res = await fetch(`/api/blogs/${id}`);
-    const data = await res.json();
-    const b = data.data || data.blog;
-    if (!b) return;
-    document.getElementById("blog-id").value = b.id;
-    document.getElementById("blog-title").value = b.title;
-    document.getElementById("blog-author").value = b.author;
-    document.getElementById("blog-image-url").value = b.image_url || "";
-    quill.root.innerHTML = b.content || "";
-    document.getElementById("blogModalTitle").innerText = "Edit Safari Dispatch";
-    openModal("blogModal");
-  } catch(e) { toast("Failed to load article data", "error"); }
-}
-
-async function saveBlog(e) {
-  e.preventDefault();
-  const id = document.getElementById("blog-id").value;
-  const payload = {
-    title: document.getElementById("blog-title").value,
-    author: document.getElementById("blog-author").value,
-    image_url: document.getElementById("blog-image-url").value,
-    content: quill.root.innerHTML
-  };
-  try {
-    const headers = { "Content-Type": "application/json" };
-    const csrf = getCsrfToken();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-    const res = await fetch(id ? `/api/blogs/${id}` : "/api/blogs", {
-      method: id ? "PUT" : "POST",
-      headers,
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error("Failed to publish dispatch");
-    closeModal("blogModal");
-    loadBlogs();
-    toast(id ? "Dispatch updated!" : "New Safari Dispatch live!", "success");
-  } catch(err) { toast(err.message, "error"); }
-}
-
-async function deleteBlog(id) {
-  if (!confirm("Permanently delete this dispatch?")) return;
-  try {
-    const headers = {};
-    const csrf = getCsrfToken();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-    await fetch(`/api/blogs/${id}`, { method: "DELETE", headers });
-    loadBlogs();
-    toast("Dispatch deleted", "success");
-  } catch(e) {}
-}
+  updateAdminView();
 </script>
 </body>
 </html>
