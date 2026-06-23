@@ -29,6 +29,7 @@
 </head>
 <body>
 
+<!-- LOGIN VIEW -->
 <div id="login-view" style="display:none; min-height:100vh; display:flex; align-items:center; justify-content:center;">
   <div class="card" style="max-width: 400px; width: 100%; padding: 2rem; box-shadow: var(--shadow-lg);">
     <h2 style="text-align:center; margin-bottom:1.5rem;">Admin Access</h2>
@@ -46,6 +47,7 @@
   </div>
 </div>
 
+<!-- MAIN ADMIN VIEW -->
 <div id="admin-view" style="display:none;">
   <header style="background:var(--card); box-shadow:var(--shadow); padding:1rem 0;">
     <div class="admin-container" style="margin:0 auto; display:flex; justify-content:space-between; align-items:center;">
@@ -62,6 +64,7 @@
       <button onclick="switchTab('blogs')" class="tab-btn" data-tab="blogs">Safari Dispatch (Blog)</button>
     </nav>
 
+    <!-- BOOKINGS TAB -->
     <section id="tab-bookings" class="tab-panel active">
       <h2>Active Safari Bookings</h2>
       <table class="admin-table">
@@ -70,6 +73,7 @@
       </table>
     </section>
 
+    <!-- DESTINATIONS TAB -->
     <section id="tab-destinations" class="tab-panel">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <h2>Safari Packages & Destinations</h2>
@@ -81,6 +85,7 @@
       </table>
     </section>
 
+    <!-- MESSAGES TAB -->
     <section id="tab-messages" class="tab-panel">
       <h2>Client Inquiries & Contact Submissions</h2>
       <table class="admin-table">
@@ -89,6 +94,7 @@
       </table>
     </section>
 
+    <!-- BLOGS TAB -->
     <section id="tab-blogs" class="tab-panel">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <h2>Safari Dispatches & Articles</h2>
@@ -102,6 +108,7 @@
   </div>
 </div>
 
+<!-- CREATE / EDIT BLOG MODAL -->
 <div id="blogModal" class="modal">
   <div class="modal-content">
     <button onclick="closeModal('blogModal')" class="modal-close">&times;</button>
@@ -140,6 +147,7 @@
   </div>
 </div>
 
+<!-- CREATE / EDIT DESTINATION MODAL -->
 <div id="destinationModal" class="modal">
   <div class="modal-content" style="max-width:500px;">
     <button onclick="closeModal('destinationModal')" class="modal-close">&times;</button>
@@ -161,24 +169,34 @@
 <script>
 let quill;
 
-// Helper: Safely grab CSRF Token from double-submit cookie
 function getCsrfToken() {
   const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
   return match ? match[2] : '';
 }
 
-// Helper: UI Toast Fallback
 function toast(msg, type = 'info') {
   if (window.showToast) return window.showToast(msg, type);
   alert(`[${type.toUpperCase()}] ${msg}`);
 }
 
-// Check Auth state on mount
+// FIXED: True network verification bypassing client-side httpOnly blindness
+async function verifyAdminSession() {
+  try {
+    const res = await fetch("/api/bookings?limit=1");
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Check Auth state via backend handshake on mount
 document.addEventListener("DOMContentLoaded", async () => {
-  const token = document.cookie.includes('token=');
-  if (!token) {
+  const isAuth = await verifyAdminSession();
+  if (!isAuth) {
     document.getElementById("login-view").style.display = "flex";
+    document.getElementById("admin-view").style.display = "none";
   } else {
+    document.getElementById("login-view").style.display = "none";
     document.getElementById("admin-view").style.display = "block";
     initQuill();
     loadBookings();
@@ -241,7 +259,6 @@ function initQuill() {
     }
   });
 
-  // FIXED: Intercept Quill's image button to upload straight to Cloudflare R2
   quill.getModule('toolbar').addHandler('image', () => {
     const fileInput = document.createElement('input');
     fileInput.setAttribute('type', 'file');
@@ -279,7 +296,6 @@ function initQuill() {
   });
 }
 
-// FIXED: Wire up Cover Image file picker directly to R2 upload pipe
 document.getElementById("blog-image-file")?.addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -306,7 +322,7 @@ document.getElementById("blog-image-file")?.addEventListener("change", async (e)
 
     if (!res.ok) throw new Error(data.message || "Failed to upload cover");
     
-    urlInput.value = data.url; // Lock permanent URL into text input
+    urlInput.value = data.url;
     toast("Cover photo locked into R2 Bucket!", "success");
   } catch (err) {
     urlInput.value = "";
@@ -438,7 +454,6 @@ async function loadMessages() {
   } catch(e) {}
 }
 
-// Blog Drivers
 async function loadBlogs() {
   const tbody = document.getElementById("blogs-tbody");
   try {
