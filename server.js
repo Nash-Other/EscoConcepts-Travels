@@ -1,3 +1,5 @@
+require('dotenv').config(); // <-- THE MISSING SKELETON KEY
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
