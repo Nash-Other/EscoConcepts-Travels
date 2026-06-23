@@ -136,7 +136,7 @@
   </div>
 </div>
 
-<!-- Blog Modal (Add/Edit) – uses Quill rich text editor -->
+<!-- Blog Modal (Add/Edit) -->
 <div id="blogModal" class="modal-overlay">
   <div class="modal-container" style="max-width: 900px;">
     <div class="modal-header">
@@ -149,7 +149,7 @@
         <div class="form-field"><label>Title *</label><input name="title" id="blogTitle" required class="input"></div>
         <div class="form-field"><label>Author</label><input name="author" id="blogAuthor" class="input"></div>
         
-        <!-- UPGRADED: Cover Image row with paired local File Picker and R2 URL Box -->
+        <!-- Cover Image Row -->
         <div class="form-field">
           <label>Cover Photo (Upload to Cloudflare R2 or paste URL)</label>
           <div style="display:flex; gap:0.5rem; align-items:center;">
@@ -159,10 +159,23 @@
         </div>
 
         <div class="form-field"><label>Excerpt</label><textarea name="excerpt" id="blogExcerpt" rows="2" class="textarea"></textarea></div>
-        <div class="form-field"><label>Content (rich text)</label>
+        
+        <!-- Content Row wrapped in relative position to hold the live progress overlay -->
+        <div class="form-field" style="position: relative;">
+          <label>Content (rich text)</label>
           <div id="editor" style="height: 400px; background: white;"></div>
           <textarea name="content" id="blogContent" style="display:none;"></textarea>
+
+          <!-- INJECTED LIVE PROGRESS OVERLAY (Hidden by default) -->
+          <div id="quill-progress-overlay" style="display:none; position:absolute; inset:0; top:1.5rem; background:rgba(255,255,255,0.85); z-index:10; align-items:center; justify-content:center; flex-direction:column; gap:0.75rem; border-radius:var(--radius-sm);">
+            <div class="spinner" style="border-top-color:var(--gold); width:2.5rem; height:2.5rem; border-width:3px;"></div>
+            <span id="quill-progress-text" style="font-weight:600; color:var(--ink); font-size:0.95rem;">Uploading to Cloudflare R2: 0%</span>
+            <div style="width:180px; height:6px; background:var(--line); border-radius:3px; overflow:hidden;">
+              <div id="quill-progress-bar" style="height:100%; width:0%; background:var(--gold); transition:width 0.1s ease;"></div>
+            </div>
+          </div>
         </div>
+
         <div class="button-group" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
           <button type="button" class="btn btn-outline" id="cancelBlogBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="blogSubmitBtn">Save</button>
@@ -175,7 +188,6 @@
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
 <script src="ui.js"></script>
 <script>
-  // ========== Helper functions ==========
   function escapeHtml(str) { if (!str) return ""; return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function fmtDate(d) { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch(e) { return d; } }
   function fmtPrice(v) { if (v == null || isNaN(Number(v))) return "—"; return "KSh " + Number(v).toLocaleString(); }
@@ -199,7 +211,6 @@
     return data;
   }
 
-  // Restored: True network verification bypassing client-side httpOnly blindness
   async function isAdminLoggedIn() {
     try { await apiRequestAdmin('/bookings?page=1&limit=1'); return true; } catch(e) { return false; }
   }
@@ -219,7 +230,6 @@
     }
   }
 
-  // ========== Login / Logout ==========
   document.getElementById("admin-login").addEventListener("submit", async (e) => {
     e.preventDefault();
     const payload = Object.fromEntries(new FormData(e.target).entries());
@@ -239,7 +249,6 @@
     }
   };
 
-  // ========== Restored: Exact Native Tab Logic ==========
   document.querySelectorAll(".admin-sidebar [data-tab]").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".admin-sidebar [data-tab]").forEach(b => b.classList.remove("active"));
@@ -255,7 +264,7 @@
     });
   });
 
-  // ========== Bookings ==========
+  // Bookings
   let bPage = 1, bTotalPages = 1;
   async function loadBookings() {
     const wrap = document.getElementById("b-table");
@@ -314,7 +323,7 @@
   document.getElementById("b-prev").onclick = () => { if (bPage > 1) { bPage--; loadBookings(); } };
   document.getElementById("b-next").onclick = () => { if (bPage < bTotalPages) { bPage++; loadBookings(); } };
 
-  // ========== Services ==========
+  // Services
   let sPage = 1, sTotalPages = 1;
   async function loadServices() {
     const wrap = document.getElementById("s-table");
@@ -414,7 +423,7 @@
     } catch (err) { window.showToast(err.message, "error"); }
   });
 
-  // ========== Contacts ==========
+  // Contacts
   let cPage = 1, cTotalPages = 1;
   async function loadContacts() {
     const wrap = document.getElementById("c-table");
@@ -437,22 +446,43 @@
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
 
-  // ========== Upgraded: R2 Cover Photo Picker Handler ==========
+  // ========== UPGRADED: Cover Image XHR Streamer with live % feedback ==========
   document.getElementById("blogImageFile")?.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const urlInput = document.getElementById("blogImageUrl");
-    urlInput.value = "Uploading buffer to Cloudflare R2...";
+
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const token = getCsrfToken();
-      const headers = {};
-      if (token) headers['X-CSRF-Token'] = token;
-      const res = await fetch("/api/upload", { method: "POST", headers, body: formData, credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
-      urlInput.value = data.url;
+      const finalUrl = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload", true);
+        const csrf = getCsrfToken();
+        if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
+
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const p = Math.round((ev.loaded / ev.total) * 100);
+            urlInput.value = `Streaming to R2 Bucket: ${p}%`;
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const r = JSON.parse(xhr.responseText);
+              if (r.success && r.url) resolve(r.url);
+              else reject(new Error(r.message || "Upload rejected by server"));
+            } catch(e) { reject(new Error("Malformed server response")); }
+          } else reject(new Error(`HTTP Error ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error("Network transmission failed"));
+
+        const fd = new FormData();
+        fd.append("image", file);
+        xhr.send(fd);
+      });
+
+      urlInput.value = finalUrl;
       window.showToast("Cover photo securely locked into R2!", "success");
     } catch (err) {
       urlInput.value = "";
@@ -462,7 +492,7 @@
     }
   });
 
-  // ========== Blogs with Quill ==========
+  // ========== UPGRADED: Quill Rich Text XHR Streamer with Frosted Canvas Overlay ==========
   let blPage = 1, blTotalPages = 1;
   let quillEditor = null;
 
@@ -487,7 +517,6 @@
     });
     if (content) quillEditor.root.innerHTML = content;
 
-    // Upgraded: Securely mounted body input preventing sandboxed .click() failures
     const toolbar = quillEditor.getModule('toolbar');
     toolbar.addHandler('image', () => {
       let input = document.getElementById('quill-r2-input');
@@ -502,24 +531,61 @@
       input.onchange = async () => {
         const file = input.files[0];
         if (!file) return;
+
+        // Grab the newly injected frosted overlay elements
+        const overlay = document.getElementById('quill-progress-overlay');
+        const progText = document.getElementById('quill-progress-text');
+        const progBar = document.getElementById('quill-progress-bar');
+
+        // Snap the overlay over the canvas
+        overlay.style.display = 'flex';
+        progText.innerText = `Uploading to Cloudflare R2: 0%`;
+        progBar.style.width = '0%';
+
         try {
-          window.showToast("Streaming image buffer to Cloudflare R2...", "info");
-          const formData = new FormData();
-          formData.append('image', file);
-          const token = getCsrfToken();
-          const headers = {};
-          if (token) headers['X-CSRF-Token'] = token;
-          const res = await fetch('/api/upload', { method: 'POST', headers, body: formData, credentials: 'include' });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.message || "Upload failed");
-          if (data.url) {
-            const range = quillEditor.getSelection(true);
-            quillEditor.insertEmbed(range.index, 'image', data.url);
-            window.showToast("Image embedded straight from cloud!", "success");
-          }
+          const uploadedUrl = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload', true);
+            const csrf = getCsrfToken();
+            if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
+
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progText.innerText = `Uploading to Cloudflare R2: ${percent}%`;
+                progBar.style.width = `${percent}%`;
+                if (percent === 100) {
+                  progText.innerText = "Processing buffer on Cloudflare...";
+                }
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const res = JSON.parse(xhr.responseText);
+                  if (res.success && res.url) resolve(res.url);
+                  else reject(new Error(res.message || "Upload rejected by server"));
+                } catch(err) { reject(new Error("Malformed server response")); }
+              } else {
+                reject(new Error(`HTTP Error ${xhr.status}`));
+              }
+            };
+            xhr.onerror = () => reject(new Error("Network transmission failed"));
+
+            const formData = new FormData();
+            formData.append('image', file);
+            xhr.send(formData);
+          });
+
+          const range = quillEditor.getSelection(true);
+          quillEditor.insertEmbed(range.index, 'image', uploadedUrl);
+          window.showToast("Image embedded straight from cloud!", "success");
+
         } catch (err) { 
           window.showToast(err.message, 'error'); 
         } finally {
+          overlay.style.display = 'none';
           input.value = "";
         }
       };
@@ -618,7 +684,6 @@
     } catch (err) { window.showToast(err.message, "error"); }
   });
 
-  // Modal close buttons
   document.getElementById("closeServiceModalBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
   document.getElementById("cancelServiceBtn")?.addEventListener("click", () => window.closeModal("serviceModal"));
   document.getElementById("closeBlogModalBtn")?.addEventListener("click", () => window.closeModal("blogModal"));
