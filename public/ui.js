@@ -17,7 +17,7 @@ function safeUrl(url, fallback = "") {
   if (!url) return fallback;
   try {
     const u = new URL(url, window.location.origin);
-    if (["http:", "https:"].includes(u.protocol)) return u.href;
+    if (["http:", "https:", "data:"].includes(u.protocol)) return u.href;
   } catch(e) {}
   return fallback;
 }

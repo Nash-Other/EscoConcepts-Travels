@@ -86,7 +86,6 @@
   </div>
 </section>
 
-<!-- Service Modal -->
 <div id="serviceModal" class="modal-backdrop">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="modal-close" aria-label="Close">&times;</button>
@@ -105,8 +104,6 @@
 
 <script src="ui.js"></script>
 <script>
-  // Page‑specific logic (uses global helpers safeUrl, sanitizeHtml, fmtPrice, fmtDate, renderStars, showToast, escapeHtml, apiRequest)
-  
   async function fetchFullService(serviceId) {
     const res = await fetch(`/api/services`);
     const data = await res.json();
@@ -122,9 +119,10 @@
       showToast("Could not load destination details", "error");
       return;
     }
-    const img = safeUrl(service.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
-    const gallery = (service.gallery || []).map(safeUrl).filter(Boolean);
-    const galleryHtml = gallery.length ? `<div class="modal-gallery">${gallery.map(u => `<img loading="lazy" src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join("")}</div>` : "";
+    const fallbackImg = "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=1400&q=80";
+    const img = safeUrl(service.image_url) || fallbackImg;
+    const gallery = (service.gallery || []).map(u => safeUrl(u)).filter(Boolean);
+    const galleryHtml = gallery.length ? `<div class="modal-gallery">${gallery.map(u => `<img loading="lazy" src="${u}" alt="" onerror="this.onerror=null;this.src='${fallbackImg}';" onclick="window.open('${u}','_blank')">`).join("")}</div>` : "";
     const itinerary = service.itinerary ? `<div class="itinerary"><h4>Itinerary</h4>${sanitizeHtml(service.itinerary)}</div>` : "";
     const serviceIdNum = service.service_id;
 
@@ -139,7 +137,6 @@
       canReview = check.canReview === true;
       alreadyReviewed = check.alreadyReviewed === true;
     } catch(e) { 
-      // User not logged in or other error – skip review form
       console.log(e);
     }
 
@@ -195,7 +192,7 @@
     reviewsHtml += `</div>`;
 
     contentDiv.innerHTML = `
-      <img class="modal-img" src="${img}" alt="${escapeHtml(service.title)}">
+      <img class="modal-img" src="${img}" alt="${escapeHtml(service.title)}" onerror="this.onerror=null;this.src='${fallbackImg}';">
       <div class="modal-body">
         <span class="eyebrow">${escapeHtml(service.destination || "Kenya")}</span>
         <h2>${escapeHtml(service.title)}</h2>
@@ -264,8 +261,9 @@
     if (avg) {
       avgRatingHtml = `<div class="avg-rating" style="margin-top:0.5rem;">${renderStars(avg)} <span style="font-size:0.8rem;">(${avg})</span></div>`;
     }
-    const img = safeUrl(s.image_url) || "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80";
-    return `<article class="card" data-id="${s.service_id}"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}"><div class="card-body"><h3>${escapeHtml(s.title)}</h3><div class="card-meta">${escapeHtml(s.destination || "Kenya")}</div><div class="card-price">${fmtPrice(s.base_price)}</div>${avgRatingHtml}<button class="btn btn-sm view-btn">View Details</button></div></article>`;
+    const fallbackUrl = "https://images.unsplash.com/photo-1534567110353-1f46d62547c0?auto=format&fit=crop&w=900&q=80";
+    const img = safeUrl(s.image_url) || fallbackUrl;
+    return `<article class="card" data-id="${s.service_id}"><img class="card-img" loading="lazy" src="${img}" alt="${escapeHtml(s.title)}" onerror="this.onerror=null;this.src='${fallbackUrl}';"><div class="card-body"><h3>${escapeHtml(s.title)}</h3><div class="card-meta">${escapeHtml(s.destination || "Kenya")}</div><div class="card-price">${fmtPrice(s.base_price)}</div>${avgRatingHtml}<button class="btn btn-sm view-btn">View Details</button></div></article>`;
   }
 
   let allDestinations = [];
@@ -290,7 +288,7 @@
   }
   loadDestinations();
 
-  document.getElementById("y").textContent = new Date().getFullYear();
+  document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 </body>
 </html>
