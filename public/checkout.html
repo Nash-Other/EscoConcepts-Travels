@@ -3,33 +3,81 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Checkout — EscoConcepts Travels</title>
-<meta name="description" content="Complete your safari booking. Tell us about your trip and we'll confirm within 24 hours.">
-<meta name="keywords" content="book safari, checkout, safari booking, payment">
+<meta name="description" content="Secure your custom Kenya safari booking with EscoConcepts Travels.">
+<meta name="keywords" content="checkout, booking, safari, payment, kenya">
 <meta name="author" content="EscoConcepts Travels">
-<meta property="og:title" content="Checkout | EscoConcepts Travels">
-<meta property="og:description" content="Book your tailor-made Kenya safari.">
+<meta property="og:title" content="Secure Checkout | EscoConcepts Travels">
+<meta property="og:description" content="Finalize your custom safari arrangements securely.">
 <meta property="og:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
 <meta property="og:url" content="https://esconcepts-travels.onrender.com/checkout.html">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Checkout | EscoConcepts Travels">
-<meta name="twitter:description" content="Secure your safari booking.">
+<meta name="twitter:title" content="Secure Checkout | EscoConcepts Travels">
+<meta name="twitter:description" content="Finalize your safari arrangements.">
 <meta name="twitter:image" content="https://esconcepts-travels.onrender.com/images/og-image.jpg">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "CheckoutPage",
-  "name": "Safari Booking Checkout",
-  "description": "Complete your safari booking.",
+  "@type": "WebPage",
+  "name": "Secure Checkout",
+  "description": "Safari checkout processing panel.",
   "url": "https://esconcepts-travels.onrender.com/checkout.html"
 }
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="ui.css">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80'%3E🐘%3C/text%3E%3C/svg%3E">
 <script src="config.js"></script>
+<style>
+  .custom-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #2c2b28;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+  }
+  .custom-toast.success { background: #1d7a3f; }
+  .custom-toast.error { background: #b00020; }
+  .custom-toast.show { opacity: 1; transform: translateY(0); }
+
+  .price-breakdown-card {
+    background: var(--bg-soft);
+    border: 2px dashed var(--gold);
+    padding: 1.25rem;
+    border-radius: var(--radius-sm);
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .price-breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+    color: var(--ink-soft);
+  }
+  .price-breakdown-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
+    border-top: 1px dashed var(--line);
+    padding-top: 0.6rem;
+    margin-top: 0.6rem;
+  }
+</style>
 </head>
 <body>
 
@@ -55,6 +103,7 @@
 <section>
   <div class="container" style="max-width:900px">
     <div id="pkg-summary" style="background:#fff;padding:1.5rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06);margin-bottom:2rem"><div class="loading">Loading package…</div></div>
+    
     <form id="checkout-form" style="background:#fff;padding:2rem;border-radius:1rem;box-shadow:0 6px 24px rgba(0,0,0,.06)">
       <div class="form-grid">
         <div class="form-field"><label>First name *</label><input name="firstName" id="firstName" required class="input"></div>
@@ -63,16 +112,22 @@
         <div class="form-field"><label>Phone *</label><input name="phone" id="phone" required class="input"></div>
         <div class="form-field"><label>Travel date *</label><input type="date" name="travelDate" required class="input" id="travelDate"></div>
         <div class="form-field"><label>Return date (end date) *</label><input type="date" name="returnDate" required class="input" id="returnDate"></div>
-        <div class="form-field"><label>Number of guests *</label><select name="pax" id="pax" required class="select"></select>
+        
+        <div class="form-field">
+          <label>Number of guests *</label>
+          <select name="pax" id="pax" required class="select"></select>
           <small style="display:block; margin-top:0.25rem; color:var(--ink-soft);">For groups larger than 10 guests, please <a href="contact.html">contact us</a> for a custom quote.</small>
         </div>
+        
         <div class="form-field full"><label>Special requests</label><textarea name="specialRequests" placeholder="Dietary needs, occasions, accessibility…" class="textarea"></textarea></div>
+        
         <div class="form-field full"><label>Payment method *</label>
           <select name="paymentMethod" id="paymentMethod" required class="select">
             <option value="card">Credit / Debit Card</option>
             <option value="mpesa">M-Pesa</option>
           </select>
         </div>
+        
         <!-- Conditional fields for payment method -->
         <div id="card-fields" class="form-field full" style="display: none;">
           <div class="alert info" style="background:var(--bg-soft); padding:0.75rem; border-radius:0.5rem;">
@@ -80,29 +135,28 @@
             After confirming your booking, we will send you a secure payment link to complete your card payment.
           </div>
         </div>
+        
         <div id="mpesa-fields" class="form-field full" style="display: none;">
           <label>M-Pesa Phone Number *</label>
           <input type="tel" name="mpesaPhone" id="mpesaPhone" placeholder="0712345678" class="input">
           <small style="display:block; margin-top:0.25rem; color:var(--ink-soft);">You will receive an STK push to this number to complete payment.</small>
         </div>
 
-        <!-- INJECTED LIVE PRICE CALCULATION SECTION -->
-        <div id="price-calc-wrap" class="form-field full" style="display: none; background: #fcfaf7; border: 2px solid var(--gold, #d4af37); padding: 1.5rem; border-radius: 0.75rem; margin-top: 1rem;">
-          <h4 style="margin: 0 0 1rem 0; color: var(--ink); font-size: 1.1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
-            <span>Investment Summary</span>
-            <span style="font-size: 0.9rem; font-weight: 400; color: var(--ink-soft);">Guaranteed Rate</span>
-          </h4>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--ink-soft);">
-            <span>Base Rate (per person):</span>
-            <span id="calc-base" style="font-weight: 600; color: var(--ink);">KES 0</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; color: var(--ink-soft);">
-            <span>Guests Selected:</span>
-            <span id="calc-pax" style="font-weight: 600; color: var(--ink);">1 Guest</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--line); padding-top: 0.75rem; font-size: 1.25rem; font-weight: 700;">
-            <span style="color: var(--ink);">Total Safari Investment:</span>
-            <span id="calc-total" style="color: var(--gold-dark, #b8860b);">KES 0</span>
+        <!-- INJECTED LIVE PRICE CALCULATION CARD -->
+        <div class="form-field full" id="live-calculation-card" style="display: none;">
+          <div class="price-breakdown-card">
+            <div class="price-breakdown-row">
+              <span>Base Package Rate (Per Person):</span>
+              <strong id="calc-base-rate" style="color: var(--ink);">KES 0</strong>
+            </div>
+            <div class="price-breakdown-row">
+              <span>Total Selected Guests:</span>
+              <strong id="calc-guest-count" style="color: var(--ink);">x 1</strong>
+            </div>
+            <div class="price-breakdown-total">
+              <span>Total Safari Investment:</span>
+              <span id="calc-total-investment" style="color: var(--gold-dark);">KES 0</span>
+            </div>
           </div>
         </div>
 
@@ -149,6 +203,21 @@
   }
   paymentMethodSelect.addEventListener("change", togglePaymentFields);
 
+  // Dynamic Pricing Calculation Engine
+  function calculateTotalRealtime() {
+    if (!pkg) return;
+    const basePrice = Number(pkg.base_price) || 0;
+    const guests = parseInt(paxSel.value) || 1;
+    const computedTotal = basePrice * guests;
+
+    document.getElementById("calc-base-rate").textContent = fmtPrice(basePrice);
+    document.getElementById("calc-guest-count").textContent = `x ${guests}`;
+    document.getElementById("calc-total-investment").textContent = fmtPrice(computedTotal);
+    document.getElementById("live-calculation-card").style.display = "block";
+  }
+
+  paxSel.addEventListener("change", calculateTotalRealtime);
+
   function openModal(html) {
     const b = document.getElementById("checkoutModal") || (() => {
       const d = document.createElement("div");
@@ -180,22 +249,6 @@
       console.warn("Could not fetch user profile for prefill:", err);
     }
   }
-
-  // INJECTED: Dynamic total math handler
-  function updateLiveCalculation() {
-    if (!pkg) return;
-    const baseRate = Number(pkg.base_price) || 0;
-    const guestCount = Number(paxSel.value) || 1;
-    const totalInvestment = baseRate * guestCount;
-
-    document.getElementById("calc-base").textContent = fmtPrice(baseRate);
-    document.getElementById("calc-pax").textContent = guestCount + (guestCount === 1 ? " Guest" : " Guests");
-    document.getElementById("calc-total").textContent = fmtPrice(totalInvestment);
-    document.getElementById("price-calc-wrap").style.display = "block";
-  }
-
-  // Hook listener to dropdown
-  paxSel.addEventListener("change", updateLiveCalculation);
 
   async function loadPkg() {
     if (!pkgId) { summary.innerHTML = `<div class="empty">No package selected. <a href="packages.html">Browse packages</a></div>`; form.style.display = "none"; return; }
@@ -230,8 +283,8 @@
         }
       });
 
-      // Trigger calculation instantly on load lock-in
-      updateLiveCalculation();
+      // Fire initial calculation layout mapping
+      calculateTotalRealtime();
 
     } catch(e) { summary.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; form.style.display = "none"; }
   }
@@ -246,7 +299,7 @@
     payload.pax = Number(payload.pax);
     payload.service_id = pkg.service_id;
     
-    // Explicitly lock the live calculated math into the outgoing request payload
+    // Inject exact multiplied financial sum to the upstream payload
     payload.total_amount = (Number(pkg.base_price) || 0) * payload.pax;
 
     if (!isValidEmail(payload.email)) return showAlert(msg, "Please enter a valid email.");
@@ -272,12 +325,11 @@
       openModal(`<div class="modal-body" style="text-align:center"><h2>Booking received!</h2><p>Thank you, ${escapeHtml(payload.firstName)}. We'll be in touch shortly to confirm your safari.</p><p>Your booking reference:</p><div style="font-family:monospace;font-size:1.3rem;background:var(--bg-soft);padding:1rem;border-radius:.5rem;margin:1rem 0">${escapeHtml(String(ref))}</div><a href="account.html" class="btn btn-gold">View My Bookings</a></div>`);
       form.reset();
       togglePaymentFields();
-      updateLiveCalculation(); // reset live calc box
+      calculateTotalRealtime();
     } catch(err) { showAlert(msg, err.message); }
     finally { btn.disabled = false; btn.textContent = "Confirm Booking"; }
   });
 
-  // Fixed footer year ID selector
   document.getElementById("year").textContent = new Date().getFullYear();
 </script>
 </body>
