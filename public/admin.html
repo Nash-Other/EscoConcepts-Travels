@@ -121,7 +121,16 @@
           <div class="form-field"><label>Destination *</label><input name="destination" id="svcDestination" required class="input"></div>
           <div class="form-field"><label>Base price *</label><input type="number" name="base_price" id="svcPrice" required class="input"></div>
           <div class="form-field"><label>Max pax *</label><input type="number" name="max_pax" id="svcMaxPax" required class="input"></div>
-          <div class="form-field full"><label>Image URL</label><input name="image_url" id="svcImageUrl" class="input"></div>
+          
+          <!-- UPGRADED: Destination Image Row -->
+          <div class="form-field full">
+            <label>Destination Image (Upload to Cloudflare R2 or paste URL)</label>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <input type="file" id="svcImageFile" accept="image/*" class="input" style="flex:1; padding:0.35rem;">
+              <input name="image_url" id="svcImageUrl" class="input" placeholder="https://pub-..." style="flex:2;">
+            </div>
+          </div>
+
           <div class="form-field full"><label>Gallery (comma-separated URLs)</label><textarea name="gallery" id="svcGallery" rows="2" class="textarea"></textarea></div>
           <div class="form-field full"><label>Description (HTML allowed)</label><textarea name="description" id="svcDescription" rows="3" class="textarea"></textarea></div>
           <div class="form-field full"><label>Itinerary (HTML allowed)</label><textarea name="itinerary" id="svcItinerary" rows="3" class="textarea"></textarea></div>
@@ -445,6 +454,52 @@
   document.getElementById("c-apply").onclick = () => { cPage = 1; loadContacts(); };
   document.getElementById("c-prev").onclick = () => { if (cPage > 1) { cPage--; loadContacts(); } };
   document.getElementById("c-next").onclick = () => { if (cPage < cTotalPages) { cPage++; loadContacts(); } };
+
+  // ========== UPGRADED: Destination Image XHR Streamer with live % feedback ==========
+  document.getElementById("svcImageFile")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const urlInput = document.getElementById("svcImageUrl");
+
+    try {
+      const finalUrl = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload", true);
+        const csrf = getCsrfToken();
+        if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
+
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const p = Math.round((ev.loaded / ev.total) * 100);
+            urlInput.value = `Streaming to R2 Bucket: ${p}%`;
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const r = JSON.parse(xhr.responseText);
+              if (r.success && r.url) resolve(r.url);
+              else reject(new Error(r.message || "Upload rejected by server"));
+            } catch(e) { reject(new Error("Malformed server response")); }
+          } else reject(new Error(`HTTP Error ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error("Network transmission failed"));
+
+        const fd = new FormData();
+        fd.append("image", file);
+        xhr.send(fd);
+      });
+
+      urlInput.value = finalUrl;
+      window.showToast("Destination photo securely locked into R2!", "success");
+    } catch (err) {
+      urlInput.value = "";
+      window.showToast(err.message, "error");
+    } finally {
+      e.target.value = "";
+    }
+  });
 
   // ========== UPGRADED: Cover Image XHR Streamer with live % feedback ==========
   document.getElementById("blogImageFile")?.addEventListener("change", async (e) => {
